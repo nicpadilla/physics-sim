@@ -1,0 +1,8 @@
+{
+  "name": "physics-sim",
+  "version-string": "0.1.0",
+  "builtin-baseline": "cea592f4772491abdb7c483387a59ea89889f4be",
+  "dependencies": [
+    "sdl2"
+  ]
+}
