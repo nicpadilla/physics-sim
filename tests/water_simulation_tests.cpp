@@ -18,6 +18,24 @@ bool nearly_equal(double lhs, double rhs, double epsilon = 0.0005) noexcept
     return std::fabs(lhs - rhs) <= epsilon;
 }
 
+bool finite_vec2(const physics_sim::Vec2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+bool finite_values(const std::vector<float>& values) noexcept
+{
+    for (float value : values)
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 [[noreturn]] void fail(const char* message, const char* file, int line)
 {
     std::fprintf(stderr, "FAIL %s:%d: %s\n", file, line, message);
@@ -124,6 +142,50 @@ int main()
 
         REQUIRE(has_left, "omni emitter never emitted a leftward particle");
         REQUIRE(has_right, "omni emitter never emitted a rightward particle");
+    }
+
+    {
+        physics_sim::WaterSimulation2D sim{12, 12, 1.0f};
+        for (std::size_t x = 0; x < sim.grid().width(); ++x)
+        {
+            sim.set_solid_cell(x, sim.grid().height() - 1, true);
+        }
+        for (std::size_t y = 3; y < sim.grid().height(); ++y)
+        {
+            sim.set_solid_cell(0, y, true);
+            sim.set_solid_cell(sim.grid().width() - 1, y, true);
+        }
+
+        physics_sim::WaterEmitter emitter;
+        emitter.kind = physics_sim::WaterEmitterKind::Directional;
+        emitter.position = Vec2{6.0f, 2.0f};
+        emitter.direction = Vec2{0.0f, 1.0f};
+        emitter.speed = 6.0f;
+        emitter.emission_rate = 12.0f;
+        sim.add_emitter(emitter);
+
+        constexpr int steps = 6000;
+        for (int i = 0; i < steps; ++i)
+        {
+            sim.step(1.0 / 120.0);
+
+            REQUIRE(finite_values(sim.grid().pressure_values()), "pressure became non-finite during stress run");
+            REQUIRE(finite_values(sim.grid().divergence_values()), "divergence became non-finite during stress run");
+            REQUIRE(finite_values(sim.grid().u_values()), "u velocity became non-finite during stress run");
+            REQUIRE(finite_values(sim.grid().v_values()), "v velocity became non-finite during stress run");
+
+            for (const auto& particle : sim.particles())
+            {
+                REQUIRE(finite_vec2(particle.position), "particle position became non-finite during stress run");
+                REQUIRE(finite_vec2(particle.velocity), "particle velocity became non-finite during stress run");
+            }
+
+            REQUIRE(std::isfinite(sim.metrics().average_divergence_after_projection), "average divergence became non-finite during stress run");
+            REQUIRE(std::isfinite(sim.metrics().max_divergence_after_projection), "max divergence became non-finite during stress run");
+        }
+
+        REQUIRE(sim.metrics().total_emitted > 0, "stress run never emitted fluid");
+        REQUIRE(!sim.particles().empty(), "stress run lost all particles");
     }
 
     {
