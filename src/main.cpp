@@ -10,11 +10,14 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <system_error>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <physics_sim/action.hpp>
+#include <physics_sim/debug_overlay.hpp>
 #include <physics_sim/fixed_timestep.hpp>
 #include <physics_sim/math.hpp>
 #include <physics_sim/scene_document.hpp>
@@ -31,6 +34,8 @@ namespace fs = std::filesystem;
 struct RuntimeOptions
 {
     std::optional<std::chrono::milliseconds> autoExitAfter;
+    std::optional<fs::path> dumpFramePath;
+    std::optional<std::chrono::milliseconds> dumpFrameAfter;
 };
 
 void show_error(const char* title, const std::string& message)
@@ -67,6 +72,22 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg.starts_with("--auto-exit-ms="))
         {
             options.autoExitAfter = parse_milliseconds(arg.substr(std::string_view("--auto-exit-ms=").size()));
+        }
+        else if (arg == "--dump-frame" && i + 1 < argc)
+        {
+            options.dumpFramePath = fs::path{argv[++i]};
+        }
+        else if (arg.starts_with("--dump-frame="))
+        {
+            options.dumpFramePath = fs::path{arg.substr(std::string_view("--dump-frame=").size())};
+        }
+        else if (arg == "--dump-frame-after-ms" && i + 1 < argc)
+        {
+            options.dumpFrameAfter = parse_milliseconds(argv[++i]);
+        }
+        else if (arg.starts_with("--dump-frame-after-ms="))
+        {
+            options.dumpFrameAfter = parse_milliseconds(arg.substr(std::string_view("--dump-frame-after-ms=").size()));
         }
     }
 
@@ -154,9 +175,9 @@ void draw_walls(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewpo
 void draw_particles(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
 {
     const float cell_size = simulation.grid().cell_size();
-    const float particle_size = std::max(2.0f, cell_size * 0.22f);
+    const float particle_size = std::max(8.0f, cell_size * 0.6f);
 
-    SDL_SetRenderDrawColor(renderer, 88, 196, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 78, 214, 255, 255);
     for (const auto& particle : simulation.particles())
     {
         const SDL_FRect rect = world_rect(
@@ -164,6 +185,56 @@ void draw_particles(SDL_Renderer* renderer, const physics_sim::SceneViewport& vi
             {particle.position.x - particle_size * 0.5f, particle.position.y - particle_size * 0.5f},
             {particle_size, particle_size});
         SDL_RenderFillRectF(renderer, &rect);
+    }
+}
+
+void draw_fluid_density(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
+{
+    const auto& grid = simulation.grid();
+    if (grid.width() == 0 || grid.height() == 0)
+    {
+        return;
+    }
+
+    std::vector<std::size_t> counts(grid.cell_count(), 0);
+    const float inv_cell_size = 1.0f / grid.cell_size();
+    for (const auto& particle : simulation.particles())
+    {
+        const int cell_x = static_cast<int>(std::floor(particle.position.x * inv_cell_size));
+        const int cell_y = static_cast<int>(std::floor(particle.position.y * inv_cell_size));
+        if (cell_x < 0 || cell_y < 0 || static_cast<std::size_t>(cell_x) >= grid.width() || static_cast<std::size_t>(cell_y) >= grid.height())
+        {
+            continue;
+        }
+
+        if (grid.solid(static_cast<std::size_t>(cell_x), static_cast<std::size_t>(cell_y)))
+        {
+            continue;
+        }
+
+        const std::size_t index = grid.cell_index(static_cast<std::size_t>(cell_x), static_cast<std::size_t>(cell_y));
+        ++counts[index];
+    }
+
+    for (std::size_t y = 0; y < grid.height(); ++y)
+    {
+        for (std::size_t x = 0; x < grid.width(); ++x)
+        {
+            const std::size_t index = grid.cell_index(x, y);
+            const std::size_t count = counts[index];
+            if (count == 0)
+            {
+                continue;
+            }
+
+            const std::uint8_t alpha = static_cast<std::uint8_t>(std::min<std::size_t>(220, 50 + count * 18));
+            SDL_SetRenderDrawColor(renderer, 46, 180, 255, alpha);
+            const SDL_FRect rect = world_rect(
+                viewport,
+                {static_cast<float>(x) * grid.cell_size(), static_cast<float>(y) * grid.cell_size()},
+                {grid.cell_size(), grid.cell_size()});
+            SDL_RenderFillRectF(renderer, &rect);
+        }
     }
 }
 
@@ -293,6 +364,34 @@ bool load_scene_from_file(
     state.reset();
     driver.reset();
     return true;
+}
+
+bool save_frame(SDL_Renderer* renderer, const fs::path& path, int width, int height)
+{
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (surface == nullptr)
+    {
+        return false;
+    }
+
+    const auto parent = path.parent_path();
+    if (!parent.empty())
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(parent, ec);
+    }
+
+    const int read_result = SDL_RenderReadPixels(renderer, nullptr, surface->format->format, surface->pixels, surface->pitch);
+    if (read_result != 0)
+    {
+        SDL_FreeSurface(surface);
+        return false;
+    }
+
+    const std::string path_utf8 = path.string();
+    const int save_result = SDL_SaveBMP(surface, path_utf8.c_str());
+    SDL_FreeSurface(surface);
+    return save_result == 0;
 }
 
 bool restore_demo_scene(
@@ -480,6 +579,7 @@ int main(int argc, char* argv[])
 
     bool panning = false;
     bool painting = false;
+    bool frameDumped = false;
 
     const auto appStart = Clock::now();
     auto lastFrameTime = appStart;
@@ -656,13 +756,30 @@ int main(int argc, char* argv[])
         SDL_RenderClear(renderer);
 
         draw_grid(renderer, viewport, simulation);
+        draw_fluid_density(renderer, viewport, simulation);
         draw_walls(renderer, viewport, simulation);
         draw_particles(renderer, viewport, simulation);
         draw_emitters(renderer, viewport, simulation);
         draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen));
         draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y));
-
         const double averageFps = realElapsed.count() > 0.0 ? static_cast<double>(frameCount) / realElapsed.count() : 0.0;
+        physics_sim::DebugOverlayMetrics overlayMetrics;
+        overlayMetrics.fps = averageFps;
+        overlayMetrics.driver = &stepDriver;
+        overlayMetrics.state = &simulationState;
+        overlayMetrics.simulation = &simulation;
+        overlayMetrics.controller = &controller;
+        draw_debug_overlay(renderer, overlayMetrics, viewport.scale());
+
+        if (!frameDumped && options.dumpFramePath.has_value())
+        {
+            const bool ready_to_dump = !options.dumpFrameAfter.has_value() || realElapsed >= *options.dumpFrameAfter;
+            if (ready_to_dump)
+            {
+                static_cast<void>(save_frame(renderer, *options.dumpFramePath, windowWidth, windowHeight));
+                frameDumped = true;
+            }
+        }
         SDL_SetWindowTitle(
             window,
             build_window_title(simulationState, stepDriver, lastUpdate, averageFps, simulation, controller, viewport).c_str());
