@@ -130,4 +130,8 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME physics_sim_scene_persistence_tests COMMAND physics_sim_scene_persistence_tests)
+
+    add_test(NAME physics_sim_demo_regression
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene.ps1
+    )
 endif()

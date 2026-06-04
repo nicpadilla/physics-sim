@@ -36,6 +36,7 @@ struct RuntimeOptions
     std::optional<std::chrono::milliseconds> autoExitAfter;
     std::optional<fs::path> dumpFramePath;
     std::optional<std::chrono::milliseconds> dumpFrameAfter;
+    std::optional<std::uint64_t> dumpFrameAfterTicks;
 };
 
 void show_error(const char* title, const std::string& message)
@@ -88,6 +89,26 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg.starts_with("--dump-frame-after-ms="))
         {
             options.dumpFrameAfter = parse_milliseconds(arg.substr(std::string_view("--dump-frame-after-ms=").size()));
+        }
+        else if (arg == "--dump-frame-after-ticks" && i + 1 < argc)
+        {
+            std::uint64_t parsed = 0;
+            const auto value = std::string_view{argv[++i]};
+            const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+            if (ec == std::errc{} && ptr == value.data() + value.size())
+            {
+                options.dumpFrameAfterTicks = parsed;
+            }
+        }
+        else if (arg.starts_with("--dump-frame-after-ticks="))
+        {
+            std::uint64_t parsed = 0;
+            const std::string_view value = arg.substr(std::string_view("--dump-frame-after-ticks=").size());
+            const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+            if (ec == std::errc{} && ptr == value.data() + value.size())
+            {
+                options.dumpFrameAfterTicks = parsed;
+            }
         }
     }
 
@@ -580,6 +601,8 @@ int main(int argc, char* argv[])
     bool panning = false;
     bool painting = false;
     bool frameDumped = false;
+    const bool captureByTickCount = options.dumpFrameAfterTicks.has_value();
+    const bool cleanCaptureFrame = captureByTickCount;
 
     const auto appStart = Clock::now();
     auto lastFrameTime = appStart;
@@ -734,6 +757,11 @@ int main(int argc, char* argv[])
             }
         }
 
+        if (captureByTickCount && simulationState.tick_count < *options.dumpFrameAfterTicks)
+        {
+            stepDriver.request_step();
+        }
+
         const auto now = Clock::now();
         const auto frameDelta = std::chrono::duration_cast<physics_sim::FixedStepDriver::duration>(now - lastFrameTime);
         lastFrameTime = now;
@@ -763,21 +791,30 @@ int main(int argc, char* argv[])
         draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen));
         draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y));
         const double averageFps = realElapsed.count() > 0.0 ? static_cast<double>(frameCount) / realElapsed.count() : 0.0;
-        physics_sim::DebugOverlayMetrics overlayMetrics;
-        overlayMetrics.fps = averageFps;
-        overlayMetrics.driver = &stepDriver;
-        overlayMetrics.state = &simulationState;
-        overlayMetrics.simulation = &simulation;
-        overlayMetrics.controller = &controller;
-        draw_debug_overlay(renderer, overlayMetrics, viewport.scale());
+        if (!cleanCaptureFrame)
+        {
+            physics_sim::DebugOverlayMetrics overlayMetrics;
+            overlayMetrics.fps = averageFps;
+            overlayMetrics.driver = &stepDriver;
+            overlayMetrics.state = &simulationState;
+            overlayMetrics.simulation = &simulation;
+            overlayMetrics.controller = &controller;
+            draw_debug_overlay(renderer, overlayMetrics, viewport.scale());
+        }
 
         if (!frameDumped && options.dumpFramePath.has_value())
         {
-            const bool ready_to_dump = !options.dumpFrameAfter.has_value() || realElapsed >= *options.dumpFrameAfter;
+            const bool ready_to_dump = captureByTickCount
+                ? simulationState.tick_count >= *options.dumpFrameAfterTicks
+                : !options.dumpFrameAfter.has_value() || realElapsed >= *options.dumpFrameAfter;
             if (ready_to_dump)
             {
                 static_cast<void>(save_frame(renderer, *options.dumpFramePath, windowWidth, windowHeight));
                 frameDumped = true;
+                if (captureByTickCount)
+                {
+                    running = false;
+                }
             }
         }
         SDL_SetWindowTitle(

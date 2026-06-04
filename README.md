@@ -68,6 +68,14 @@ Tests:
 .\scripts\test.ps1
 ```
 
+Golden-scene regression check:
+
+```powershell
+.\scripts\verify-demo-scene.ps1
+```
+
+The regression check launches the demo scene, captures a deterministic frame, and compares it against `regression\demo_scene_golden.bmp`.
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the stage goals and completion markers.

@@ -1,0 +1,81 @@
+$ErrorActionPreference = 'Stop'
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$exe = Join-Path $repoRoot 'build\windows-x64\Debug\physics-sim.exe'
+$baseline = Join-Path $repoRoot 'regression\demo_scene_golden.bmp'
+$capture = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression_capture.bmp'
+$log = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression.log'
+
+function Write-Log
+{
+    param([string]$Message)
+    Add-Content -LiteralPath $log -Value $Message
+}
+
+Set-Content -LiteralPath $log -Value "[demo-regression] starting"
+Write-Log "[demo-regression] baseline: $baseline"
+Write-Log "[demo-regression] capture:  $capture"
+
+if (-not (Test-Path $exe))
+{
+    Write-Log "[demo-regression] missing exe"
+    throw "Could not find $exe. Run .\scripts\build.ps1 first."
+}
+
+if (-not (Test-Path $baseline))
+{
+    Write-Log "[demo-regression] missing baseline"
+    throw "Missing regression baseline: $baseline"
+}
+
+if (Test-Path $capture)
+{
+    Remove-Item -LiteralPath $capture -Force
+}
+
+Write-Log "[demo-regression] launching app"
+$process = Start-Process -FilePath $exe -ArgumentList @(
+    '--dump-frame', $capture,
+    '--dump-frame-after-ticks', '240',
+    '--auto-exit-ms', '10000'
+) -Wait -PassThru
+Write-Log "[demo-regression] app exit code: $($process.ExitCode)"
+
+if ($process.ExitCode -ne 0)
+{
+    throw "physics-sim.exe returned exit code $($process.ExitCode)"
+}
+
+if (-not (Test-Path $capture))
+{
+    Write-Log "[demo-regression] capture missing"
+    throw "Regression capture was not written to $capture"
+}
+
+Write-Log "[demo-regression] capture written"
+
+$baselineHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $baseline).Hash
+$captureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $capture).Hash
+Write-Log "[demo-regression] baseline hash: $baselineHash"
+Write-Log "[demo-regression] capture hash:  $captureHash"
+
+try
+{
+    if ($baselineHash -ne $captureHash)
+    {
+        Write-Log "[demo-regression] hash mismatch"
+        throw "Demo scene regression mismatch.`nBaseline: $baselineHash`nCapture:  $captureHash"
+    }
+
+    Write-Log "[demo-regression] hash match"
+}
+finally
+{
+    if (Test-Path $capture)
+    {
+        Remove-Item -LiteralPath $capture -Force
+        Write-Log "[demo-regression] capture removed"
+    }
+}
+
+Write-Log "[demo-regression] success"
