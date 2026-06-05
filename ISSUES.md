@@ -65,12 +65,12 @@ Allowed priorities:
 | PSIM-0049 | Done | P2 | Fluid Realism And Validation | R10.04, R10.06, R11.07 | Fluid realism scenario gallery |
 | PSIM-0050 | Done | P1 | Fluid Realism And Validation | R8.01, R8.02, R8.03, R8.04, R8.05, R8.06, R8.07, R12.04 | Final fluid realism audit |
 | PSIM-0051 | Done | P2 | Finished Game Polish And Presentation | R11.01, R11.06, R11.07, R12.06 | Finished-game product direction and UX quality bar |
-| PSIM-0052 | Deferred | P2 | Finished Game Polish And Presentation | R11.01, R11.03, R11.06, R12.03 | Main menu, pause menu, and session shell |
+| PSIM-0052 | Done | P2 | Finished Game Polish And Presentation | R11.01, R11.03, R11.06, R12.03 | Main menu, pause menu, and session shell |
 | PSIM-0053 | Done | P2 | Finished Game Polish And Presentation | R5.03, R7.06, R9.06, R11.06 | HUD, tool palette, and in-game readability pass |
-| PSIM-0054 | Deferred | P2 | Finished Game Polish And Presentation | R7.05, R11.01, R11.07 | First-run onboarding and interactive tutorial |
+| PSIM-0054 | Done | P2 | Finished Game Polish And Presentation | R7.05, R11.01, R11.07 | First-run onboarding and interactive tutorial |
 | PSIM-0055 | Done | P2 | Finished Game Polish And Presentation | R10.02, R10.03, R10.04, R10.06, R11.02, R11.07 | Scenario browser, progression, and objective presentation |
 | PSIM-0056 | Done | P2 | Finished Game Polish And Presentation | R5.01, R5.02, R11.04, R11.05 | Visual identity, art direction, and rendering polish |
-| PSIM-0057 | Deferred | P2 | Finished Game Polish And Presentation | R5.04, R11.03, R11.05, R11.06 | Animation, camera, and moment-to-moment feedback |
+| PSIM-0057 | Done | P2 | Finished Game Polish And Presentation | R5.04, R11.03, R11.05, R11.06 | Animation, camera, and moment-to-moment feedback |
 | PSIM-0058 | Done | P2 | Finished Game Polish And Presentation | R11.05, R12.03 | Audio mix, sound effects, and player feedback |
 | PSIM-0059 | Done | P2 | Finished Game Polish And Presentation | R1.04, R2.04, R7.05, R12.03 | Settings, accessibility, and input remapping |
 | PSIM-0060 | Done | P2 | Finished Game Polish And Presentation | R5.07, R10.07, R12.02, R12.03 | Save/load UX, autosave, and recovery flow |
