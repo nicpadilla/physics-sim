@@ -139,3 +139,106 @@ Completion criteria:
 - If any stage above is incomplete, the product is not complete.
 - Future expansion ideas are allowed, but they are not required for the first complete testable product.
 
+## Future Sandbox Vision
+
+The stages below describe the longer-term sandbox game direction. They are product goals, not requirements for the first complete testable product unless explicitly promoted into stages 1-6.
+
+## 7. Editor UX And Fixture Authoring
+
+Goal: editing scenes feels intentional, inspectable, and reversible instead of relying on one-shot placement.
+
+Completion markers:
+
+- Users can select and delete individual fixtures without clearing the scene.
+- A selected fixture inspector shows kind, position, direction, speed, emission rate, and enabled state.
+- Users can move and rotate selected fixtures while seeing immediate visual feedback.
+- Undo and redo work for wall painting, wall erasing, fixture placement, fixture deletion, and fixture edits.
+- An in-app help or controls reference is available without leaving the simulation.
+- The overlay or equivalent UI shows active tool, selected fixture state, and editable parameter values.
+- Editor workflows have repeatable automated or manual verification evidence.
+
+## 8. Solver Correctness, Performance, And Determinism
+
+Goal: the water solver is trustworthy enough for sandbox play, regression testing, and future gameplay systems.
+
+Completion markers:
+
+- Particle-to-grid and grid-to-particle transfer behavior has focused tests beyond indirect integration coverage.
+- Leak and retention acceptance thresholds are documented and tested for closed and U-shaped containers.
+- Inflow, outflow, particle count, or mass behavior is measured against explicit tolerances.
+- Particle lifecycle and out-of-domain cleanup are defined, tested, and visible in metrics.
+- Simulation replay and frame capture can be made deterministic for regression scenarios.
+- Solver performance has a documented budget and a repeatable profiling or timing check.
+- Long-run stress verification has a named command, duration, and stability threshold.
+
+## 9. Sandbox Devices And Interactive Systems
+
+Goal: the sandbox offers interactive water devices beyond static walls and emitters.
+
+Completion markers:
+
+- Scene data supports device types beyond walls and water emitters.
+- Drains or sinks remove water in a controlled, inspectable way.
+- Pumps and valves can route or regulate water flow.
+- Gates or doors can be opened and closed by user input.
+- Sensors or triggers can react to water or device state.
+- A device palette or equivalent tool workflow lets users choose and place devices predictably.
+- Devices persist through scene save/load and have regression or acceptance coverage.
+
+## 10. Scene Library, Sharing, And Regression Coverage
+
+Goal: scenes are durable artifacts that can be organized, reused, shared, and tested.
+
+Completion markers:
+
+- The scene format is versioned with a documented compatibility policy.
+- Scenes can store metadata such as title, description, author, tags, and notes.
+- Scenes can store or generate thumbnails for browsing and regression evidence.
+- Users can browse and load multiple scenes without manually editing file paths.
+- A scripted replay regression suite can exercise more than one scene or interaction path.
+- A demo-scene gallery covers the core sandbox behaviors.
+- Scene import, invalid-scene handling, and save/load failures are tested or manually documented.
+
+## 11. Sandbox Game Loop And Player Experience
+
+Goal: the project feels like a playable sandbox game rather than only a technical simulator.
+
+Completion markers:
+
+- Creative mode has a coherent start, edit, simulate, reset, and continue flow.
+- Optional challenge or objective mode can define goals without replacing creative play.
+- Session controls support reset, retry, pause, resume, and clear-scene workflows cleanly.
+- Water visualization moves beyond square particles where practical while preserving debug clarity.
+- User feedback such as sound, animation, or visual affordances reinforces important actions.
+- The app communicates scene state, tool state, and simulation state without relying only on the window title.
+- The default demo experience teaches the core sandbox loop through interaction rather than external explanation.
+
+## 12. Packaging, Diagnostics, And Project Automation
+
+Goal: the project can be built, verified, diagnosed, and handed off reliably.
+
+Completion markers:
+
+- A release package can be produced from a documented command.
+- App logging or crash diagnostics capture enough context to debug runtime failures.
+- User settings can persist preferences such as window size, overlay mode, and visual mode.
+- A one-command local verification bundle runs tracking, build, tests, smoke, and relevant regression checks.
+- The tracking validator checks epic structure, duplicate issue headings, invalid dependencies, and missing roadmap links.
+- Architecture decision records or equivalent notes exist for major technical choices.
+- Backlog pruning, reprioritization, and implementation handoff conventions are documented.
+
+## 13. Physics Accuracy And Particle Interaction
+
+Goal: water particles interact as deterministic 2D incompressible fluid parcels with physical mass, volume, density, pressure, viscosity, surface behavior, and boundary constraints.
+
+Completion markers:
+
+- Fluid physics model, units, invariants, and governing equations are documented.
+- Particles carry physical mass, volume, density, and interaction diagnostics.
+- Particle-grid transfer conserves mass and momentum and supports APIC/FLIP behavior.
+- Pressure projection enforces incompressibility with measured residuals.
+- Dense particle clusters redistribute through density constraints without mass loss.
+- World boundaries implement defined free-slip or no-slip material interaction.
+- Viscosity, surface tension, and free-surface behavior are modeled and tested.
+- Particle resampling and rendering preserve physical volume.
+- Live and offline physics-quality budgets pass deterministically.

@@ -6,6 +6,7 @@
 #include <physics_sim/fixed_timestep.hpp>
 #include <physics_sim/indexing.hpp>
 #include <physics_sim/math.hpp>
+#include <physics_sim/scene_controller.hpp>
 #include <physics_sim/water_state.hpp>
 #include <physics_sim/simulation_state.hpp>
 
@@ -167,9 +168,21 @@ int main()
         assert(physics_sim::action_from_keycode(SDLK_SPACE).has_value());
         assert(*physics_sim::action_from_keycode(SDLK_SPACE) == physics_sim::Action::TogglePause);
         assert(*physics_sim::action_from_keycode(SDLK_s) == physics_sim::Action::StepOnce);
-        assert(*physics_sim::action_from_keycode(SDLK_r) == physics_sim::Action::Reset);
+        assert(*physics_sim::action_from_keycode(SDLK_r) == physics_sim::Action::ResetFluid);
+        assert(*physics_sim::action_from_keycode(SDLK_F10) == physics_sim::Action::Reset);
         assert(*physics_sim::action_from_keycode(SDLK_ESCAPE) == physics_sim::Action::Quit);
         assert(!physics_sim::action_from_keycode(SDLK_a).has_value());
+
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PaintWall, 1) == physics_sim::SceneTool::EraseWall);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::EraseWall, 1) == physics_sim::SceneTool::DirectionalEmitter);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::OmniEmitter, 1) == physics_sim::SceneTool::Gate);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Sensor, 1) == physics_sim::SceneTool::Drain);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Drain, 1) == physics_sim::SceneTool::Pump);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Pump, 1) == physics_sim::SceneTool::Valve);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Valve, 1) == physics_sim::SceneTool::PaintWall);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PaintWall, -1) == physics_sim::SceneTool::Valve);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::DirectionalEmitter, 0) == physics_sim::SceneTool::DirectionalEmitter);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Gate, 1) == physics_sim::SceneTool::Sensor);
     }
 
     return 0;

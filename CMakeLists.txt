@@ -132,6 +132,100 @@ if(BUILD_TESTING)
 
     add_test(NAME physics_sim_ui_tests COMMAND physics_sim_ui_tests)
 
+    add_executable(physics_sim_feedback_tests
+        tests/feedback_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_feedback_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_feedback_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_feedback_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_feedback_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_feedback_tests COMMAND physics_sim_feedback_tests)
+
+    add_executable(physics_sim_ui_palette_tests
+        tests/ui_palette_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_ui_palette_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_ui_palette_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_ui_palette_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_ui_palette_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_ui_palette_tests COMMAND physics_sim_ui_palette_tests)
+
+    add_executable(physics_sim_player_feedback_tests
+        tests/player_feedback_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_player_feedback_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_player_feedback_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_player_feedback_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_player_feedback_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_player_feedback_tests COMMAND physics_sim_player_feedback_tests)
+
+    add_executable(physics_sim_save_browser_tests
+        tests/save_browser_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_save_browser_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_save_browser_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_save_browser_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_save_browser_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_save_browser_tests COMMAND physics_sim_save_browser_tests)
+
+    add_executable(physics_sim_audio_feedback_tests
+        tests/audio_feedback_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_audio_feedback_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_audio_feedback_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_audio_feedback_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_audio_feedback_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_audio_feedback_tests COMMAND physics_sim_audio_feedback_tests)
+
     add_executable(physics_sim_scene_persistence_tests
         tests/scene_persistence_tests.cpp
     )
@@ -217,6 +311,7 @@ if(BUILD_TESTING)
     target_link_libraries(physics_sim_user_settings_tests
         PRIVATE
             physics_sim_core
+            SDL2::SDL2
     )
 
     target_compile_features(physics_sim_user_settings_tests PRIVATE cxx_std_20)
@@ -227,6 +322,63 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME physics_sim_user_settings_tests COMMAND physics_sim_user_settings_tests)
+
+    add_executable(physics_sim_input_bindings_tests
+        tests/input_bindings_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_input_bindings_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_input_bindings_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_input_bindings_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_input_bindings_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_input_bindings_tests COMMAND physics_sim_input_bindings_tests)
+
+    add_executable(physics_sim_player_guidance_tests
+        tests/player_guidance_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_player_guidance_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_player_guidance_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_player_guidance_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_player_guidance_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_player_guidance_tests COMMAND physics_sim_player_guidance_tests)
+
+    add_executable(physics_sim_settings_menu_tests
+        tests/settings_menu_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_settings_menu_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_settings_menu_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_settings_menu_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_settings_menu_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_settings_menu_tests COMMAND physics_sim_settings_menu_tests)
 
     add_executable(physics_sim_session_shell_tests
         tests/session_shell_tests.cpp
@@ -245,6 +397,44 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME physics_sim_session_shell_tests COMMAND physics_sim_session_shell_tests)
+
+    add_executable(physics_sim_tutorial_tests
+        tests/tutorial_progress_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_tutorial_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_tutorial_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_tutorial_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_tutorial_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_tutorial_tests COMMAND physics_sim_tutorial_tests)
+
+    add_executable(physics_sim_tutorial_scene_tests
+        tests/tutorial_scene_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_tutorial_scene_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_tutorial_scene_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_tutorial_scene_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_tutorial_scene_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    target_compile_definitions(physics_sim_tutorial_scene_tests PRIVATE PHYSICS_SIM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+    add_test(NAME physics_sim_tutorial_scene_tests COMMAND physics_sim_tutorial_scene_tests)
 
     add_executable(physics_sim_fluid_quality_tests
         tests/fluid_quality_tests.cpp

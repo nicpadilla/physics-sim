@@ -64,6 +64,65 @@ int main()
     REQUIRE(snapshot.solid_cells.size() == 3, "capture_scene lost solid cells");
     REQUIRE(snapshot.emitters.size() == 2, "capture_scene lost emitters");
 
+    {
+        const fs::path metadata_path = fs::temp_directory_path() / "physics-sim-scene-metadata.pscene";
+        physics_sim::SceneMetadata metadata;
+        metadata.title = "Demo Basin";
+        metadata.description = "Directional hose feeding a basin.";
+        metadata.author = "Nic";
+        metadata.tags = {"demo", "water", "basin"};
+        metadata.notes = {"Use this for regression captures.", "The thumbnail lives next to the scene file."};
+
+        REQUIRE(physics_sim::save_scene(metadata_path, original, metadata), "save_scene failed for metadata snapshot");
+
+        physics_sim::WaterSimulation2D metadata_restored;
+        physics_sim::SceneMetadata loaded_metadata;
+        REQUIRE(physics_sim::load_scene(metadata_path, metadata_restored, &loaded_metadata), "load_scene failed for metadata snapshot");
+        REQUIRE(loaded_metadata.title == "Demo Basin", "load_scene lost scene title");
+        REQUIRE(loaded_metadata.description == "Directional hose feeding a basin.", "load_scene lost scene description");
+        REQUIRE(loaded_metadata.author == "Nic", "load_scene lost scene author");
+        REQUIRE(loaded_metadata.tags.size() == 3, "load_scene lost scene tags");
+        REQUIRE(loaded_metadata.tags[0] == "demo", "load_scene lost the first tag");
+        REQUIRE(loaded_metadata.tags[2] == "basin", "load_scene lost the last tag");
+        REQUIRE(loaded_metadata.notes.size() == 2, "load_scene lost scene notes");
+        REQUIRE(loaded_metadata.notes[0] == "Use this for regression captures.", "load_scene lost the first note");
+        REQUIRE(loaded_metadata.notes[1] == "The thumbnail lives next to the scene file.", "load_scene lost the second note");
+        REQUIRE(metadata_restored.grid().width() == 12, "load_scene lost grid width in metadata overload");
+        REQUIRE(metadata_restored.emitters().size() == 2, "load_scene lost emitters in metadata overload");
+
+        fs::remove(metadata_path);
+    }
+
+    {
+        const fs::path device_path = fs::temp_directory_path() / "physics-sim-scene-devices.pscene";
+        physics_sim::SceneDocument device_document = physics_sim::capture_scene(original);
+        device_document.gates.push_back({4, 5, true});
+        device_document.sensors.push_back({6, 7, 3, 3, true, true, true, "Goal"});
+        device_document.drains.push_back({7, 4, 3, 3, true});
+        device_document.pumps.push_back({2, 8, 3, 3, true, physics_sim::Vec2{1.0f, 0.0f}, 11.0f});
+        device_document.valves.push_back({9, 5, false});
+
+        REQUIRE(physics_sim::save_scene(device_path, device_document), "save_scene failed for device snapshot");
+
+        physics_sim::WaterSimulation2D device_restored;
+        REQUIRE(physics_sim::load_scene(device_path, device_restored), "load_scene failed for device snapshot");
+        REQUIRE(device_restored.gates().size() == 1, "load_scene lost scene gates");
+        REQUIRE(device_restored.gates().front().open, "load_scene lost the gate open state");
+        REQUIRE(device_restored.sensors().size() == 1, "load_scene lost scene sensors");
+        REQUIRE(device_restored.sensors().front().objective, "load_scene lost the sensor objective flag");
+        REQUIRE(device_restored.sensors().front().active, "load_scene lost the sensor active state");
+        REQUIRE(device_restored.sensors().front().label == "Goal", "load_scene lost the sensor label");
+        REQUIRE(device_restored.drains().size() == 1, "load_scene lost scene drains");
+        REQUIRE(device_restored.drains().front().enabled, "load_scene lost the drain enabled state");
+        REQUIRE(device_restored.pumps().size() == 1, "load_scene lost scene pumps");
+        REQUIRE(nearly_equal(device_restored.pumps().front().direction.x, 1.0f), "load_scene lost the pump direction");
+        REQUIRE(nearly_equal(device_restored.pumps().front().strength, 11.0f), "load_scene lost the pump strength");
+        REQUIRE(device_restored.valves().size() == 1, "load_scene lost scene valves");
+        REQUIRE(device_restored.valves().front().open == false, "load_scene lost the valve open state");
+
+        fs::remove(device_path);
+    }
+
     const fs::path temp_path = fs::temp_directory_path() / "physics-sim-scene-roundtrip.pscene";
     REQUIRE(physics_sim::save_scene(temp_path, snapshot), "save_scene failed");
     REQUIRE(fs::exists(temp_path), "save_scene did not create a file");
@@ -91,6 +150,36 @@ int main()
     REQUIRE(nearly_equal(restored.emitters().front().speed, 7.5f), "apply_scene lost emitter speed");
     REQUIRE(restored.emitters().back().kind == physics_sim::WaterEmitterKind::Omni, "apply_scene changed omni emitter kind");
     REQUIRE(nearly_equal(restored.emitters().back().emission_rate, 12.0f), "apply_scene lost omni emission rate");
+    REQUIRE(restored.gates().empty(), "apply_scene unexpectedly created gates");
+    REQUIRE(restored.sensors().empty(), "apply_scene unexpectedly created sensors");
+
+    {
+        const auto supported = physics_sim::parse_scene_text(
+            "physics-sim-scene 1\n"
+            "grid 2 2 1\n");
+        REQUIRE(supported.has_value(), "parse_scene_text rejected supported version 1");
+    }
+
+    {
+        const auto unsupported = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\n"
+            "grid 2 2 1\n");
+        REQUIRE(!unsupported.has_value(), "parse_scene_text accepted unsupported version 2");
+    }
+
+    {
+        const auto malformed = physics_sim::parse_scene_text(
+            "physics-sim-scene not-a-number\n"
+            "grid 2 2 1\n");
+        REQUIRE(!malformed.has_value(), "parse_scene_text accepted malformed version token");
+    }
+
+    {
+        physics_sim::WaterSimulation2D missing_load_target{2, 2, 1.0f};
+        const fs::path missing_path = fs::temp_directory_path() / "physics-sim-missing-scene.pscene";
+        fs::remove(missing_path);
+        REQUIRE(!physics_sim::load_scene(missing_path, missing_load_target), "load_scene succeeded on a missing file");
+    }
 
     fs::remove(temp_path);
     return 0;

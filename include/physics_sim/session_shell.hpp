@@ -12,6 +12,7 @@ enum class SessionShellScreen
     Playing,
     MainMenu,
     SceneBrowser,
+    SaveBrowser,
     Settings,
     About,
     PauseMenu,
@@ -21,6 +22,7 @@ enum class SessionShellCommandKind
 {
     None,
     StartPlaying,
+    StartTutorial,
     Quit,
     Resume,
     RetryCurrentScene,
@@ -28,11 +30,13 @@ enum class SessionShellCommandKind
     ClearScene,
     SaveScene,
     LoadScene,
+    OpenSaveBrowser,
     ReturnToMainMenu,
     OpenSceneBrowser,
     OpenSettings,
     OpenAbout,
     LoadSceneAtIndex,
+    LoadSaveAtIndex,
     ToggleHelpOverlay,
     CycleVisualMode,
     Back,
@@ -51,16 +55,21 @@ struct SessionShellState
     std::size_t selection = 0;
 };
 
-[[nodiscard]] inline constexpr std::size_t session_shell_option_count(SessionShellScreen screen, std::size_t gallery_scene_count) noexcept
+[[nodiscard]] inline constexpr std::size_t session_shell_option_count(
+    SessionShellScreen screen,
+    std::size_t gallery_scene_count,
+    std::size_t save_entry_count = 0) noexcept
 {
     switch (screen)
     {
     case SessionShellScreen::Playing:
         return 0;
     case SessionShellScreen::MainMenu:
-        return 5;
+        return 6;
     case SessionShellScreen::SceneBrowser:
         return gallery_scene_count + 1;
+    case SessionShellScreen::SaveBrowser:
+        return save_entry_count;
     case SessionShellScreen::Settings:
         return 3;
     case SessionShellScreen::About:
@@ -82,6 +91,8 @@ struct SessionShellState
         return "MAIN MENU";
     case SessionShellScreen::SceneBrowser:
         return "SCENE BROWSER";
+    case SessionShellScreen::SaveBrowser:
+        return "LOAD SAVES";
     case SessionShellScreen::Settings:
         return "SETTINGS";
     case SessionShellScreen::About:
@@ -100,12 +111,14 @@ struct SessionShellState
     case 0:
         return "Continue Sandbox";
     case 1:
-        return "Scene Browser";
+        return "Tutorial";
     case 2:
-        return "Settings";
+        return "Scene Browser";
     case 3:
-        return "About";
+        return "Settings";
     case 4:
+        return "About";
+    case 5:
         return "Quit";
     default:
         return "";
@@ -127,7 +140,7 @@ struct SessionShellState
     case 4:
         return "Save Scene";
     case 5:
-        return "Load Scene";
+        return "Load Save";
     case 6:
         return "Settings";
     case 7:
@@ -180,7 +193,10 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
     state.selection = static_cast<std::size_t>(next_index);
 }
 
-[[nodiscard]] inline SessionShellCommand session_shell_activate(SessionShellState& state, std::size_t gallery_scene_count) noexcept
+[[nodiscard]] inline SessionShellCommand session_shell_activate(
+    SessionShellState& state,
+    std::size_t gallery_scene_count,
+    std::size_t save_entry_count = 0) noexcept
 {
     const auto open_submenu = [&](SessionShellScreen screen) noexcept
     {
@@ -201,15 +217,19 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
             state.selection = 0;
             return {SessionShellCommandKind::StartPlaying, std::nullopt};
         case 1:
+            state.screen = SessionShellScreen::Playing;
+            state.selection = 0;
+            return {SessionShellCommandKind::StartTutorial, std::nullopt};
+        case 2:
             open_submenu(SessionShellScreen::SceneBrowser);
             return {SessionShellCommandKind::OpenSceneBrowser, std::nullopt};
-        case 2:
+        case 3:
             open_submenu(SessionShellScreen::Settings);
             return {SessionShellCommandKind::OpenSettings, std::nullopt};
-        case 3:
+        case 4:
             open_submenu(SessionShellScreen::About);
             return {SessionShellCommandKind::OpenAbout, std::nullopt};
-        case 4:
+        case 5:
             return {SessionShellCommandKind::Quit, std::nullopt};
         default:
             return {};
@@ -221,6 +241,18 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
             state.screen = SessionShellScreen::Playing;
             state.selection = 0;
             return {SessionShellCommandKind::LoadSceneAtIndex, selected_scene_index};
+        }
+
+        state.screen = state.return_screen;
+        state.selection = 0;
+        return {SessionShellCommandKind::Back, std::nullopt};
+    case SessionShellScreen::SaveBrowser:
+        if (state.selection < save_entry_count)
+        {
+            const std::size_t selected_save_index = state.selection;
+            state.screen = SessionShellScreen::Playing;
+            state.selection = 0;
+            return {SessionShellCommandKind::LoadSaveAtIndex, selected_save_index};
         }
 
         state.screen = state.return_screen;
@@ -260,7 +292,8 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
         case 4:
             return {SessionShellCommandKind::SaveScene, std::nullopt};
         case 5:
-            return {SessionShellCommandKind::LoadScene, std::nullopt};
+            open_submenu(SessionShellScreen::SaveBrowser);
+            return {SessionShellCommandKind::OpenSaveBrowser, std::nullopt};
         case 6:
             open_submenu(SessionShellScreen::Settings);
             return {SessionShellCommandKind::OpenSettings, std::nullopt};
@@ -279,6 +312,7 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
 inline void session_shell_back(SessionShellState& state) noexcept
 {
     if (state.screen == SessionShellScreen::SceneBrowser
+        || state.screen == SessionShellScreen::SaveBrowser
         || state.screen == SessionShellScreen::Settings
         || state.screen == SessionShellScreen::About)
     {

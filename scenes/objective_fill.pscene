@@ -1,0 +1,77 @@
+physics-sim-scene 1
+title Objective Fill
+description Fill the basin until the trigger sensor activates.
+author Nic
+tag objective
+tag challenge
+tag basin
+note Keep playing creative scenes in the gallery for sandbox mode.
+note The sensor marks the objective target.
+grid 80 45 16
+wall 20 24
+wall 60 24
+wall 20 25
+wall 60 25
+wall 20 26
+wall 60 26
+wall 20 27
+wall 60 27
+wall 20 28
+wall 60 28
+wall 20 29
+wall 60 29
+wall 20 30
+wall 60 30
+wall 20 31
+wall 60 31
+wall 20 32
+wall 60 32
+wall 20 33
+wall 60 33
+wall 20 34
+wall 60 34
+wall 20 35
+wall 60 35
+wall 20 36
+wall 21 36
+wall 22 36
+wall 23 36
+wall 24 36
+wall 25 36
+wall 26 36
+wall 27 36
+wall 28 36
+wall 29 36
+wall 30 36
+wall 31 36
+wall 32 36
+wall 33 36
+wall 34 36
+wall 35 36
+wall 36 36
+wall 37 36
+wall 38 36
+wall 39 36
+wall 40 36
+wall 41 36
+wall 42 36
+wall 43 36
+wall 44 36
+wall 45 36
+wall 46 36
+wall 47 36
+wall 48 36
+wall 49 36
+wall 50 36
+wall 51 36
+wall 52 36
+wall 53 36
+wall 54 36
+wall 55 36
+wall 56 36
+wall 57 36
+wall 58 36
+wall 59 36
+wall 60 36
+emitter directional 640 160 0 1 8 120 1
+sensor 34 31 12 4 1 0 1 Goal

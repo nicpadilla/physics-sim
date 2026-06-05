@@ -1,0 +1,37 @@
+physics-sim-scene 1
+title Future Device Placeholder
+description A staged scene reserved for the next device type.
+author Nic
+tag gallery
+tag future
+note Placeholder slot for upcoming device work.
+note Keep the layout simple so new device behavior is easy to spot.
+grid 80 45 16
+wall 28 20
+wall 29 20
+wall 30 20
+wall 31 20
+wall 32 20
+wall 33 20
+wall 34 20
+wall 35 20
+wall 36 20
+wall 37 20
+wall 38 20
+wall 39 20
+wall 40 20
+wall 41 20
+wall 42 20
+wall 43 20
+wall 44 20
+wall 45 20
+wall 46 20
+wall 47 20
+wall 48 20
+wall 49 20
+wall 50 20
+wall 51 20
+wall 52 20
+wall 53 20
+wall 54 20
+emitter directional 640 128 0 1 8 90 1

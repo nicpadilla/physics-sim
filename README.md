@@ -56,8 +56,9 @@ Controls:
 - `R` clears fluid only.
 - `F10` retries the current scene.
 - `Delete` removes the selected fixture or device, or clears the scene if nothing is selected.
-- `F5` saves the current scene to `scenes/autosave.pscene`.
-- `F9` loads `scenes/autosave.pscene` if it exists, otherwise the demo scene.
+- `F5` saves the current scene into the per-user save directory under `SDL_GetPrefPath("Nic", "physics-sim")/saves/` and refreshes the autosave snapshot there.
+- `F9` loads the autosave from that per-user save directory if it exists, otherwise the demo scene.
+- The pause menu's `Load Save` entry opens the save browser for autosave plus named saves in the same per-user save directory.
 - Important actions flash a short `MSG` line in the debug overlay.
 - `PgUp` and `PgDn` browse the curated scene gallery.
 - `Tab` cycles through the wall, emitter, gate, sensor, drain, pump, and valve tools.
@@ -74,7 +75,10 @@ Controls:
 - `H` toggles the in-app help overlay.
 - `Esc` opens the pause menu while playing, backs out of menu screens, and returns to the sandbox from the main menu.
 - `Enter` and mouse clicks activate menu items.
-- The app opens to the main menu unless `--skip-session-shell` is passed.
+- The app opens to the tutorial on a fresh launch, then returns to the sandbox shell on later launches unless `--skip-session-shell` is passed.
+- Use `--tutorial-mode` to replay the guided first-run tutorial directly.
+- Use `--reduced-motion` to seed reduced-motion mode for local verification.
+- `--skip-session-shell` bypasses the menu shell and tutorial for smoke, replay, and capture flows.
 - `Ctrl+Z` undoes the last wall or fixture edit.
 - `Ctrl+Y` redoes the last undone edit.
 - Left-drag draws or erases walls, depending on the active tool.
@@ -129,14 +133,16 @@ Diagnostics:
 - `physics-sim.log` is the default log file in the current working directory.
 - Use `--log-file <path>` to override the log location.
 - Use `--scene-path <path>` to load a specific startup scene and capture scene-load failures in the log.
-- Use `--replay-file <path>` to load a deterministic replay script.
-- Use `--skip-session-shell` to bypass the menu shell for smoke, replay, and capture flows.
+- Use `--replay-file <path>` to load a deterministic replay script and surface replay parse failures through the player-facing error dialog.
+- Use `--tutorial-mode` to replay the guided first-run tutorial directly.
+- Use `--skip-session-shell` to bypass the menu shell and tutorial for smoke, replay, and capture flows.
+- Startup window, renderer, replay, scene, settings, audio, and package-content failures use player-facing messages plus log details instead of raw SDL text alone.
 
 Settings:
 
 - Use `--settings-file <path>` to override the user-settings file location.
-- Settings persist window size, help overlay visibility, and visual mode.
-- `--window-size <width>x<height>`, `--show-help`, and `--visual-mode <mixed|density|particles>` are handy for seeding a local persistence check.
+- Settings persist window size, fullscreen, help overlay visibility, visual mode, reduced motion, high contrast, audio mute/volume, and remappable controls.
+- `--window-size <width>x<height>`, `--show-help`, `--visual-mode <mixed|density|particles>`, and `--reduced-motion` are handy for seeding a local persistence check.
 - See [docs/scene-gallery.md](docs/scene-gallery.md) for the curated scene list and gallery workflow.
 - The gallery includes an objective scene in [scenes/objective_fill.pscene](scenes/objective_fill.pscene) that uses a sensor target.
 

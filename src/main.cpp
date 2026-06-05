@@ -22,14 +22,23 @@
 #include <utility>
 
 #include <physics_sim/action.hpp>
+#include <physics_sim/audio_feedback.hpp>
 #include <physics_sim/debug_overlay.hpp>
+#include <physics_sim/feedback.hpp>
 #include <physics_sim/fixed_timestep.hpp>
+#include <physics_sim/input_bindings.hpp>
 #include <physics_sim/math.hpp>
+#include <physics_sim/player_guidance.hpp>
+#include <physics_sim/player_feedback.hpp>
 #include <physics_sim/replay_script.hpp>
+#include <physics_sim/save_browser.hpp>
+#include <physics_sim/settings_menu.hpp>
 #include <physics_sim/session_shell.hpp>
+#include <physics_sim/tutorial_progress.hpp>
 #include <physics_sim/scene_document.hpp>
 #include <physics_sim/scene_controller.hpp>
 #include <physics_sim/scene_viewport.hpp>
+#include <physics_sim/ui_palette.hpp>
 #include <physics_sim/user_settings.hpp>
 #include <physics_sim/simulation_state.hpp>
 #include <physics_sim/visual_mode.hpp>
@@ -51,11 +60,14 @@ struct RuntimeOptions
     std::optional<std::uint64_t> dumpFrameAfterTicks;
     std::optional<physics_sim::WindowSize> initialWindowSize;
     std::optional<bool> initialHelpOverlayVisible;
+    std::optional<bool> initialReducedMotion;
     std::optional<fs::path> logFilePath;
     std::optional<fs::path> replayFilePath;
     std::optional<fs::path> settingsFilePath;
     std::optional<fs::path> startupScenePath;
     std::optional<VisualMode> initialVisualMode;
+    bool disableAudio = false;
+    bool tutorialMode = false;
     bool skipSessionShell = false;
 };
 
@@ -105,7 +117,7 @@ private:
     fs::path path_{};
 };
 
-[[nodiscard]] std::optional<fs::path> default_settings_path()
+[[nodiscard]] std::optional<fs::path> default_pref_root()
 {
     char* pref_path = SDL_GetPrefPath("Nic", "physics-sim");
     if (pref_path == nullptr)
@@ -113,9 +125,92 @@ private:
         return std::nullopt;
     }
 
-    fs::path path = fs::path{pref_path} / "physics-sim-settings.txt";
+    fs::path path = fs::path{pref_path};
     SDL_free(pref_path);
     return path;
+}
+
+[[nodiscard]] std::optional<fs::path> default_settings_path()
+{
+    const auto root = default_pref_root();
+    if (!root.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return *root / "physics-sim-settings.txt";
+}
+
+[[nodiscard]] std::optional<fs::path> default_tutorial_state_path()
+{
+    const auto root = default_pref_root();
+    if (!root.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return *root / "physics-sim-tutorial-state.txt";
+}
+
+[[nodiscard]] std::optional<fs::path> default_save_directory()
+{
+    const auto root = default_pref_root();
+    if (!root.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return *root / "saves";
+}
+
+[[nodiscard]] std::optional<bool> load_tutorial_seen_state(const fs::path& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        return std::nullopt;
+    }
+
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    std::istringstream stream{buffer.str()};
+
+    std::string header;
+    int version = 0;
+    if (!(stream >> header >> version) || header != "physics-sim-tutorial-state" || version != 1)
+    {
+        return std::nullopt;
+    }
+
+    std::string keyword;
+    int seen_value = 0;
+    if (!(stream >> keyword >> seen_value) || keyword != "seen")
+    {
+        return std::nullopt;
+    }
+
+    return seen_value != 0;
+}
+
+[[nodiscard]] bool save_tutorial_seen_state(const fs::path& path, bool seen)
+{
+    const auto parent = path.parent_path();
+    if (!parent.empty())
+    {
+        std::error_code ec;
+        static_cast<void>(std::filesystem::create_directories(parent, ec));
+    }
+
+    std::ofstream file(path, std::ios::trunc);
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    file << "physics-sim-tutorial-state 1\n";
+    file << "seen " << (seen ? 1 : 0) << "\n";
+    file.flush();
+    return static_cast<bool>(file);
 }
 
 void show_error(const char* title, const std::string& message, const AppLogger* logger = nullptr)
@@ -331,6 +426,15 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         {
             options.initialHelpOverlayVisible = true;
         }
+        else if (arg == "--reduced-motion")
+        {
+            options.initialReducedMotion = true;
+        }
+        else if (arg.starts_with("--reduced-motion="))
+        {
+            options.initialReducedMotion = physics_sim::parse_bool_token(
+                arg.substr(std::string_view("--reduced-motion=").size()));
+        }
         else if (arg == "--log-file" && i + 1 < argc)
         {
             options.logFilePath = fs::path{argv[++i]};
@@ -362,6 +466,14 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg.starts_with("--scene-path="))
         {
             options.startupScenePath = fs::path{arg.substr(std::string_view("--scene-path=").size())};
+        }
+        else if (arg == "--tutorial-mode")
+        {
+            options.tutorialMode = true;
+        }
+        else if (arg == "--disable-audio")
+        {
+            options.disableAudio = true;
         }
         else if (arg == "--skip-session-shell")
         {
@@ -414,12 +526,16 @@ const char* tool_name(physics_sim::SceneTool tool) noexcept
     return "unknown";
 }
 
-void draw_grid(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
+void draw_grid(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneViewport& viewport,
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const auto& grid = simulation.grid();
     const float cell_size = grid.cell_size();
 
-    SDL_SetRenderDrawColor(renderer, 38, 48, 62, 255);
+    SDL_SetRenderDrawColor(renderer, palette.grid.r, palette.grid.g, palette.grid.b, palette.grid.a);
 
     for (std::size_t x = 0; x <= grid.width(); ++x)
     {
@@ -451,12 +567,16 @@ SDL_FRect world_rect(
     return rect;
 }
 
-void draw_walls(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
+void draw_walls(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneViewport& viewport,
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const auto& grid = simulation.grid();
     const float cell_size = grid.cell_size();
 
-    SDL_SetRenderDrawColor(renderer, 54, 58, 67, 255);
+    SDL_SetRenderDrawColor(renderer, palette.wall.r, palette.wall.g, palette.wall.b, palette.wall.a);
     for (std::size_t y = 0; y < grid.height(); ++y)
     {
         for (std::size_t x = 0; x < grid.width(); ++x)
@@ -497,12 +617,16 @@ void draw_filled_circle(SDL_Renderer* renderer, SDL_FRect bounds)
     }
 }
 
-void draw_particles(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
+void draw_particles(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneViewport& viewport,
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const float particle_size = std::max(8.0f, cell_size * 0.6f);
 
-    SDL_SetRenderDrawColor(renderer, 78, 214, 255, 255);
+    SDL_SetRenderDrawColor(renderer, palette.water.r, palette.water.g, palette.water.b, palette.water.a);
     for (const auto& particle : simulation.particles())
     {
         const SDL_FRect rect = world_rect(
@@ -513,7 +637,11 @@ void draw_particles(SDL_Renderer* renderer, const physics_sim::SceneViewport& vi
     }
 }
 
-void draw_fluid_density(SDL_Renderer* renderer, const physics_sim::SceneViewport& viewport, const physics_sim::WaterSimulation2D& simulation)
+void draw_fluid_density(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneViewport& viewport,
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const auto& grid = simulation.grid();
     if (grid.width() == 0 || grid.height() == 0)
@@ -537,7 +665,7 @@ void draw_fluid_density(SDL_Renderer* renderer, const physics_sim::SceneViewport
             }
 
             const std::uint8_t alpha = static_cast<std::uint8_t>(std::min(220.0f, 32.0f + volume_fraction * 188.0f));
-            SDL_SetRenderDrawColor(renderer, 46, 180, 255, alpha);
+            SDL_SetRenderDrawColor(renderer, palette.water_density.r, palette.water_density.g, palette.water_density.b, alpha);
             const SDL_FRect rect = world_rect(
                 viewport,
                 {static_cast<float>(x) * grid.cell_size(), static_cast<float>(y) * grid.cell_size()},
@@ -551,7 +679,8 @@ void draw_emitters(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
-    const physics_sim::SceneController& controller)
+    const physics_sim::SceneController& controller,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const float icon_size = cell_size * 0.4f;
@@ -568,11 +697,11 @@ void draw_emitters(
 
         if (emitter.kind == physics_sim::WaterEmitterKind::Directional)
         {
-            SDL_SetRenderDrawColor(renderer, 255, 214, 87, 255);
+            SDL_SetRenderDrawColor(renderer, palette.emitter_directional.r, palette.emitter_directional.g, palette.emitter_directional.b, palette.emitter_directional.a);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, 255, 126, 87, 255);
+            SDL_SetRenderDrawColor(renderer, palette.emitter_omni.r, palette.emitter_omni.g, palette.emitter_omni.b, palette.emitter_omni.a);
         }
         SDL_RenderFillRectF(renderer, &icon);
 
@@ -581,7 +710,7 @@ void draw_emitters(
         const physics_sim::Vec2 line_start = viewport.world_to_window(emitter.position);
         const physics_sim::Vec2 line_end = viewport.world_to_window(line_end_world);
 
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, palette.text.a);
         SDL_RenderDrawLineF(renderer, line_start.x, line_start.y, line_end.x, line_end.y);
 
         const SDL_FRect highlight = world_rect(
@@ -590,7 +719,7 @@ void draw_emitters(
             {icon_size * 1.7f, icon_size * 1.7f});
         if (selected_index.has_value() && *selected_index == i)
         {
-            SDL_SetRenderDrawColor(renderer, 255, 240, 128, 255);
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, palette.selection.a);
             SDL_RenderDrawRectF(renderer, &highlight);
         }
     }
@@ -600,7 +729,8 @@ void draw_gates(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
-    const physics_sim::SceneController& controller)
+    const physics_sim::SceneController& controller,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const auto selected_index = controller.selected_gate_index();
@@ -615,18 +745,18 @@ void draw_gates(
 
         if (gate.open)
         {
-            SDL_SetRenderDrawColor(renderer, 170, 196, 114, 160);
+            SDL_SetRenderDrawColor(renderer, palette.gate_open.r, palette.gate_open.g, palette.gate_open.b, palette.gate_open.a);
             SDL_RenderDrawRectF(renderer, &rect);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, 90, 160, 104, 220);
+            SDL_SetRenderDrawColor(renderer, palette.gate_closed.r, palette.gate_closed.g, palette.gate_closed.b, palette.gate_closed.a);
             SDL_RenderFillRectF(renderer, &rect);
         }
 
         if (selected_index.has_value() && *selected_index == i)
         {
-            SDL_SetRenderDrawColor(renderer, 255, 240, 128, 255);
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, palette.selection.a);
             SDL_RenderDrawRectF(renderer, &rect);
         }
     }
@@ -635,7 +765,8 @@ void draw_gates(
 void draw_drains(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
-    const physics_sim::WaterSimulation2D& simulation)
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
 
@@ -648,13 +779,13 @@ void draw_drains(
 
         if (drain.enabled)
         {
-            SDL_SetRenderDrawColor(renderer, 220, 96, 96, 72);
+            SDL_SetRenderDrawColor(renderer, palette.drain_active.r, palette.drain_active.g, palette.drain_active.b, palette.drain_active.a);
             SDL_RenderFillRectF(renderer, &rect);
-            SDL_SetRenderDrawColor(renderer, 255, 142, 118, 220);
+            SDL_SetRenderDrawColor(renderer, palette.error.r, palette.error.g, palette.error.b, palette.error.a);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, 110, 90, 90, 72);
+            SDL_SetRenderDrawColor(renderer, palette.drain_inactive.r, palette.drain_inactive.g, palette.drain_inactive.b, palette.drain_inactive.a);
         }
 
         SDL_RenderDrawRectF(renderer, &rect);
@@ -666,7 +797,8 @@ void draw_drains(
 void draw_pumps(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
-    const physics_sim::WaterSimulation2D& simulation)
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
 
@@ -679,13 +811,13 @@ void draw_pumps(
 
         if (pump.enabled)
         {
-            SDL_SetRenderDrawColor(renderer, 82, 188, 255, 72);
+            SDL_SetRenderDrawColor(renderer, palette.pump_active.r, palette.pump_active.g, palette.pump_active.b, palette.pump_active.a);
             SDL_RenderFillRectF(renderer, &rect);
-            SDL_SetRenderDrawColor(renderer, 96, 220, 255, 220);
+            SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, palette.text.a);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, 90, 100, 112, 72);
+            SDL_SetRenderDrawColor(renderer, palette.pump_inactive.r, palette.pump_inactive.g, palette.pump_inactive.b, palette.pump_inactive.a);
         }
 
         SDL_RenderDrawRectF(renderer, &rect);
@@ -705,7 +837,8 @@ void draw_valves(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
-    const physics_sim::SceneController& controller)
+    const physics_sim::SceneController& controller,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const auto selected_index = controller.selected_valve_index();
@@ -720,18 +853,18 @@ void draw_valves(
 
         if (valve.open)
         {
-            SDL_SetRenderDrawColor(renderer, 184, 148, 255, 160);
+            SDL_SetRenderDrawColor(renderer, palette.valve_open.r, palette.valve_open.g, palette.valve_open.b, palette.valve_open.a);
             SDL_RenderDrawRectF(renderer, &rect);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, 128, 96, 224, 220);
+            SDL_SetRenderDrawColor(renderer, palette.valve_closed.r, palette.valve_closed.g, palette.valve_closed.b, palette.valve_closed.a);
             SDL_RenderFillRectF(renderer, &rect);
         }
 
         if (selected_index.has_value() && *selected_index == i)
         {
-            SDL_SetRenderDrawColor(renderer, 255, 240, 128, 255);
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, palette.selection.a);
             SDL_RenderDrawRectF(renderer, &rect);
         }
     }
@@ -741,7 +874,8 @@ void draw_sensors(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
-    const physics_sim::SceneController& controller)
+    const physics_sim::SceneController& controller,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const auto selected_index = controller.selected_sensor_index();
@@ -756,60 +890,45 @@ void draw_sensors(
 
         if (sensor.objective)
         {
-            SDL_SetRenderDrawColor(renderer, sensor.active ? 255 : 255, sensor.active ? 214 : 128, sensor.active ? 87 : 128, 80);
+            const auto& color = sensor.active ? palette.sensor_objective_active : palette.sensor_objective_inactive;
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         }
         else
         {
-            SDL_SetRenderDrawColor(renderer, sensor.active ? 90 : 90, sensor.active ? 220 : 120, sensor.active ? 255 : 180, sensor.active ? 140 : 80);
+            const auto& color = sensor.active ? palette.sensor_normal_active : palette.sensor_normal_inactive;
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         }
         SDL_RenderFillRectF(renderer, &rect);
 
-        SDL_SetRenderDrawColor(renderer, sensor.enabled ? 110 : 90, sensor.enabled ? 220 : 140, sensor.enabled ? 255 : 120, 220);
+        const auto& border = sensor.enabled ? palette.text : palette.muted_text;
+        SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
         SDL_RenderDrawRectF(renderer, &rect);
 
         if (selected_index.has_value() && *selected_index == i)
         {
-            SDL_SetRenderDrawColor(renderer, 255, 240, 128, 255);
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, palette.selection.a);
             SDL_RenderDrawRectF(renderer, &rect);
         }
     }
 }
 
-void draw_crosshair(SDL_Renderer* renderer, int x, int y)
+void draw_crosshair(SDL_Renderer* renderer, int x, int y, const physics_sim::UiPalette& palette)
 {
-    SDL_SetRenderDrawColor(renderer, 122, 226, 255, 255);
+    SDL_SetRenderDrawColor(renderer, palette.crosshair.r, palette.crosshair.g, palette.crosshair.b, palette.crosshair.a);
     SDL_RenderDrawLine(renderer, x - 12, y, x + 12, y);
     SDL_RenderDrawLine(renderer, x, y - 12, x, y + 12);
     SDL_Rect dot{ x - 2, y - 2, 4, 4 };
     SDL_RenderFillRect(renderer, &dot);
 }
 
-void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_height)
+void draw_help_overlay(
+    SDL_Renderer* renderer,
+    int window_width,
+    int window_height,
+    const physics_sim::InputBindings& bindings,
+    const physics_sim::UiPalette& palette)
 {
-    const std::array<std::string, 22> lines{
-        "HELP",
-        "LMB paint / place / select",
-        "RMB clear selection",
-        "1-9 tools, Tab cycle, V visual mode",
-        "H toggle help",
-        "Esc opens pause menu / backs out",
-        "Enter or click confirm menus",
-        "Ctrl+Z undo, Ctrl+Y redo",
-        "Arrows/WASD set direction",
-        "Ctrl+Arrows/WASD move selected",
-        "Q/E rotate selected or tool",
-        "[/ ] speed, -/= emission",
-        "T toggle selected device",
-        "Gate tool places a door",
-        "Sensor tool places trigger",
-        "Drain tool removes water",
-        "Pump tool pushes flow",
-        "Valve tool routes flow",
-        "Space pause, S step",
-        "R clear fluid, F10 retry current scene",
-        "PgUp/PgDn browse scenes",
-        "Delete remove selected or clear scene",
-    };
+    const auto lines = physics_sim::build_help_overlay_lines(bindings);
 
     constexpr int scale = 2;
     constexpr int padding = 10;
@@ -828,17 +947,62 @@ void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_heig
     const int y = std::max(16, window_height - height - 16);
 
     SDL_Rect background{x, y, width, height};
-    SDL_SetRenderDrawColor(renderer, 6, 10, 18, 210);
+    SDL_SetRenderDrawColor(renderer, palette.panel_background.r, palette.panel_background.g, palette.panel_background.b, palette.panel_background.a);
     SDL_RenderFillRect(renderer, &background);
 
-    SDL_SetRenderDrawColor(renderer, 255, 194, 102, 255);
+    SDL_SetRenderDrawColor(renderer, palette.panel_border.r, palette.panel_border.g, palette.panel_border.b, palette.panel_border.a);
     SDL_RenderDrawRect(renderer, &background);
 
-    SDL_SetRenderDrawColor(renderer, 236, 244, 255, 255);
+    SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, palette.text.a);
     int line_y = y + padding;
     for (const auto& line : lines)
     {
         physics_sim::draw_text(renderer, x + padding, line_y, scale, line);
+        line_y += line_height;
+    }
+}
+
+void draw_tutorial_overlay(
+    SDL_Renderer* renderer,
+    int window_width,
+    int window_height,
+    const physics_sim::TutorialProgress& progress,
+    const physics_sim::InputBindings& bindings,
+    const physics_sim::UiPalette& palette)
+{
+    const auto lines = physics_sim::build_tutorial_overlay_lines(progress, bindings);
+
+    constexpr int scale = 2;
+    constexpr int padding = 10;
+    constexpr int line_height = 8 * scale;
+    constexpr int char_advance = 6 * scale;
+
+    std::size_t max_length = 0;
+    for (const auto& line : lines)
+    {
+        max_length = std::max(max_length, line.size());
+    }
+
+    const int width = padding * 2 + static_cast<int>(max_length) * char_advance;
+    const int height = padding * 2 + static_cast<int>(lines.size()) * line_height;
+    const int x = std::max(16, window_width - width - 16);
+    const int y = std::max(16, window_height - height - 16);
+
+    SDL_Rect background{x, y, width, height};
+    SDL_SetRenderDrawColor(renderer, palette.panel_background.r, palette.panel_background.g, palette.panel_background.b, palette.panel_background.a);
+    SDL_RenderFillRect(renderer, &background);
+
+    SDL_SetRenderDrawColor(renderer, palette.panel_border.r, palette.panel_border.g, palette.panel_border.b, palette.panel_border.a);
+    SDL_RenderDrawRect(renderer, &background);
+
+    int line_y = y + padding;
+    for (std::size_t i = 0; i < lines.size(); ++i)
+    {
+        const bool is_current = i == 1;
+        const bool is_complete_line = physics_sim::tutorial_is_complete(progress) && i + 1 == lines.size();
+        const auto& color = is_complete_line ? palette.success : (is_current ? palette.selection : palette.text);
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        physics_sim::draw_text(renderer, x + padding, line_y, scale, lines[i]);
         line_y += line_height;
     }
 }
@@ -861,11 +1025,18 @@ void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_heig
             "ENTER LOADS SCENE",
             "ESC GOES BACK",
         };
+    case physics_sim::SessionShellScreen::SaveBrowser:
+        return {
+            "SAVE BROWSER",
+            "UP/DOWN SELECT",
+            "ENTER LOADS SAVE",
+            "ESC GOES BACK",
+        };
     case physics_sim::SessionShellScreen::Settings:
         return {
             "SETTINGS",
             "UP/DOWN SELECT",
-            "ENTER APPLIES",
+            "ENTER TO TOGGLE OR REBIND",
             "ESC GOES BACK",
         };
     case physics_sim::SessionShellScreen::About:
@@ -893,7 +1064,9 @@ void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_heig
 
 [[nodiscard]] std::vector<std::string> build_session_shell_option_lines(
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths)
+    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
+    const physics_sim::UserSettings& userSettings)
 {
     std::vector<std::string> lines;
 
@@ -902,7 +1075,7 @@ void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_heig
     case physics_sim::SessionShellScreen::Playing:
         break;
     case physics_sim::SessionShellScreen::MainMenu:
-        lines.reserve(5);
+        lines.reserve(6);
         for (std::size_t index = 0; index < physics_sim::session_shell_option_count(shell.screen, galleryScenePaths.size()); ++index)
         {
             lines.emplace_back(physics_sim::session_shell_main_menu_label(index));
@@ -916,13 +1089,23 @@ void draw_help_overlay(SDL_Renderer* renderer, int window_width, int window_heig
         }
         lines.emplace_back("BACK");
         break;
-    case physics_sim::SessionShellScreen::Settings:
-        lines.reserve(3);
-        for (std::size_t index = 0; index < 3; ++index)
+    case physics_sim::SessionShellScreen::SaveBrowser:
+        lines.reserve(saveBrowserEntries.size());
+        for (const auto& entry : saveBrowserEntries)
         {
-            lines.emplace_back(physics_sim::session_shell_settings_label(index));
+            lines.emplace_back(entry.label);
         }
         break;
+    case physics_sim::SessionShellScreen::Settings:
+    {
+        const auto settings_entries = physics_sim::build_settings_menu_entries(userSettings);
+        lines.reserve(settings_entries.size());
+        for (const auto& entry : settings_entries)
+        {
+            lines.emplace_back(entry.label);
+        }
+        break;
+    }
     case physics_sim::SessionShellScreen::About:
         lines.emplace_back("BACK");
         break;
@@ -943,10 +1126,13 @@ void draw_session_shell(
     int window_width,
     int window_height,
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths)
+    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
+    const physics_sim::UserSettings& userSettings,
+    const physics_sim::UiPalette& palette)
 {
     const auto body_lines = build_session_shell_body_lines(shell.screen);
-    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths);
+    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths, saveBrowserEntries, userSettings);
     std::vector<std::string> all_lines = body_lines;
     if (!option_lines.empty())
     {
@@ -971,16 +1157,16 @@ void draw_session_shell(
     const int y = std::max(24, (window_height - height) / 2);
 
     SDL_Rect panel{x, y, width, height};
-    SDL_SetRenderDrawColor(renderer, 8, 12, 20, 230);
+    SDL_SetRenderDrawColor(renderer, palette.panel_background.r, palette.panel_background.g, palette.panel_background.b, palette.panel_background.a);
     SDL_RenderFillRect(renderer, &panel);
 
-    SDL_SetRenderDrawColor(renderer, 255, 194, 102, 255);
+    SDL_SetRenderDrawColor(renderer, palette.panel_border.r, palette.panel_border.g, palette.panel_border.b, palette.panel_border.a);
     SDL_RenderDrawRect(renderer, &panel);
 
     int line_y = y + padding;
     for (std::size_t index = 0; index < body_lines.size(); ++index)
     {
-        SDL_SetRenderDrawColor(renderer, 236, 244, 255, 255);
+        SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, palette.text.a);
         physics_sim::draw_text(renderer, x + padding, line_y, scale, body_lines[index]);
         line_y += line_height;
     }
@@ -991,7 +1177,8 @@ void draw_session_shell(
         for (std::size_t index = 0; index < option_lines.size(); ++index)
         {
             const bool selected = index == shell.selection;
-            SDL_SetRenderDrawColor(renderer, selected ? 255 : 182, selected ? 240 : 210, selected ? 128 : 230, 255);
+            const auto& color = selected ? palette.selection : palette.muted_text;
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
             physics_sim::draw_text(renderer, x + padding, line_y, scale, option_lines[index]);
             line_y += line_height;
         }
@@ -1004,10 +1191,12 @@ void draw_session_shell(
     int window_width,
     int window_height,
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths)
+    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
+    const physics_sim::UserSettings& userSettings)
 {
     const auto body_lines = build_session_shell_body_lines(shell.screen);
-    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths);
+    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths, saveBrowserEntries, userSettings);
 
     if (option_lines.empty())
     {
@@ -1055,7 +1244,8 @@ void draw_tool_preview(
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
     const physics_sim::SceneController& controller,
-    const physics_sim::Vec2& mouse_world)
+    const physics_sim::Vec2& mouse_world,
+    const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
     const auto tool = controller.tool();
@@ -1066,13 +1256,15 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size, cell_size});
-        SDL_SetRenderDrawColor(renderer, tool == physics_sim::SceneTool::PaintWall ? 96 : 255, 196, 255, 120);
+        const auto& color = tool == physics_sim::SceneTool::PaintWall ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
     }
     else if (tool == physics_sim::SceneTool::DirectionalEmitter || tool == physics_sim::SceneTool::OmniEmitter)
     {
         const bool valid_placement = controller.can_place_fixture(mouse_world);
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 255 : 255, valid_placement ? 255 : 96, valid_placement ? 255 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 
         if (tool == physics_sim::SceneTool::DirectionalEmitter)
         {
@@ -1107,7 +1299,8 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size, cell_size});
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 88 : 255, valid_placement ? 200 : 96, valid_placement ? 120 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
         if (valid_placement)
         {
@@ -1122,7 +1315,8 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size * 3.0f, cell_size * 3.0f});
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 110 : 255, valid_placement ? 180 : 96, valid_placement ? 255 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
         if (valid_placement)
         {
@@ -1137,7 +1331,8 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size * 3.0f, cell_size * 3.0f});
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 255 : 255, valid_placement ? 96 : 96, valid_placement ? 96 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
         if (valid_placement)
         {
@@ -1152,7 +1347,8 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size * 3.0f, cell_size * 3.0f});
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 96 : 255, valid_placement ? 220 : 96, valid_placement ? 255 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
         if (valid_placement)
         {
@@ -1166,7 +1362,7 @@ void draw_tool_preview(
         const physics_sim::Vec2 arrow_end = center_world + direction * (cell_size * 1.4f);
         const physics_sim::Vec2 window_start = viewport.world_to_window(center_world);
         const physics_sim::Vec2 window_end = viewport.world_to_window(arrow_end);
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 220);
+        SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, palette.text.a);
         SDL_RenderDrawLineF(renderer, window_start.x, window_start.y, window_end.x, window_end.y);
     }
     else if (tool == physics_sim::SceneTool::Valve)
@@ -1177,7 +1373,8 @@ void draw_tool_preview(
             std::floor(mouse_world.y / cell_size) * cell_size,
         };
         const SDL_FRect rect = world_rect(viewport, cell_top_left, {cell_size, cell_size});
-        SDL_SetRenderDrawColor(renderer, valid_placement ? 184 : 255, valid_placement ? 148 : 96, valid_placement ? 255 : 96, 160);
+        const auto& color = valid_placement ? palette.tool_preview_valid : palette.tool_preview_invalid;
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_RenderDrawRectF(renderer, &rect);
         if (valid_placement)
         {
@@ -1191,7 +1388,7 @@ void draw_tool_preview(
             viewport,
             {mouse_world.x - icon_size * 0.5f, mouse_world.y - icon_size * 0.5f},
             {icon_size, icon_size});
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 160);
+        SDL_SetRenderDrawColor(renderer, palette.tool_preview_invalid.r, palette.tool_preview_invalid.g, palette.tool_preview_invalid.b, palette.tool_preview_invalid.a);
         SDL_RenderDrawRectF(renderer, &rect);
     }
 }
@@ -1242,7 +1439,8 @@ bool load_scene_from_file(
     physics_sim::FixedStepDriver& driver,
     physics_sim::SceneController& controller,
     physics_sim::SceneMetadata* metadata_out = nullptr,
-    const AppLogger* logger = nullptr)
+    const AppLogger* logger = nullptr,
+    physics_sim::PlayerFeedback* feedback_out = nullptr)
 {
     if (logger != nullptr)
     {
@@ -1253,12 +1451,19 @@ bool load_scene_from_file(
 
     if (!physics_sim::load_scene(path, simulation, metadata_out))
     {
+        const auto feedback = physics_sim::describe_scene_load_failure(path);
+        if (feedback_out != nullptr)
+        {
+            *feedback_out = feedback;
+        }
+
         if (logger != nullptr)
         {
             std::ostringstream stream;
-            stream << "scene load failed: " << path.string() << " reason=";
-            std::error_code exists_ec;
-            stream << (std::filesystem::exists(path, exists_ec) ? "invalid scene data" : "file missing");
+            stream << "scene load failed: " << path.string()
+                   << " status=" << feedback.status_message
+                   << " detail=" << feedback.detail
+                   << " recovery=" << physics_sim::player_recovery_action_name(feedback.recovery);
             logger->log(stream.str());
         }
 
@@ -1411,7 +1616,8 @@ std::string build_window_title(
     const physics_sim::SceneMetadata& scene_metadata,
     const physics_sim::SceneController& controller,
     const physics_sim::SceneViewport& viewport,
-    const physics_sim::SessionShellState* session_shell_state = nullptr)
+    const physics_sim::SessionShellState* session_shell_state = nullptr,
+    const physics_sim::TutorialProgress* tutorial_progress = nullptr)
 {
     std::ostringstream title;
     title.setf(std::ios::fixed);
@@ -1438,6 +1644,11 @@ std::string build_window_title(
     if (session_shell_state != nullptr && session_shell_state->screen != physics_sim::SessionShellScreen::Playing)
     {
         title << " | shell=" << physics_sim::session_shell_screen_title(session_shell_state->screen);
+    }
+
+    if (tutorial_progress != nullptr && !physics_sim::tutorial_is_complete(*tutorial_progress))
+    {
+        title << " | tutorial=" << physics_sim::tutorial_step_title(physics_sim::tutorial_current_step(*tutorial_progress));
     }
 
     if (const auto* selected = controller.selected_fixture())
@@ -1485,15 +1696,30 @@ void apply_action(
     const fs::path& current_scene_path,
     physics_sim::SceneMetadata* metadata_out = nullptr,
     std::string* feedback_out = nullptr,
-    const AppLogger* logger = nullptr)
+    const AppLogger* logger = nullptr,
+    physics_sim::TutorialProgress* tutorialProgress = nullptr)
 {
     switch (action)
     {
     case physics_sim::Action::Quit:
         break;
     case physics_sim::Action::TogglePause:
+    {
+        const bool was_paused = driver.paused();
         driver.toggle_pause();
+        if (tutorialProgress != nullptr)
+        {
+            if (!was_paused && driver.paused())
+            {
+                tutorialProgress->pause_opened = true;
+            }
+            else if (was_paused && !driver.paused())
+            {
+                tutorialProgress->pause_resumed = true;
+            }
+        }
         break;
+    }
     case physics_sim::Action::StepOnce:
         driver.request_step();
         break;
@@ -1503,6 +1729,10 @@ void apply_action(
             logger->log("action: reset");
         }
         restore_demo_scene(current_scene_path, simulation, viewport, state, driver, controller, metadata_out, logger);
+        if (tutorialProgress != nullptr)
+        {
+            physics_sim::tutorial_mark_reset_or_retry(*tutorialProgress);
+        }
         if (feedback_out != nullptr)
         {
             *feedback_out = "RETRY SCENE";
@@ -1518,6 +1748,10 @@ void apply_action(
         driver.reset();
         controller.clear_selection();
         controller.sync_history();
+        if (tutorialProgress != nullptr)
+        {
+            physics_sim::tutorial_mark_reset_or_retry(*tutorialProgress);
+        }
         if (feedback_out != nullptr)
         {
             *feedback_out = "RESET FLUID";
@@ -1530,10 +1764,19 @@ void handle_fixture_edit_key(
     physics_sim::SceneController& controller,
     SDL_Keycode keycode,
     SDL_Keymod modifiers,
-    float move_step)
+    float move_step,
+    const physics_sim::InputBindings& bindings,
+    physics_sim::TutorialProgress* tutorialProgress = nullptr)
 {
     const bool has_selection = controller.has_selected_fixture();
     const bool move_selected = has_selection && (modifiers & KMOD_CTRL) != 0;
+    const auto mark_device_used = [&]()
+    {
+        if (tutorialProgress != nullptr)
+        {
+            physics_sim::tutorial_mark_device_used(*tutorialProgress);
+        }
+    };
 
     if (move_selected)
     {
@@ -1542,71 +1785,37 @@ void handle_fixture_edit_key(
         case SDLK_UP:
         case SDLK_w:
             static_cast<void>(controller.move_selected_fixture({0.0f, -move_step}));
+            mark_device_used();
             return;
         case SDLK_DOWN:
         case SDLK_s:
             static_cast<void>(controller.move_selected_fixture({0.0f, move_step}));
+            mark_device_used();
             return;
         case SDLK_LEFT:
         case SDLK_a:
             static_cast<void>(controller.move_selected_fixture({-move_step, 0.0f}));
+            mark_device_used();
             return;
         case SDLK_RIGHT:
         case SDLK_d:
             static_cast<void>(controller.move_selected_fixture({move_step, 0.0f}));
+            mark_device_used();
             return;
         default:
             break;
         }
     }
 
-    switch (keycode)
+    const auto rotate_counterclockwise = keycode == bindings.rotate_counterclockwise;
+    const auto rotate_clockwise = keycode == bindings.rotate_clockwise;
+    const auto speed_down = keycode == bindings.speed_down;
+    const auto speed_up = keycode == bindings.speed_up;
+    const auto emission_down = keycode == bindings.emission_down;
+    const auto emission_up = keycode == bindings.emission_up;
+
+    if (rotate_counterclockwise)
     {
-    case SDLK_UP:
-    case SDLK_w:
-        if (has_selection)
-        {
-            static_cast<void>(controller.set_selected_fixture_direction({0.0f, -1.0f}));
-        }
-        else
-        {
-            controller.set_emitter_direction({0.0f, -1.0f});
-        }
-        break;
-    case SDLK_DOWN:
-    case SDLK_s:
-        if (has_selection)
-        {
-            static_cast<void>(controller.set_selected_fixture_direction({0.0f, 1.0f}));
-        }
-        else
-        {
-            controller.set_emitter_direction({0.0f, 1.0f});
-        }
-        break;
-    case SDLK_LEFT:
-    case SDLK_a:
-        if (has_selection)
-        {
-            static_cast<void>(controller.set_selected_fixture_direction({-1.0f, 0.0f}));
-        }
-        else
-        {
-            controller.set_emitter_direction({-1.0f, 0.0f});
-        }
-        break;
-    case SDLK_RIGHT:
-    case SDLK_d:
-        if (has_selection)
-        {
-            static_cast<void>(controller.set_selected_fixture_direction({1.0f, 0.0f}));
-        }
-        else
-        {
-            controller.set_emitter_direction({1.0f, 0.0f});
-        }
-        break;
-    case SDLK_q:
         if (has_selection)
         {
             static_cast<void>(controller.rotate_selected_fixture(-0.2617994f));
@@ -1615,8 +1824,12 @@ void handle_fixture_edit_key(
         {
             controller.rotate_emitter_direction(-0.2617994f);
         }
-        break;
-    case SDLK_e:
+        mark_device_used();
+        return;
+    }
+
+    if (rotate_clockwise)
+    {
         if (has_selection)
         {
             static_cast<void>(controller.rotate_selected_fixture(0.2617994f));
@@ -1625,8 +1838,12 @@ void handle_fixture_edit_key(
         {
             controller.rotate_emitter_direction(0.2617994f);
         }
-        break;
-    case SDLK_LEFTBRACKET:
+        mark_device_used();
+        return;
+    }
+
+    if (speed_down)
+    {
         if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_speed(-1.0f));
@@ -1635,8 +1852,12 @@ void handle_fixture_edit_key(
         {
             controller.set_emitter_speed(std::max(0.0f, controller.emitter_speed() - 1.0f));
         }
-        break;
-    case SDLK_RIGHTBRACKET:
+        mark_device_used();
+        return;
+    }
+
+    if (speed_up)
+    {
         if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_speed(1.0f));
@@ -1645,8 +1866,12 @@ void handle_fixture_edit_key(
         {
             controller.set_emitter_speed(controller.emitter_speed() + 1.0f);
         }
-        break;
-    case SDLK_MINUS:
+        mark_device_used();
+        return;
+    }
+
+    if (emission_down)
+    {
         if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_emission_rate(-4.0f));
@@ -1655,8 +1880,12 @@ void handle_fixture_edit_key(
         {
             controller.set_emission_rate(std::max(0.0f, controller.emission_rate() - 4.0f));
         }
-        break;
-    case SDLK_EQUALS:
+        mark_device_used();
+        return;
+    }
+
+    if (emission_up)
+    {
         if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_emission_rate(4.0f));
@@ -1665,8 +1894,12 @@ void handle_fixture_edit_key(
         {
             controller.set_emission_rate(controller.emission_rate() + 4.0f);
         }
-        break;
-    case SDLK_t:
+        mark_device_used();
+        return;
+    }
+
+    if (keycode == SDLK_t)
+    {
         if (controller.has_selected_gate())
         {
             static_cast<void>(controller.toggle_selected_gate_open());
@@ -1683,9 +1916,8 @@ void handle_fixture_edit_key(
         {
             static_cast<void>(controller.toggle_selected_fixture_enabled());
         }
-        break;
-    default:
-        break;
+        mark_device_used();
+        return;
     }
 }
 } // namespace
@@ -1695,7 +1927,9 @@ int main(int argc, char* argv[])
     const RuntimeOptions options = parse_command_line(argc, argv);
     SDL_SetMainReady();
     const fs::path demoScenePath{"scenes/demo_scene.pscene"};
-    const fs::path autosaveScenePath{"scenes/autosave.pscene"};
+    const fs::path tutorialScenePath{"scenes/tutorial_intro.pscene"};
+    const fs::path saveDirectory = default_save_directory().value_or(fs::path{"physics-sim-saves"});
+    const fs::path autosaveScenePath = saveDirectory / "autosave.pscene";
     const fs::path logFilePath = options.logFilePath.value_or(fs::path{"physics-sim.log"});
     const fs::path startupScenePath = options.startupScenePath.value_or(demoScenePath);
     const std::array<fs::path, 6> galleryScenePaths{
@@ -1749,12 +1983,25 @@ int main(int argc, char* argv[])
     std::optional<physics_sim::ReplayScript> replayScript;
     std::size_t nextReplayEventIndex = 0;
     std::uint64_t replayTick = 0;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0)
+    {
+        const auto feedback = physics_sim::describe_renderer_failure(SDL_GetError());
+        show_error(feedback.status_message.c_str(), feedback.detail, &logger);
+        return 1;
+    }
+    logger.log("SDL_Init ok");
+
     if (options.replayFilePath.has_value())
     {
         replayScript = physics_sim::load_replay_script(*options.replayFilePath);
         if (!replayScript.has_value())
         {
-            logger.log("fatal replay script load failed: " + options.replayFilePath->string());
+            const auto feedback = physics_sim::describe_replay_failure("replay script missing or malformed");
+            logger.log("replay script load failed: " + options.replayFilePath->string());
+            logger.log(feedback.detail);
+            show_error(feedback.status_message.c_str(), feedback.detail, &logger);
+            SDL_Quit();
             return 1;
         }
 
@@ -1763,13 +2010,6 @@ int main(int argc, char* argv[])
                << " events=" << replayScript->events.size();
         logger.log(stream.str());
     }
-
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0)
-    {
-        show_error("SDL_Init failed", SDL_GetError(), &logger);
-        return 1;
-    }
-    logger.log("SDL_Init ok");
 
     const fs::path settingsPath = options.settingsFilePath.value_or(default_settings_path().value_or(fs::path{"physics-sim-settings.txt"}));
     physics_sim::UserSettings userSettings = physics_sim::load_user_settings_or_default(settingsPath);
@@ -1785,13 +2025,18 @@ int main(int argc, char* argv[])
     {
         userSettings.visual_mode = *options.initialVisualMode;
     }
+    if (options.initialReducedMotion.has_value())
+    {
+        userSettings.reduced_motion = *options.initialReducedMotion;
+    }
 
     {
         std::ostringstream stream;
         stream << "settings path=" << settingsPath.string()
                << " window=" << userSettings.window_size.width << 'x' << userSettings.window_size.height
                << " help_overlay=" << (userSettings.help_overlay_visible ? "on" : "off")
-               << " visual_mode=" << visual_mode_name(userSettings.visual_mode);
+               << " visual_mode=" << visual_mode_name(userSettings.visual_mode)
+               << " reduced_motion=" << (userSettings.reduced_motion ? "on" : "off");
         logger.log(stream.str());
     }
 
@@ -1821,7 +2066,8 @@ int main(int argc, char* argv[])
 
     if (window == nullptr)
     {
-        show_error("SDL_CreateWindow failed", SDL_GetError(), &logger);
+        const auto feedback = physics_sim::describe_renderer_failure(SDL_GetError());
+        show_error(feedback.status_message.c_str(), feedback.detail, &logger);
         SDL_Quit();
         return 1;
     }
@@ -1852,7 +2098,8 @@ int main(int argc, char* argv[])
 
     if (renderer == nullptr)
     {
-        show_error("SDL_CreateRenderer failed", SDL_GetError(), &logger);
+        const auto feedback = physics_sim::describe_renderer_failure(SDL_GetError());
+        show_error(feedback.status_message.c_str(), feedback.detail, &logger);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
@@ -1865,6 +2112,49 @@ int main(int argc, char* argv[])
         logger.log(stream.str());
     }
 
+    std::optional<physics_sim::PlayerFeedback> startupAudioFeedback;
+    physics_sim::AudioPlayer audioPlayer;
+    {
+        physics_sim::AudioSettings audioSettings{
+            userSettings.audio_muted,
+            userSettings.audio_master_volume,
+            userSettings.audio_effects_volume,
+            userSettings.audio_music_volume,
+        };
+        std::string audioError;
+        const bool audioStarted = audioPlayer.initialize(audioSettings, options.disableAudio, &audioError);
+        if (options.disableAudio)
+        {
+            logger.log("audio disabled by command-line flag");
+        }
+        else if (audioStarted)
+        {
+            logger.log("audio initialized");
+        }
+        else
+        {
+            startupAudioFeedback = physics_sim::describe_audio_failure(audioError);
+            logger.log(startupAudioFeedback->detail);
+        }
+    }
+
+    const auto sync_audio_settings = [&]()
+    {
+        audioPlayer.apply_settings({
+            userSettings.audio_muted,
+            userSettings.audio_master_volume,
+            userSettings.audio_effects_volume,
+            userSettings.audio_music_volume,
+        });
+    };
+
+    const auto play_audio = [&](physics_sim::AudioCue cue)
+    {
+        static_cast<void>(audioPlayer.play(cue));
+    };
+
+    sync_audio_settings();
+
     bool running = true;
     int windowWidth = userSettings.window_size.width;
     int windowHeight = userSettings.window_size.height;
@@ -1875,40 +2165,115 @@ int main(int argc, char* argv[])
     physics_sim::SceneController controller{simulation};
     physics_sim::SceneViewport viewport;
     physics_sim::SceneMetadata sceneMetadata;
-    fs::path currentScenePath = startupScenePath;
-    std::optional<std::size_t> currentGalleryIndex = gallery_index_for_path(currentScenePath);
     viewport.set_world_size({1280.0f, 720.0f});
     viewport.set_window_size(windowWidth, windowHeight);
-    static_cast<void>(restore_demo_scene(startupScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
-    currentGalleryIndex = gallery_index_for_path(currentScenePath);
-
-    bool panning = false;
-    bool painting = false;
-    bool frameDumped = false;
-    VisualMode visualMode = userSettings.visual_mode;
-    bool showHelp = userSettings.help_overlay_visible;
     const bool captureByTickCount = options.dumpFrameAfterTicks.has_value();
-    const bool cleanCaptureFrame = captureByTickCount;
     const bool sessionShellBypassed = options.skipSessionShell
         || options.replayFilePath.has_value()
         || options.dumpFramePath.has_value()
         || captureByTickCount;
+    const fs::path tutorialStatePath = default_tutorial_state_path().value_or(fs::path{"physics-sim-tutorial-state.txt"});
+    const bool tutorialSeen = load_tutorial_seen_state(tutorialStatePath).value_or(false);
+    bool tutorialStartup = options.tutorialMode || (!sessionShellBypassed && !tutorialSeen);
+    const fs::path initialScenePath = tutorialStartup ? tutorialScenePath : startupScenePath;
+    fs::path currentScenePath = initialScenePath;
+    std::optional<std::size_t> currentGalleryIndex = gallery_index_for_path(currentScenePath);
+    std::vector<physics_sim::SaveBrowserEntry> saveBrowserEntries;
+    const auto refresh_save_browser_entries = [&]()
+    {
+        saveBrowserEntries = physics_sim::build_save_browser_entries(saveDirectory, autosaveScenePath);
+    };
+
+    if (tutorialStartup)
+    {
+        if (!fs::exists(tutorialScenePath))
+        {
+            const auto feedback = physics_sim::describe_package_content_failure("tutorial scene missing");
+            logger.log(feedback.detail);
+            show_error(feedback.status_message.c_str(), feedback.detail, &logger);
+            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            currentScenePath = demoScenePath;
+            currentGalleryIndex = gallery_index_for_path(currentScenePath);
+            logger.log("tutorial scene fallback: loaded demo scene after tutorial content missing");
+        }
+        else if (!load_scene_from_file(tutorialScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger))
+        {
+            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            currentScenePath = demoScenePath;
+            currentGalleryIndex = gallery_index_for_path(currentScenePath);
+            logger.log("tutorial scene fallback: loaded demo scene after tutorial load failure");
+        }
+    }
+    else
+    {
+        static_cast<void>(restore_demo_scene(startupScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+        currentGalleryIndex = gallery_index_for_path(currentScenePath);
+    }
+
+    refresh_save_browser_entries();
+
+    bool tutorialActive = tutorialStartup;
+    physics_sim::TutorialProgress tutorialProgress{};
+    bool panning = false;
+    bool painting = false;
+    std::optional<physics_sim::SceneTool> paintingTool{};
+    std::size_t paintingSolidCount = 0;
+    bool frameDumped = false;
+    VisualMode visualMode = userSettings.visual_mode;
+    bool showHelp = userSettings.help_overlay_visible;
+    const bool cleanCaptureFrame = captureByTickCount;
     physics_sim::SessionShellState sessionShellState;
-    if (sessionShellBypassed)
+    if (tutorialActive || sessionShellBypassed)
     {
         sessionShellState.screen = physics_sim::SessionShellScreen::Playing;
         stepDriver.set_paused(false);
     }
     else
     {
+        sessionShellState.screen = physics_sim::SessionShellScreen::MainMenu;
         stepDriver.set_paused(true);
     }
-    std::optional<std::string> statusMessage;
-    Clock::time_point statusMessageExpiresAt{};
 
-    const auto set_status_message = [&](std::string message)
+    const auto update_shell_pause_state = [&]()
+    {
+        stepDriver.set_paused(sessionShellState.screen != physics_sim::SessionShellScreen::Playing);
+    };
+
+    enum class StatusMessageKind
+    {
+        Info,
+        Success,
+        Warning,
+        Error,
+    };
+
+    const auto status_message_rgba = [](const physics_sim::UiPalette& palette, StatusMessageKind kind) noexcept -> std::array<std::uint8_t, 4>
+    {
+        switch (kind)
+        {
+        case StatusMessageKind::Info:
+            return {palette.text.r, palette.text.g, palette.text.b, palette.text.a};
+        case StatusMessageKind::Success:
+            return {palette.success.r, palette.success.g, palette.success.b, palette.success.a};
+        case StatusMessageKind::Warning:
+            return {palette.warning.r, palette.warning.g, palette.warning.b, palette.warning.a};
+        case StatusMessageKind::Error:
+            return {palette.error.r, palette.error.g, palette.error.b, palette.error.a};
+        }
+
+        return {palette.text.r, palette.text.g, palette.text.b, palette.text.a};
+    };
+
+    std::optional<std::string> statusMessage;
+    Clock::time_point statusMessageStartedAt{};
+    Clock::time_point statusMessageExpiresAt{};
+    StatusMessageKind statusMessageKind = StatusMessageKind::Info;
+
+    const auto set_status_message = [&](std::string message, StatusMessageKind kind = StatusMessageKind::Info)
     {
         statusMessage = std::move(message);
+        statusMessageKind = kind;
+        statusMessageStartedAt = Clock::now();
         statusMessageExpiresAt = Clock::now() + std::chrono::seconds{2};
     };
 
@@ -1928,6 +2293,335 @@ int main(int argc, char* argv[])
         return statusMessage->c_str();
     };
 
+    const auto current_status_message_alpha = [&]() -> float
+    {
+        if (!statusMessage.has_value())
+        {
+            return 1.0f;
+        }
+
+        const Clock::time_point now = Clock::now();
+        if (now > statusMessageExpiresAt)
+        {
+            return 1.0f;
+        }
+
+        const std::chrono::duration<double> elapsed = now - statusMessageStartedAt;
+        const std::chrono::duration<double> lifetime = statusMessageExpiresAt - statusMessageStartedAt;
+        return physics_sim::feedback_message_alpha(elapsed, lifetime, userSettings.reduced_motion);
+    };
+
+    std::size_t previousActiveSensors = simulation.metrics().active_sensors;
+    bool previousObjectiveCompleted = simulation.metrics().objective_completed;
+    const auto sync_scene_feedback_metrics = [&]()
+    {
+        const auto metrics = simulation.metrics();
+        previousActiveSensors = metrics.active_sensors;
+        previousObjectiveCompleted = metrics.objective_completed;
+    };
+
+    const auto update_scene_feedback_audio = [&]()
+    {
+        const auto metrics = simulation.metrics();
+        if (metrics.active_sensors > 0 && previousActiveSensors == 0)
+        {
+            play_audio(physics_sim::AudioCue::DeviceTrigger);
+        }
+        if (metrics.objective_completed && !previousObjectiveCompleted)
+        {
+            play_audio(physics_sim::AudioCue::ObjectiveComplete);
+        }
+
+        previousActiveSensors = metrics.active_sensors;
+        previousObjectiveCompleted = metrics.objective_completed;
+    };
+
+    if (startupAudioFeedback.has_value())
+    {
+        set_status_message(startupAudioFeedback->status_message, StatusMessageKind::Warning);
+    }
+
+    sync_scene_feedback_metrics();
+
+    std::optional<std::string> pendingSettingsBindingName;
+
+    const auto settings_entries = [&]() -> std::vector<physics_sim::SettingsMenuEntry>
+    {
+        return physics_sim::build_settings_menu_entries(userSettings);
+    };
+
+    const auto update_window_metrics = [&]()
+    {
+        SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+        viewport.set_window_size(windowWidth, windowHeight);
+    };
+
+    const auto persist_settings_or_report = [&]() -> bool
+    {
+        if (persist_user_settings())
+        {
+            return true;
+        }
+
+        const auto feedback = physics_sim::describe_settings_failure(settingsPath);
+        logger.log(feedback.detail);
+        play_audio(physics_sim::AudioCue::InvalidAction);
+        set_status_message(feedback.status_message, StatusMessageKind::Error);
+        return false;
+    };
+
+    const auto apply_settings_entry = [&](const physics_sim::SettingsMenuEntry& entry) -> bool
+    {
+        switch (entry.kind)
+        {
+        case physics_sim::SettingsMenuEntryKind::CycleWindowSize:
+            userSettings.window_size = physics_sim::next_window_size(userSettings.window_size, entry.adjustment);
+            if (!userSettings.fullscreen)
+            {
+                SDL_SetWindowSize(window, userSettings.window_size.width, userSettings.window_size.height);
+            }
+            update_window_metrics();
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(
+                std::string{"WINDOW "} + physics_sim::window_size_label(userSettings.window_size),
+                StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::ToggleFullscreen:
+            userSettings.fullscreen = !userSettings.fullscreen;
+            if (SDL_SetWindowFullscreen(window, userSettings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) != 0)
+            {
+                userSettings.fullscreen = !userSettings.fullscreen;
+                logger.log(std::string{"fullscreen change failed: "} + SDL_GetError());
+                play_audio(physics_sim::AudioCue::InvalidAction);
+                set_status_message("FULLSCREEN FAILED", StatusMessageKind::Error);
+                return false;
+            }
+            if (!userSettings.fullscreen)
+            {
+                SDL_SetWindowSize(window, userSettings.window_size.width, userSettings.window_size.height);
+            }
+            update_window_metrics();
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(userSettings.fullscreen ? "FULLSCREEN ON" : "FULLSCREEN OFF", StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::ToggleHelpOverlay:
+            showHelp = !showHelp;
+            userSettings.help_overlay_visible = showHelp;
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(showHelp ? "HELP ON" : "HELP OFF", StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::CycleVisualMode:
+            visualMode = next_visual_mode(visualMode);
+            userSettings.visual_mode = visualMode;
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"VISUAL "} + visual_mode_name(visualMode), StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::ToggleHighContrast:
+            userSettings.high_contrast = !userSettings.high_contrast;
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(userSettings.high_contrast ? "HIGH CONTRAST ON" : "HIGH CONTRAST OFF", StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::ToggleReducedMotion:
+            userSettings.reduced_motion = !userSettings.reduced_motion;
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(userSettings.reduced_motion ? "REDUCED MOTION ON" : "REDUCED MOTION OFF", StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::ToggleAudioMute:
+            userSettings.audio_muted = !userSettings.audio_muted;
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            sync_audio_settings();
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(userSettings.audio_muted ? "AUDIO MUTED" : "AUDIO ON", StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::AdjustMasterVolume:
+            userSettings.audio_master_volume = std::clamp(userSettings.audio_master_volume + entry.adjustment, 0, 100);
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            sync_audio_settings();
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"MASTER VOLUME "} + std::to_string(userSettings.audio_master_volume), StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::AdjustEffectsVolume:
+            userSettings.audio_effects_volume = std::clamp(userSettings.audio_effects_volume + entry.adjustment, 0, 100);
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            sync_audio_settings();
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"EFFECTS VOLUME "} + std::to_string(userSettings.audio_effects_volume), StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::AdjustMusicVolume:
+            userSettings.audio_music_volume = std::clamp(userSettings.audio_music_volume + entry.adjustment, 0, 100);
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            sync_audio_settings();
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"MUSIC VOLUME "} + std::to_string(userSettings.audio_music_volume), StatusMessageKind::Info);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::RemapBinding:
+            pendingSettingsBindingName = entry.binding_name;
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(
+                std::string{"PRESS NEW KEY FOR "} + physics_sim::binding_display_name(entry.binding_name),
+                StatusMessageKind::Warning);
+            return true;
+        case physics_sim::SettingsMenuEntryKind::Back:
+            return true;
+        }
+
+        return true;
+    };
+
+    const auto handle_pending_settings_binding = [&](SDL_Keycode keycode) -> bool
+    {
+        if (!pendingSettingsBindingName.has_value())
+        {
+            return false;
+        }
+
+        if (keycode == SDLK_ESCAPE)
+        {
+            pendingSettingsBindingName.reset();
+            set_status_message("REMAP CANCELED", StatusMessageKind::Warning);
+            play_audio(physics_sim::AudioCue::UiCancel);
+            return true;
+        }
+
+        const std::string binding_name = *pendingSettingsBindingName;
+        auto candidate = userSettings.input_bindings;
+        if (!physics_sim::set_binding(candidate, binding_name, keycode))
+        {
+            set_status_message("REMAP FAILED", StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return true;
+        }
+
+        if (!physics_sim::validate_input_bindings(candidate))
+        {
+            set_status_message("BINDING CONFLICT", StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return true;
+        }
+
+        userSettings.input_bindings = candidate;
+        pendingSettingsBindingName.reset();
+        if (!persist_settings_or_report())
+        {
+            return true;
+        }
+
+        play_audio(physics_sim::AudioCue::UiConfirm);
+        set_status_message(std::string{"BOUND "} + physics_sim::binding_display_name(binding_name), StatusMessageKind::Success);
+        return true;
+    };
+
+    const auto save_scene_snapshot = [&](const fs::path& path, std::string_view success_message, bool announce, bool mark_tutorial) -> bool
+    {
+        const auto snapshot = physics_sim::capture_scene(simulation, sceneMetadata);
+        std::error_code exists_ec;
+        if (std::filesystem::exists(path, exists_ec))
+        {
+            const fs::path backup_path = physics_sim::backup_scene_path(path);
+            std::error_code backup_ec;
+            std::filesystem::copy_file(path, backup_path, std::filesystem::copy_options::overwrite_existing, backup_ec);
+            if (backup_ec)
+            {
+                logger.log(std::string{"scene backup failed: "} + path.string() + " -> " + backup_path.string() + " reason=" + backup_ec.message());
+            }
+            else
+            {
+                logger.log(std::string{"scene backup ok: "} + path.string() + " -> " + backup_path.string());
+            }
+        }
+
+        if (physics_sim::save_scene(path, snapshot))
+        {
+            logger.log(std::string{"scene save ok: "} + path.string());
+            if (announce)
+            {
+                play_audio(physics_sim::AudioCue::Save);
+                set_status_message(std::string{success_message}, StatusMessageKind::Success);
+            }
+            if (mark_tutorial && tutorialActive)
+            {
+                physics_sim::tutorial_mark_save_or_load(tutorialProgress);
+            }
+            refresh_save_browser_entries();
+            return true;
+        }
+
+        const auto feedback = physics_sim::describe_scene_save_failure(path);
+        logger.log(feedback.detail);
+        if (announce)
+        {
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            set_status_message(feedback.status_message, StatusMessageKind::Error);
+        }
+        return false;
+    };
+
+    const auto save_autosave_scene = [&]() -> bool
+    {
+        return save_scene_snapshot(autosaveScenePath, "SAVED AUTOSAVE", false, true);
+    };
+
+    const auto save_named_scene = [&]() -> bool
+    {
+        const fs::path namedScenePath = physics_sim::named_save_path(saveDirectory, currentScenePath, sceneMetadata);
+        const std::string sceneLabel = scene_label(currentScenePath, sceneMetadata);
+        if (!save_scene_snapshot(namedScenePath, std::string{"SAVED "} + sceneLabel, false, false))
+        {
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            set_status_message("SAVE FAILED", StatusMessageKind::Error);
+            return false;
+        }
+
+        currentScenePath = namedScenePath;
+        currentGalleryIndex = gallery_index_for_path(currentScenePath);
+        if (!save_autosave_scene())
+        {
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            set_status_message("AUTOSAVE FAILED", StatusMessageKind::Error);
+            return false;
+        }
+
+        play_audio(physics_sim::AudioCue::Save);
+        set_status_message(std::string{"SAVED "} + sceneLabel, StatusMessageKind::Success);
+        return true;
+    };
+
     const auto load_gallery_scene = [&](std::size_t index) -> bool
     {
         if (index >= galleryScenePaths.size())
@@ -1936,51 +2630,114 @@ int main(int argc, char* argv[])
         }
 
         const fs::path& path = galleryScenePaths[index];
-        if (!load_scene_from_file(path, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger))
+        physics_sim::PlayerFeedback feedback;
+        if (!load_scene_from_file(path, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
         {
-            set_status_message("LOAD FAILED");
+            logger.log(feedback.detail);
+            set_status_message(feedback.status_message, StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
             return false;
         }
 
         currentScenePath = path;
         currentGalleryIndex = index;
-        set_status_message(std::string{"LOADED "} + scene_label(path, sceneMetadata));
-        return true;
-    };
-
-    const auto save_autosave_scene = [&]() -> bool
-    {
-        auto snapshot = physics_sim::capture_scene(simulation, sceneMetadata);
-        if (physics_sim::save_scene(autosaveScenePath, snapshot))
+        sync_scene_feedback_metrics();
+        refresh_save_browser_entries();
+        play_audio(physics_sim::AudioCue::Load);
+        set_status_message(std::string{"LOADED "} + scene_label(path, sceneMetadata), StatusMessageKind::Success);
+        if (tutorialActive)
         {
-            std::ostringstream stream;
-            stream << "scene save ok: " << autosaveScenePath.string();
-            logger.log(stream.str());
-            set_status_message("SAVED AUTOSAVE");
-            return true;
+            physics_sim::tutorial_mark_gallery_browsed(tutorialProgress);
         }
-
-        std::ostringstream stream;
-        stream << "scene save failed: " << autosaveScenePath.string();
-        logger.log(stream.str());
-        set_status_message("SAVE FAILED");
-        return false;
+        static_cast<void>(save_autosave_scene());
+        return true;
     };
 
     const auto load_autosave_or_demo = [&]() -> bool
     {
-        if (!load_scene_from_file(autosaveScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger))
+        physics_sim::PlayerFeedback feedback;
+        if (!load_scene_from_file(autosaveScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
         {
+            logger.log(feedback.detail);
             static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
-            set_status_message("LOADED DEMO");
+            sync_scene_feedback_metrics();
+            refresh_save_browser_entries();
+            play_audio(physics_sim::AudioCue::Load);
+            set_status_message("LOADED DEMO", StatusMessageKind::Success);
+            if (tutorialActive)
+            {
+                physics_sim::tutorial_mark_save_or_load(tutorialProgress);
+            }
+            static_cast<void>(save_autosave_scene());
             return false;
         }
 
         currentScenePath = autosaveScenePath;
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
-        set_status_message("LOADED AUTOSAVE");
+        sync_scene_feedback_metrics();
+        refresh_save_browser_entries();
+        play_audio(physics_sim::AudioCue::Load);
+        set_status_message("LOADED AUTOSAVE", StatusMessageKind::Success);
+        if (tutorialActive)
+        {
+            physics_sim::tutorial_mark_save_or_load(tutorialProgress);
+        }
+        static_cast<void>(save_autosave_scene());
+        return true;
+    };
+
+    const auto load_save_browser_entry = [&](std::size_t index) -> bool
+    {
+        refresh_save_browser_entries();
+        if (index >= saveBrowserEntries.size())
+        {
+            return false;
+        }
+
+        const auto entry = saveBrowserEntries[index];
+        if (entry.kind == physics_sim::SaveBrowserEntryKind::Back)
+        {
+            sessionShellState.screen = sessionShellState.return_screen;
+            sessionShellState.selection = 0;
+            update_shell_pause_state();
+            panning = false;
+            painting = false;
+            play_audio(physics_sim::AudioCue::UiCancel);
+            set_status_message("BACK", StatusMessageKind::Info);
+            return true;
+        }
+
+        if (!entry.loadable)
+        {
+            const auto feedback = physics_sim::describe_scene_load_failure(entry.path);
+            logger.log(feedback.detail);
+            set_status_message(feedback.status_message, StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return false;
+        }
+
+        physics_sim::PlayerFeedback feedback;
+        if (!load_scene_from_file(entry.path, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        {
+            logger.log(feedback.detail);
+            set_status_message(feedback.status_message, StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return false;
+        }
+
+        currentScenePath = entry.path;
+        currentGalleryIndex = gallery_index_for_path(currentScenePath);
+        sync_scene_feedback_metrics();
+        refresh_save_browser_entries();
+        play_audio(physics_sim::AudioCue::Load);
+        set_status_message(std::string{"LOADED "} + (entry.label.empty() ? scene_label(entry.path, sceneMetadata) : entry.label), StatusMessageKind::Success);
+        if (tutorialActive)
+        {
+            physics_sim::tutorial_mark_save_or_load(tutorialProgress);
+        }
+        static_cast<void>(save_autosave_scene());
         return true;
     };
 
@@ -1990,7 +2747,127 @@ int main(int argc, char* argv[])
         simulationState.reset();
         stepDriver.reset();
         sceneMetadata = {};
-        set_status_message("CLEARED SCENE");
+        sync_scene_feedback_metrics();
+        static_cast<void>(save_autosave_scene());
+        play_audio(physics_sim::AudioCue::Reset);
+        set_status_message("CLEARED SCENE", StatusMessageKind::Success);
+        if (tutorialActive)
+        {
+            physics_sim::tutorial_mark_reset_or_retry(tutorialProgress);
+        }
+    };
+
+    const auto mark_tutorial_seen = [&]()
+    {
+        if (save_tutorial_seen_state(tutorialStatePath, true))
+        {
+            logger.log("tutorial state save ok");
+        }
+        else
+        {
+            logger.log("tutorial state save failed");
+        }
+    };
+
+    const auto complete_tutorial_if_needed = [&]()
+    {
+        if (tutorialActive && physics_sim::tutorial_is_complete(tutorialProgress))
+        {
+            tutorialActive = false;
+            mark_tutorial_seen();
+            play_audio(physics_sim::AudioCue::ObjectiveComplete);
+            set_status_message("TUTORIAL COMPLETE", StatusMessageKind::Success);
+        }
+    };
+
+    const auto start_tutorial_session = [&]() -> bool
+    {
+        tutorialActive = true;
+        tutorialProgress = {};
+        sessionShellState.screen = physics_sim::SessionShellScreen::Playing;
+        sessionShellState.selection = 0;
+        stepDriver.set_paused(false);
+        panning = false;
+        painting = false;
+        paintingTool.reset();
+        paintingSolidCount = 0;
+
+        physics_sim::PlayerFeedback feedback;
+        if (!fs::exists(tutorialScenePath))
+        {
+            const auto package_feedback = physics_sim::describe_package_content_failure("tutorial scene missing");
+            logger.log(package_feedback.detail);
+            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            currentScenePath = demoScenePath;
+            currentGalleryIndex = gallery_index_for_path(currentScenePath);
+            sync_scene_feedback_metrics();
+            refresh_save_browser_entries();
+            set_status_message(package_feedback.status_message, StatusMessageKind::Error);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return false;
+        }
+
+        if (!load_scene_from_file(tutorialScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        {
+            logger.log(feedback.detail);
+            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            currentScenePath = demoScenePath;
+            currentGalleryIndex = gallery_index_for_path(currentScenePath);
+            sync_scene_feedback_metrics();
+            refresh_save_browser_entries();
+            set_status_message("TUTORIAL FALLBACK", StatusMessageKind::Warning);
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            return false;
+        }
+
+        currentScenePath = tutorialScenePath;
+        currentGalleryIndex = gallery_index_for_path(currentScenePath);
+        sync_scene_feedback_metrics();
+        refresh_save_browser_entries();
+        static_cast<void>(save_autosave_scene());
+        set_status_message("TUTORIAL STARTED", StatusMessageKind::Success);
+        return true;
+    };
+
+    const auto skip_tutorial_session = [&]()
+    {
+        if (tutorialActive)
+        {
+            tutorialActive = false;
+            mark_tutorial_seen();
+            set_status_message("TUTORIAL SKIPPED", StatusMessageKind::Warning);
+        }
+    };
+
+    const auto perform_action = [&](physics_sim::Action action, physics_sim::AudioCue cue) -> std::string
+    {
+        std::string actionFeedback;
+        apply_action(
+            action,
+            stepDriver,
+            simulationState,
+            controller,
+            simulation,
+            viewport,
+            currentScenePath,
+            &sceneMetadata,
+            &actionFeedback,
+            &logger,
+            tutorialActive ? &tutorialProgress : nullptr);
+
+        if (action == physics_sim::Action::Reset || action == physics_sim::Action::ResetFluid)
+        {
+            sync_scene_feedback_metrics();
+            static_cast<void>(save_autosave_scene());
+        }
+
+        if (!actionFeedback.empty())
+        {
+            set_status_message(std::move(actionFeedback));
+        }
+
+        play_audio(cue);
+        return actionFeedback;
     };
 
     auto process_replay_actions = [&](std::uint64_t current_replay_tick) -> bool
@@ -2030,12 +2907,10 @@ int main(int argc, char* argv[])
                     return false;
                 }
 
-                std::string actionFeedback;
-                apply_action(*action, stepDriver, simulationState, controller, simulation, viewport, currentScenePath, &sceneMetadata, &actionFeedback, &logger);
-                if (!actionFeedback.empty())
-                {
-                    set_status_message(std::move(actionFeedback));
-                }
+                const auto cue = *action == physics_sim::Action::Reset || *action == physics_sim::Action::ResetFluid
+                    ? physics_sim::AudioCue::Reset
+                    : physics_sim::AudioCue::UiConfirm;
+                static_cast<void>(perform_action(*action, cue));
                 continue;
             }
 
@@ -2150,12 +3025,12 @@ int main(int argc, char* argv[])
         simulationState.advance(step);
         simulation.step(step.count());
         ++replayTick;
-        return process_replay_actions(replayTick);
-    };
-
-    const auto update_shell_pause_state = [&]()
-    {
-        stepDriver.set_paused(sessionShellState.screen != physics_sim::SessionShellScreen::Playing);
+        const bool replay_ok = process_replay_actions(replayTick);
+        if (replay_ok)
+        {
+            update_scene_feedback_audio();
+        }
+        return replay_ok;
     };
 
     const auto open_pause_menu = [&]()
@@ -2163,9 +3038,14 @@ int main(int argc, char* argv[])
         sessionShellState.screen = physics_sim::SessionShellScreen::PauseMenu;
         sessionShellState.return_screen = physics_sim::SessionShellScreen::Playing;
         sessionShellState.selection = 0;
+        if (tutorialActive)
+        {
+            physics_sim::tutorial_mark_pause_opened(tutorialProgress);
+        }
         update_shell_pause_state();
         panning = false;
         painting = false;
+        play_audio(physics_sim::AudioCue::UiCancel);
     };
 
     const auto execute_session_shell_command = [&](physics_sim::SessionShellCommand command, physics_sim::SessionShellState previous_shell_state) -> bool
@@ -2178,71 +3058,73 @@ int main(int argc, char* argv[])
             running = false;
             return true;
         case physics_sim::SessionShellCommandKind::StartPlaying:
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            panning = false;
+            painting = false;
+            break;
+        case physics_sim::SessionShellCommandKind::StartTutorial:
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            static_cast<void>(start_tutorial_session());
+            break;
         case physics_sim::SessionShellCommandKind::Resume:
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            if (tutorialActive)
+            {
+                physics_sim::tutorial_mark_pause_resumed(tutorialProgress);
+            }
             panning = false;
             painting = false;
             break;
         case physics_sim::SessionShellCommandKind::RetryCurrentScene:
-        {
-            std::string actionFeedback;
-            apply_action(
-                physics_sim::Action::Reset,
-                stepDriver,
-                simulationState,
-                controller,
-                simulation,
-                viewport,
-                currentScenePath,
-                &sceneMetadata,
-                &actionFeedback,
-                &logger);
-            if (!actionFeedback.empty())
-            {
-                set_status_message(std::move(actionFeedback));
-            }
+            static_cast<void>(perform_action(physics_sim::Action::Reset, physics_sim::AudioCue::Reset));
             break;
-        }
         case physics_sim::SessionShellCommandKind::ResetFluid:
-        {
-            std::string actionFeedback;
-            apply_action(
-                physics_sim::Action::ResetFluid,
-                stepDriver,
-                simulationState,
-                controller,
-                simulation,
-                viewport,
-                currentScenePath,
-                &sceneMetadata,
-                &actionFeedback,
-                &logger);
-            if (!actionFeedback.empty())
-            {
-                set_status_message(std::move(actionFeedback));
-            }
+            static_cast<void>(perform_action(physics_sim::Action::ResetFluid, physics_sim::AudioCue::Reset));
             break;
-        }
         case physics_sim::SessionShellCommandKind::ClearScene:
             clear_current_scene();
             break;
         case physics_sim::SessionShellCommandKind::SaveScene:
-            static_cast<void>(save_autosave_scene());
+            static_cast<void>(save_named_scene());
             break;
         case physics_sim::SessionShellCommandKind::LoadScene:
             static_cast<void>(load_autosave_or_demo());
             break;
+        case physics_sim::SessionShellCommandKind::OpenSaveBrowser:
+            refresh_save_browser_entries();
+            panning = false;
+            painting = false;
+            play_audio(physics_sim::AudioCue::UiSelect);
+            break;
         case physics_sim::SessionShellCommandKind::ReturnToMainMenu:
+            skip_tutorial_session();
+            panning = false;
+            painting = false;
+            play_audio(physics_sim::AudioCue::UiCancel);
+            break;
         case physics_sim::SessionShellCommandKind::OpenSceneBrowser:
         case physics_sim::SessionShellCommandKind::OpenSettings:
         case physics_sim::SessionShellCommandKind::OpenAbout:
             panning = false;
             painting = false;
+            play_audio(physics_sim::AudioCue::UiSelect);
             break;
         case physics_sim::SessionShellCommandKind::LoadSceneAtIndex:
             if (!command.scene_index.has_value() || !load_gallery_scene(*command.scene_index))
             {
                 sessionShellState = previous_shell_state;
-                set_status_message("LOAD FAILED");
+                set_status_message("LOAD FAILED", StatusMessageKind::Error);
+                play_audio(physics_sim::AudioCue::InvalidAction);
+                update_shell_pause_state();
+                return true;
+            }
+            break;
+        case physics_sim::SessionShellCommandKind::LoadSaveAtIndex:
+            if (!command.scene_index.has_value() || !load_save_browser_entry(*command.scene_index))
+            {
+                sessionShellState = previous_shell_state;
+                set_status_message("LOAD FAILED", StatusMessageKind::Error);
+                play_audio(physics_sim::AudioCue::InvalidAction);
                 update_shell_pause_state();
                 return true;
             }
@@ -2250,14 +3132,19 @@ int main(int argc, char* argv[])
         case physics_sim::SessionShellCommandKind::ToggleHelpOverlay:
             showHelp = !showHelp;
             userSettings.help_overlay_visible = showHelp;
-            static_cast<void>(persist_user_settings());
+            static_cast<void>(persist_settings_or_report());
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            set_status_message(showHelp ? "HELP ON" : "HELP OFF", StatusMessageKind::Info);
             break;
         case physics_sim::SessionShellCommandKind::CycleVisualMode:
             visualMode = next_visual_mode(visualMode);
             userSettings.visual_mode = visualMode;
-            static_cast<void>(persist_user_settings());
+            static_cast<void>(persist_settings_or_report());
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"VISUAL "} + visual_mode_name(visualMode), StatusMessageKind::Info);
             break;
         case physics_sim::SessionShellCommandKind::Back:
+            play_audio(physics_sim::AudioCue::UiCancel);
             break;
         }
 
@@ -2270,6 +3157,11 @@ int main(int argc, char* argv[])
         if (sessionShellBypassed)
         {
             return false;
+        }
+
+        if (handle_pending_settings_binding(keycode))
+        {
+            return true;
         }
 
         if (sessionShellState.screen == physics_sim::SessionShellScreen::Playing)
@@ -2285,24 +3177,50 @@ int main(int argc, char* argv[])
 
         if (keycode == SDLK_ESCAPE)
         {
+            const auto previous_shell_screen = sessionShellState.screen;
             physics_sim::session_shell_back(sessionShellState);
+            if (tutorialActive && previous_shell_screen == physics_sim::SessionShellScreen::PauseMenu && sessionShellState.screen == physics_sim::SessionShellScreen::Playing)
+            {
+                physics_sim::tutorial_mark_pause_resumed(tutorialProgress);
+            }
             update_shell_pause_state();
             panning = false;
             painting = false;
+            play_audio(physics_sim::AudioCue::UiCancel);
+            complete_tutorial_if_needed();
             return true;
         }
 
-        if (sessionShellState.screen == physics_sim::SessionShellScreen::PauseMenu && keycode == SDLK_SPACE)
+        if (sessionShellState.screen == physics_sim::SessionShellScreen::PauseMenu && keycode == userSettings.input_bindings.pause_resume)
         {
             sessionShellState.screen = physics_sim::SessionShellScreen::Playing;
             sessionShellState.selection = 0;
+            if (tutorialActive)
+            {
+                physics_sim::tutorial_mark_pause_resumed(tutorialProgress);
+            }
             update_shell_pause_state();
             panning = false;
             painting = false;
+            play_audio(physics_sim::AudioCue::UiConfirm);
+            complete_tutorial_if_needed();
             return true;
         }
 
-        const std::size_t optionCount = physics_sim::session_shell_option_count(sessionShellState.screen, galleryScenePaths.size());
+        const auto option_count = [&]() -> std::size_t
+        {
+            if (sessionShellState.screen == physics_sim::SessionShellScreen::Settings)
+            {
+                return settings_entries().size();
+            }
+
+            return physics_sim::session_shell_option_count(
+                sessionShellState.screen,
+                galleryScenePaths.size(),
+                saveBrowserEntries.size());
+        };
+
+        const std::size_t optionCount = option_count();
         if (optionCount == 0)
         {
             return true;
@@ -2311,12 +3229,14 @@ int main(int argc, char* argv[])
         if (keycode == SDLK_UP || keycode == SDLK_w)
         {
             physics_sim::session_shell_wrap_selection(sessionShellState, optionCount, -1);
+            play_audio(physics_sim::AudioCue::UiSelect);
             return true;
         }
 
         if (keycode == SDLK_DOWN || keycode == SDLK_s)
         {
             physics_sim::session_shell_wrap_selection(sessionShellState, optionCount, 1);
+            play_audio(physics_sim::AudioCue::UiSelect);
             return true;
         }
 
@@ -2325,9 +3245,31 @@ int main(int argc, char* argv[])
             return true;
         }
 
+        if (sessionShellState.screen == physics_sim::SessionShellScreen::Settings)
+        {
+            const auto entries = settings_entries();
+            if (sessionShellState.selection < entries.size())
+            {
+                if (entries[sessionShellState.selection].kind == physics_sim::SettingsMenuEntryKind::Back)
+                {
+                    physics_sim::session_shell_back(sessionShellState);
+                    update_shell_pause_state();
+                    panning = false;
+                    painting = false;
+                    play_audio(physics_sim::AudioCue::UiCancel);
+                }
+                else
+                {
+                    static_cast<void>(apply_settings_entry(entries[sessionShellState.selection]));
+                }
+            }
+            return true;
+        }
+
         const auto previousShellState = sessionShellState;
-        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size());
+        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size(), saveBrowserEntries.size());
         static_cast<void>(execute_session_shell_command(command, previousShellState));
+        complete_tutorial_if_needed();
         return true;
     };
 
@@ -2338,12 +3280,25 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        if (pendingSettingsBindingName.has_value())
+        {
+            return true;
+        }
+
         if (sessionShellState.screen == physics_sim::SessionShellScreen::Playing)
         {
             return false;
         }
 
-        const auto hovered_index = session_shell_option_index_at_point(mouse_x, mouse_y, windowWidth, windowHeight, sessionShellState, galleryScenePaths);
+        const auto hovered_index = session_shell_option_index_at_point(
+            mouse_x,
+            mouse_y,
+            windowWidth,
+            windowHeight,
+            sessionShellState,
+            galleryScenePaths,
+            saveBrowserEntries,
+            userSettings);
         if (hovered_index.has_value())
         {
             sessionShellState.selection = *hovered_index;
@@ -2359,6 +3314,11 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        if (pendingSettingsBindingName.has_value())
+        {
+            return true;
+        }
+
         if (sessionShellState.screen == physics_sim::SessionShellScreen::Playing)
         {
             return false;
@@ -2372,22 +3332,53 @@ int main(int argc, char* argv[])
                 update_shell_pause_state();
                 panning = false;
                 painting = false;
+                play_audio(physics_sim::AudioCue::UiCancel);
                 return true;
             }
 
             return true;
         }
 
-        const auto hovered_index = session_shell_option_index_at_point(mouse_x, mouse_y, windowWidth, windowHeight, sessionShellState, galleryScenePaths);
+        const auto hovered_index = session_shell_option_index_at_point(
+            mouse_x,
+            mouse_y,
+            windowWidth,
+            windowHeight,
+            sessionShellState,
+            galleryScenePaths,
+            saveBrowserEntries,
+            userSettings);
         if (!hovered_index.has_value())
         {
             return true;
         }
 
         sessionShellState.selection = *hovered_index;
+        if (sessionShellState.screen == physics_sim::SessionShellScreen::Settings)
+        {
+            const auto entries = settings_entries();
+            if (sessionShellState.selection < entries.size())
+            {
+                if (entries[sessionShellState.selection].kind == physics_sim::SettingsMenuEntryKind::Back)
+                {
+                    physics_sim::session_shell_back(sessionShellState);
+                    update_shell_pause_state();
+                    panning = false;
+                    painting = false;
+                    play_audio(physics_sim::AudioCue::UiCancel);
+                }
+                else
+                {
+                    static_cast<void>(apply_settings_entry(entries[sessionShellState.selection]));
+                }
+            }
+            return true;
+        }
+
         const auto previousShellState = sessionShellState;
-        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size());
+        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size(), saveBrowserEntries.size());
         static_cast<void>(execute_session_shell_command(command, previousShellState));
+        complete_tutorial_if_needed();
         return true;
     };
 
@@ -2423,59 +3414,169 @@ int main(int argc, char* argv[])
                     break;
                 }
 
-                if (const auto action = physics_sim::action_from_keycode(event.key.keysym.sym))
-                {
-                    if (*action == physics_sim::Action::Quit)
-                    {
-                        running = false;
-                    }
-                    else
-                    {
-                        std::string actionFeedback;
-                        apply_action(*action, stepDriver, simulationState, controller, simulation, viewport, currentScenePath, &sceneMetadata, &actionFeedback, &logger);
-                        if (!actionFeedback.empty())
-                        {
-                            set_status_message(std::move(actionFeedback));
-                        }
-                    }
-                    break;
-                }
-
                 const SDL_Keymod modifiers = static_cast<SDL_Keymod>(event.key.keysym.mod);
-                if (event.key.keysym.sym == SDLK_TAB)
+                const auto& bindings = userSettings.input_bindings;
+
+                if (event.key.keysym.sym == SDLK_ESCAPE)
                 {
-                    const int direction = (modifiers & KMOD_SHIFT) != 0 ? -1 : 1;
-                    controller.set_tool(physics_sim::next_scene_tool(controller.tool(), direction));
-                    set_status_message(std::string{"TOOL "} + tool_name(controller.tool()));
-                    break;
-                }
-                if (event.key.keysym.sym == SDLK_z && (modifiers & KMOD_CTRL) != 0)
-                {
-                    if ((modifiers & KMOD_SHIFT) != 0)
-                    {
-                        static_cast<void>(controller.redo_scene_edit());
-                    }
-                    else
-                    {
-                        static_cast<void>(controller.undo_scene_edit());
-                    }
+                    running = false;
                     break;
                 }
 
-                if (event.key.keysym.sym == SDLK_y && (modifiers & KMOD_CTRL) != 0)
+                if (event.key.keysym.sym == bindings.pause_resume)
+                {
+                    static_cast<void>(perform_action(physics_sim::Action::TogglePause, physics_sim::AudioCue::UiConfirm));
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.step_once)
+                {
+                    static_cast<void>(perform_action(physics_sim::Action::StepOnce, physics_sim::AudioCue::UiSelect));
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.reset)
+                {
+                    static_cast<void>(perform_action(physics_sim::Action::Reset, physics_sim::AudioCue::Reset));
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.reset_fluid)
+                {
+                    static_cast<void>(perform_action(physics_sim::Action::ResetFluid, physics_sim::AudioCue::Reset));
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.tool_prev || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) != 0))
+                {
+                    controller.set_tool(physics_sim::next_scene_tool(controller.tool(), -1));
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.tool_next || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) == 0))
+                {
+                    controller.set_tool(physics_sim::next_scene_tool(controller.tool(), 1));
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.undo)
+                {
+                    static_cast<void>(controller.undo_scene_edit());
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.redo)
                 {
                     static_cast<void>(controller.redo_scene_edit());
                     break;
                 }
 
+                if (event.key.keysym.sym == bindings.save_scene)
+                {
+                    static_cast<void>(save_named_scene());
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.load_scene)
+                {
+                    static_cast<void>(load_autosave_or_demo());
+                    complete_tutorial_if_needed();
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.delete_selection)
+                {
+                    if (!controller.delete_selected_fixture())
+                    {
+                        if (!controller.delete_selected_gate())
+                        {
+                            if (!controller.delete_selected_valve())
+                            {
+                                if (!controller.delete_selected_sensor())
+                                {
+                                    clear_current_scene();
+                                }
+                                else
+                                {
+                                    play_audio(physics_sim::AudioCue::UiConfirm);
+                                    set_status_message("DELETED SENSOR", StatusMessageKind::Warning);
+                                }
+                            }
+                            else
+                            {
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                set_status_message("DELETED VALVE", StatusMessageKind::Warning);
+                            }
+                        }
+                        else
+                        {
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            set_status_message("DELETED GATE", StatusMessageKind::Warning);
+                        }
+                    }
+                    else
+                    {
+                        play_audio(physics_sim::AudioCue::UiConfirm);
+                        set_status_message("DELETED FIXTURE", StatusMessageKind::Warning);
+                    }
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.toggle_fullscreen)
+                {
+                    userSettings.fullscreen = !userSettings.fullscreen;
+                    if (SDL_SetWindowFullscreen(window, userSettings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) != 0)
+                    {
+                        userSettings.fullscreen = !userSettings.fullscreen;
+                        set_status_message("FULLSCREEN FAILED", StatusMessageKind::Error);
+                        logger.log(std::string{"fullscreen change failed: "} + SDL_GetError());
+                        play_audio(physics_sim::AudioCue::InvalidAction);
+                    }
+                    else
+                    {
+                        if (!userSettings.fullscreen)
+                        {
+                            SDL_SetWindowSize(window, userSettings.window_size.width, userSettings.window_size.height);
+                        }
+                        update_window_metrics();
+                        static_cast<void>(persist_settings_or_report());
+                        play_audio(physics_sim::AudioCue::UiConfirm);
+                        set_status_message(userSettings.fullscreen ? "FULLSCREEN ON" : "FULLSCREEN OFF", StatusMessageKind::Info);
+                    }
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.toggle_help)
+                {
+                    showHelp = !showHelp;
+                    userSettings.help_overlay_visible = showHelp;
+                    static_cast<void>(persist_settings_or_report());
+                    play_audio(physics_sim::AudioCue::UiConfirm);
+                    set_status_message(showHelp ? "HELP ON" : "HELP OFF", StatusMessageKind::Info);
+                    break;
+                }
+
+                if (event.key.keysym.sym == bindings.cycle_visual_mode)
+                {
+                    visualMode = next_visual_mode(visualMode);
+                    userSettings.visual_mode = visualMode;
+                    static_cast<void>(persist_settings_or_report());
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message(std::string{"VISUAL "} + visual_mode_name(visualMode), StatusMessageKind::Info);
+                    break;
+                }
+
                 switch (event.key.keysym.sym)
                 {
-                case SDLK_F5:
-                    static_cast<void>(save_autosave_scene());
-                    break;
-                case SDLK_F9:
-                    static_cast<void>(load_autosave_or_demo());
-                    break;
                 case SDLK_PAGEUP:
                 {
                     if (!galleryScenePaths.empty())
@@ -2485,6 +3586,7 @@ int main(int argc, char* argv[])
                             : (galleryScenePaths.size() - 1);
                         static_cast<void>(load_gallery_scene(nextIndex));
                     }
+                    complete_tutorial_if_needed();
                     break;
                 }
                 case SDLK_PAGEDOWN:
@@ -2496,91 +3598,63 @@ int main(int argc, char* argv[])
                             : 0;
                         static_cast<void>(load_gallery_scene(nextIndex));
                     }
+                    complete_tutorial_if_needed();
                     break;
                 }
                 case SDLK_1:
                     controller.set_tool(physics_sim::SceneTool::PaintWall);
-                    set_status_message("TOOL WALL");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL WALL", StatusMessageKind::Info);
                     break;
                 case SDLK_2:
                     controller.set_tool(physics_sim::SceneTool::EraseWall);
-                    set_status_message("TOOL ERASE");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL ERASE", StatusMessageKind::Info);
                     break;
                 case SDLK_3:
                     controller.set_tool(physics_sim::SceneTool::DirectionalEmitter);
-                    set_status_message("TOOL HOSE");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL HOSE", StatusMessageKind::Info);
                     break;
                 case SDLK_4:
                     controller.set_tool(physics_sim::SceneTool::OmniEmitter);
-                    set_status_message("TOOL OMNI");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL OMNI", StatusMessageKind::Info);
                     break;
                 case SDLK_5:
                     controller.set_tool(physics_sim::SceneTool::Gate);
-                    set_status_message("TOOL GATE");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL GATE", StatusMessageKind::Info);
                     break;
                 case SDLK_6:
                     controller.set_tool(physics_sim::SceneTool::Sensor);
-                    set_status_message("TOOL SENSOR");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL SENSOR", StatusMessageKind::Info);
                     break;
                 case SDLK_7:
                     controller.set_tool(physics_sim::SceneTool::Drain);
-                    set_status_message("TOOL DRAIN");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL DRAIN", StatusMessageKind::Info);
                     break;
                 case SDLK_8:
                     controller.set_tool(physics_sim::SceneTool::Pump);
-                    set_status_message("TOOL PUMP");
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL PUMP", StatusMessageKind::Info);
                     break;
                 case SDLK_9:
                     controller.set_tool(physics_sim::SceneTool::Valve);
-                    set_status_message("TOOL VALVE");
-                    break;
-                case SDLK_DELETE:
-                    if (!controller.delete_selected_fixture())
-                    {
-                        if (!controller.delete_selected_gate())
-                        {
-                            if (!controller.delete_selected_valve())
-                            {
-                            if (!controller.delete_selected_sensor())
-                            {
-                                clear_current_scene();
-                            }
-                            else
-                            {
-                                set_status_message("DELETED SENSOR");
-                            }
-                            }
-                            else
-                            {
-                                set_status_message("DELETED VALVE");
-                            }
-                        }
-                        else
-                        {
-                            set_status_message("DELETED GATE");
-                        }
-                    }
-                    else
-                    {
-                        set_status_message("DELETED FIXTURE");
-                    }
-                    break;
-                case SDLK_v:
-                    visualMode = next_visual_mode(visualMode);
-                    userSettings.visual_mode = visualMode;
-                    static_cast<void>(persist_user_settings());
-                    break;
-                case SDLK_h:
-                    showHelp = !showHelp;
-                    userSettings.help_overlay_visible = showHelp;
-                    static_cast<void>(persist_user_settings());
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL VALVE", StatusMessageKind::Info);
                     break;
                 default:
                     handle_fixture_edit_key(
                         controller,
                         event.key.keysym.sym,
                         modifiers,
-                        simulation.grid().cell_size());
+                        simulation.grid().cell_size(),
+                        bindings,
+                        tutorialActive ? &tutorialProgress : nullptr);
+                    complete_tutorial_if_needed();
                     break;
                 }
                 break;
@@ -2599,6 +3673,21 @@ int main(int argc, char* argv[])
                     const physics_sim::Vec2 world = viewport.window_to_world(mouseScreen);
                     if (controller.tool() == physics_sim::SceneTool::PaintWall || controller.tool() == physics_sim::SceneTool::EraseWall)
                     {
+                        paintingTool = controller.tool();
+                        paintingSolidCount = 0;
+                        for (std::size_t y = 0; y < simulation.grid().height(); ++y)
+                        {
+                            for (std::size_t x = 0; x < simulation.grid().width(); ++x)
+                            {
+                                if (simulation.grid().solid(x, y))
+                                {
+                                    ++paintingSolidCount;
+                                }
+                            }
+                        }
+                    }
+                    if (controller.tool() == physics_sim::SceneTool::PaintWall || controller.tool() == physics_sim::SceneTool::EraseWall)
+                    {
                         controller.begin_stroke(world);
                         painting = true;
                     }
@@ -2608,7 +3697,19 @@ int main(int argc, char* argv[])
                         {
                             if (!controller.place_fixture(world))
                             {
-                                set_status_message("INVALID PLACEMENT");
+                                set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                                play_audio(physics_sim::AudioCue::InvalidAction);
+                            }
+                            else if (tutorialActive)
+                            {
+                                physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
+                            }
+                            else
+                            {
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
                             }
                         }
                     }
@@ -2618,7 +3719,19 @@ int main(int argc, char* argv[])
                         {
                             if (!controller.place_gate(world))
                             {
-                                set_status_message("INVALID PLACEMENT");
+                                set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                                play_audio(physics_sim::AudioCue::InvalidAction);
+                            }
+                            else if (tutorialActive)
+                            {
+                                physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
+                            }
+                            else
+                            {
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
                             }
                         }
                     }
@@ -2628,7 +3741,19 @@ int main(int argc, char* argv[])
                         {
                             if (!controller.place_sensor(world))
                             {
-                                set_status_message("INVALID PLACEMENT");
+                                set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                                play_audio(physics_sim::AudioCue::InvalidAction);
+                            }
+                            else if (tutorialActive)
+                            {
+                                physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
+                            }
+                            else
+                            {
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
                             }
                         }
                     }
@@ -2636,14 +3761,38 @@ int main(int argc, char* argv[])
                     {
                         if (!controller.place_drain(world))
                         {
-                            set_status_message("INVALID PLACEMENT");
+                            set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                            play_audio(physics_sim::AudioCue::InvalidAction);
+                        }
+                        else if (tutorialActive)
+                        {
+                            physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            static_cast<void>(save_autosave_scene());
+                        }
+                        else
+                        {
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            static_cast<void>(save_autosave_scene());
                         }
                     }
                     else if (controller.tool() == physics_sim::SceneTool::Pump)
                     {
                         if (!controller.place_pump(world))
                         {
-                            set_status_message("INVALID PLACEMENT");
+                            set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                            play_audio(physics_sim::AudioCue::InvalidAction);
+                        }
+                        else if (tutorialActive)
+                        {
+                            physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            static_cast<void>(save_autosave_scene());
+                        }
+                        else
+                        {
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            static_cast<void>(save_autosave_scene());
                         }
                     }
                     else if (controller.tool() == physics_sim::SceneTool::Valve)
@@ -2652,23 +3801,50 @@ int main(int argc, char* argv[])
                         {
                             if (!controller.place_valve(world))
                             {
-                                set_status_message("INVALID PLACEMENT");
+                                set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
+                                play_audio(physics_sim::AudioCue::InvalidAction);
+                            }
+                            else if (tutorialActive)
+                            {
+                                physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
+                            }
+                            else
+                            {
+                                play_audio(physics_sim::AudioCue::UiConfirm);
+                                static_cast<void>(save_autosave_scene());
                             }
                         }
                     }
                     else
                     {
-                        controller.place_fixture(world);
+                        const bool placed = controller.place_fixture(world);
+                        if (placed)
+                        {
+                            if (tutorialActive)
+                            {
+                                physics_sim::tutorial_mark_fixture_placed(tutorialProgress);
+                            }
+                            play_audio(physics_sim::AudioCue::UiConfirm);
+                            static_cast<void>(save_autosave_scene());
+                        }
+                        else
+                        {
+                            play_audio(physics_sim::AudioCue::InvalidAction);
+                        }
                     }
                 }
                 else if (event.button.button == SDL_BUTTON_RIGHT)
                 {
                     controller.clear_selection();
+                    play_audio(physics_sim::AudioCue::UiCancel);
                 }
                 else if (event.button.button == SDL_BUTTON_MIDDLE)
                 {
                     panning = true;
                 }
+                complete_tutorial_if_needed();
                 break;
             case SDL_MOUSEBUTTONUP:
                 mouseScreen.x = static_cast<float>(event.button.x);
@@ -2684,13 +3860,40 @@ int main(int argc, char* argv[])
                     if (painting)
                     {
                         controller.end_stroke(viewport.window_to_world(mouseScreen));
+                        if (tutorialActive && paintingTool.has_value())
+                        {
+                            std::size_t solidCount = 0;
+                            for (std::size_t y = 0; y < simulation.grid().height(); ++y)
+                            {
+                                for (std::size_t x = 0; x < simulation.grid().width(); ++x)
+                                {
+                                    if (simulation.grid().solid(x, y))
+                                    {
+                                        ++solidCount;
+                                    }
+                                }
+                            }
+
+                            if (*paintingTool == physics_sim::SceneTool::PaintWall && solidCount > paintingSolidCount)
+                            {
+                                physics_sim::tutorial_mark_wall_painted(tutorialProgress);
+                            }
+                            else if (*paintingTool == physics_sim::SceneTool::EraseWall && solidCount < paintingSolidCount)
+                            {
+                                physics_sim::tutorial_mark_wall_erased(tutorialProgress);
+                            }
+                        }
                         painting = false;
+                        paintingTool.reset();
+                        play_audio(physics_sim::AudioCue::UiConfirm);
+                        static_cast<void>(save_autosave_scene());
                     }
                 }
                 else if (event.button.button == SDL_BUTTON_MIDDLE)
                 {
                     panning = false;
                 }
+                complete_tutorial_if_needed();
                 break;
             case SDL_MOUSEMOTION:
             {
@@ -2706,6 +3909,10 @@ int main(int argc, char* argv[])
                 if (panning)
                 {
                     viewport.pan_pixels({static_cast<float>(event.motion.xrel), static_cast<float>(event.motion.yrel)});
+                    if (tutorialActive && (event.motion.xrel != 0 || event.motion.yrel != 0))
+                    {
+                        physics_sim::tutorial_mark_camera_panned(tutorialProgress);
+                    }
                 }
 
                 if (painting)
@@ -2714,6 +3921,7 @@ int main(int argc, char* argv[])
                 }
 
                 (void)previousScreen;
+                complete_tutorial_if_needed();
                 break;
             }
             case SDL_MOUSEWHEEL:
@@ -2733,7 +3941,12 @@ int main(int argc, char* argv[])
                 {
                     const float factor = wheel > 0.0f ? 1.12f : 1.0f / 1.12f;
                     viewport.zoom_at(std::pow(factor, std::abs(wheel)), mouseScreen);
+                    if (tutorialActive)
+                    {
+                        physics_sim::tutorial_mark_camera_zoomed(tutorialProgress);
+                    }
                 }
+                complete_tutorial_if_needed();
                 break;
             }
             case SDL_WINDOWEVENT:
@@ -2744,8 +3957,9 @@ int main(int argc, char* argv[])
                     userSettings.window_size.width = windowWidth;
                     userSettings.window_size.height = windowHeight;
                     viewport.set_window_size(windowWidth, windowHeight);
-                    static_cast<void>(persist_user_settings());
+                    static_cast<void>(persist_settings_or_report());
                 }
+                complete_tutorial_if_needed();
                 break;
             default:
                 break;
@@ -2788,30 +4002,32 @@ int main(int argc, char* argv[])
             });
         }
 
-        SDL_SetRenderDrawColor(renderer, 14, 18, 28, 255);
+        const auto palette = physics_sim::ui_palette(userSettings.high_contrast);
+
+        SDL_SetRenderDrawColor(renderer, palette.screen_background.r, palette.screen_background.g, palette.screen_background.b, palette.screen_background.a);
         SDL_RenderClear(renderer);
 
-        draw_grid(renderer, viewport, simulation);
+        draw_grid(renderer, viewport, simulation, palette);
         if (visualMode != VisualMode::Particles)
         {
-            draw_fluid_density(renderer, viewport, simulation);
+            draw_fluid_density(renderer, viewport, simulation, palette);
         }
-        draw_walls(renderer, viewport, simulation);
+        draw_walls(renderer, viewport, simulation, palette);
         if (visualMode != VisualMode::Density)
         {
-            draw_particles(renderer, viewport, simulation);
+            draw_particles(renderer, viewport, simulation, palette);
         }
-        draw_drains(renderer, viewport, simulation);
-        draw_pumps(renderer, viewport, simulation);
-        draw_gates(renderer, viewport, simulation, controller);
-        draw_valves(renderer, viewport, simulation, controller);
-        draw_sensors(renderer, viewport, simulation, controller);
-        draw_emitters(renderer, viewport, simulation, controller);
+        draw_drains(renderer, viewport, simulation, palette);
+        draw_pumps(renderer, viewport, simulation, palette);
+        draw_gates(renderer, viewport, simulation, controller, palette);
+        draw_valves(renderer, viewport, simulation, controller, palette);
+        draw_sensors(renderer, viewport, simulation, controller, palette);
+        draw_emitters(renderer, viewport, simulation, controller, palette);
         const bool sessionShellVisible = sessionShellState.screen != physics_sim::SessionShellScreen::Playing;
         if (!sessionShellVisible)
         {
-            draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen));
-            draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y));
+            draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen), palette);
+            draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y), palette);
         }
         const double averageFps = realElapsed.count() > 0.0 ? static_cast<double>(frameCount) / realElapsed.count() : 0.0;
         if (!cleanCaptureFrame && !sessionShellVisible)
@@ -2824,17 +4040,27 @@ int main(int argc, char* argv[])
             overlayMetrics.controller = &controller;
             overlayMetrics.visual_mode = visual_mode_name(visualMode);
             overlayMetrics.status_message = current_status_message();
+            if (overlayMetrics.status_message != nullptr)
+            {
+                overlayMetrics.status_message_rgba = status_message_rgba(palette, statusMessageKind);
+                overlayMetrics.status_message_alpha = current_status_message_alpha();
+            }
             draw_debug_overlay(renderer, overlayMetrics, viewport.scale());
         }
 
-        if (showHelp && !sessionShellVisible)
+        if (tutorialActive && !sessionShellVisible)
         {
-            draw_help_overlay(renderer, windowWidth, windowHeight);
+            draw_tutorial_overlay(renderer, windowWidth, windowHeight, tutorialProgress, userSettings.input_bindings, palette);
+        }
+
+        if (showHelp && !sessionShellVisible && !tutorialActive)
+        {
+            draw_help_overlay(renderer, windowWidth, windowHeight, userSettings.input_bindings, palette);
         }
 
         if (sessionShellVisible)
         {
-            draw_session_shell(renderer, windowWidth, windowHeight, sessionShellState, galleryScenePaths);
+            draw_session_shell(renderer, windowWidth, windowHeight, sessionShellState, galleryScenePaths, saveBrowserEntries, userSettings, palette);
         }
 
         SDL_SetWindowTitle(
@@ -2850,7 +4076,8 @@ int main(int argc, char* argv[])
                 sceneMetadata,
                 controller,
                 viewport,
-                &sessionShellState).c_str());
+                &sessionShellState,
+                tutorialActive ? &tutorialProgress : nullptr).c_str());
 
         SDL_RenderPresent(renderer);
 

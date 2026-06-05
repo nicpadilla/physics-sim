@@ -71,10 +71,10 @@ Allowed priorities:
 | PSIM-0055 | Done | P2 | Finished Game Polish And Presentation | R10.02, R10.03, R10.04, R10.06, R11.02, R11.07 | Scenario browser, progression, and objective presentation |
 | PSIM-0056 | Done | P2 | Finished Game Polish And Presentation | R5.01, R5.02, R11.04, R11.05 | Visual identity, art direction, and rendering polish |
 | PSIM-0057 | Deferred | P2 | Finished Game Polish And Presentation | R5.04, R11.03, R11.05, R11.06 | Animation, camera, and moment-to-moment feedback |
-| PSIM-0058 | Deferred | P2 | Finished Game Polish And Presentation | R11.05, R12.03 | Audio mix, sound effects, and player feedback |
-| PSIM-0059 | Deferred | P2 | Finished Game Polish And Presentation | R1.04, R2.04, R7.05, R12.03 | Settings, accessibility, and input remapping |
-| PSIM-0060 | Deferred | P2 | Finished Game Polish And Presentation | R5.07, R10.07, R12.02, R12.03 | Save/load UX, autosave, and recovery flow |
-| PSIM-0061 | Deferred | P2 | Finished Game Polish And Presentation | R10.07, R12.02, R12.03 | Player-facing error handling and diagnostics polish |
+| PSIM-0058 | Done | P2 | Finished Game Polish And Presentation | R11.05, R12.03 | Audio mix, sound effects, and player feedback |
+| PSIM-0059 | Done | P2 | Finished Game Polish And Presentation | R1.04, R2.04, R7.05, R12.03 | Settings, accessibility, and input remapping |
+| PSIM-0060 | Done | P2 | Finished Game Polish And Presentation | R5.07, R10.07, R12.02, R12.03 | Save/load UX, autosave, and recovery flow |
+| PSIM-0061 | Done | P2 | Finished Game Polish And Presentation | R10.07, R12.02, R12.03 | Player-facing error handling and diagnostics polish |
 | PSIM-0062 | Done | P2 | Finished Game Polish And Presentation | R1.05, R1.07, R12.01, R12.02, R12.04 | Release package, first-launch, and install handoff |
 | PSIM-0063 | Done | P2 | Finished Game Polish And Presentation | R8.06, R11.03, R12.04 | Finished-game performance and responsiveness budget |
 | PSIM-0064 | Done | P1 | Finished Game Polish And Presentation | R6.01, R6.06, R6.07, R11.01, R11.07, R12.04 | Final finished-game polish audit |
@@ -2557,7 +2557,7 @@ Implementation notes:
 
 ### PSIM-0054: First-run onboarding and interactive tutorial
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2565,6 +2565,14 @@ Linked roadmap IDs: R7.05, R11.01, R11.07
 
 Problem:
 The default experience should teach the sandbox loop in-app rather than expecting the player to read external docs or infer controls from debug overlays.
+
+Technical implementation direction:
+
+- Add a deterministic tutorial state model in a small new header under `include\physics_sim\` with named tutorial steps, per-step completion flags, and helpers for the current objective text.
+- Drive tutorial progress from existing runtime events in `src\main.cpp`: camera pan/zoom, pause/resume, wall paint/erase, fixture placement, device toggles, reset/retry, save/load, and gallery navigation.
+- Add a dedicated guided starter scene under `scenes\` with metadata explaining the learning goal, plus a matching thumbnail sidecar so it follows the existing scene policy.
+- Add a replayable direct-launch path such as `--tutorial-mode` so the tutorial can be exercised deterministically without the normal menu shell.
+- Cover the tutorial state machine with deterministic unit tests and update the relevant help/manual docs so the tutorial and controls text stay aligned.
 
 Acceptance criteria:
 
@@ -2597,8 +2605,12 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because there is no replayable in-app tutorial yet; the current help overlay and manual checklist remain the onboarding path.
-- A tutorial will need state-driven prompts and a skip/replay flow before it can be treated as complete.
+- Added `include\physics_sim\tutorial_progress.hpp` with named tutorial steps, completion flags, and step-title/description helpers.
+- Wired tutorial progress through `src\main.cpp` for camera pan/zoom, pause/resume, wall paint/erase, fixture placement, device use, reset/retry, save/load, and gallery browsing; added `--tutorial-mode` startup and tutorial overlay rendering.
+- Added `scenes\tutorial_intro.pscene` and `scenes\tutorial_intro.thumb.bmp` as the guided starter scene, plus `tests\tutorial_progress_tests.cpp`, `tests\tutorial_scene_tests.cpp`, and the `physics_sim_tutorial_tests` / `physics_sim_tutorial_scene_tests` targets.
+- Updated `README.md` and `docs\manual-verification-checklist.md` for the first-run/tutorial path and the replayable tutorial command.
+- Added `scripts\verify-tutorial-mode.ps1` to verify the direct-launch tutorial path logs `scene load ok: scenes/tutorial_intro.pscene`.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\run-smoke.ps1`, `.\scripts\verify-tutorial-mode.ps1`, `.\scripts\check-tracking.ps1`.
 
 ### PSIM-0055: Scenario browser, progression, and objective presentation
 
@@ -2693,7 +2705,7 @@ Implementation notes:
 
 ### PSIM-0057: Animation, camera, and moment-to-moment feedback
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2701,6 +2713,13 @@ Linked roadmap IDs: R5.04, R11.03, R11.05, R11.06
 
 Problem:
 The app needs responsive visual feedback for actions, camera motion, state changes, and transitions so it feels interactive rather than static.
+
+Technical implementation direction:
+
+- Add a reduced-motion preference to the persisted settings file and a command-line seed override so motion can be simplified for local verification.
+- Keep feedback effects render-only by driving status-message color and alpha from deterministic timers in the main loop while leaving simulation state untouched.
+- Reuse the existing debug overlay and status-message path for save/load/reset/invalid-placement feedback instead of introducing a new animation subsystem.
+- Cover the new feedback helper and settings round-trip with deterministic unit tests and keep the existing smoke/replay regressions unchanged.
 
 Acceptance criteria:
 
@@ -2734,12 +2753,15 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because the current camera and message feedback are deterministic but still modest; the reduced-motion-aware transition and feedback pass has not been built yet.
-- The existing smoke and editor workflows remain unchanged while this is pending.
+- Added `include\physics_sim\feedback.hpp` and wired the debug overlay MSG line to use render-only alpha fading while keeping the simulation deterministic.
+- Added `reduced_motion` to `UserSettings`, persisted it through the settings file, and exposed `--reduced-motion` as a local verification override.
+- Added `physics_sim_feedback_tests` and extended `physics_sim_user_settings_tests` to cover the new feedback helper and settings round-trip.
+- Tuned the most visible feedback states so save/load, invalid placement, deletion, and tutorial/status messages use distinct success, warning, and error colors.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\run-smoke.ps1`, `.\scripts\verify-tutorial-mode.ps1`, `.\scripts\verify-all.ps1`, `.\scripts\check-tracking.ps1`.
 
 ### PSIM-0058: Audio mix, sound effects, and player feedback
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2779,12 +2801,23 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because no audio-event pipeline or sound assets have been added yet.
-- Visual feedback remains the fallback for core actions and objective changes.
+- Added `include\physics_sim\audio_feedback.hpp` and wired the runtime to play distinct cues for UI navigation, placement, invalid actions, save/load, reset/retry, device triggers, and objective completion.
+- Added persisted audio settings for mute plus master/effects/music volume and kept the app usable with `--disable-audio` or a missing audio device.
+- Visual feedback remains in place through the status line and overlay so audio cues always have a readable fallback.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\verify-all.ps1`
+- `physics_sim_audio_feedback_tests`
+- `physics_sim_player_feedback_tests`
 
 ### PSIM-0059: Settings, accessibility, and input remapping
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2792,6 +2825,14 @@ Linked roadmap IDs: R1.04, R2.04, R7.05, R12.03
 
 Problem:
 The app needs player-facing settings and accessibility options so controls, visuals, motion, and audio are understandable and adjustable.
+
+Technical implementation direction:
+
+- Extend `include\physics_sim\user_settings.hpp` as the persisted source of truth for window size, fullscreen, help overlay visibility, visual mode, reduced motion, high contrast, audio levels, and input bindings.
+- Use `include\physics_sim\settings_menu.hpp`, `include\physics_sim\player_guidance.hpp`, and `include\physics_sim\input_bindings.hpp` to keep the settings screen, help overlay, and tutorial prompts bound to the same control model.
+- Wire `src\main.cpp` so the session-shell settings list mutates `UserSettings`, applies window/fullscreen changes to the live `SDL_Window`, and validates remapped bindings before persisting them.
+- Keep the simulation deterministic and avoid adding runtime dependencies beyond SDL2.
+- Add or extend tests for menu labels, binding validation, persistence, and runtime control-path coverage before closing the issue.
 
 Acceptance criteria:
 
@@ -2824,12 +2865,27 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because the repo currently persists core window/overlay/visual preferences but does not yet provide full input remapping, high-contrast options, or the broader accessibility settings described here.
-- The existing settings tests still cover the implemented persistence path.
+- Added `include\physics_sim\settings_menu.hpp`, binding-aware `include\physics_sim\player_guidance.hpp` / `input_bindings.hpp` helpers, and the `ui_palette` high-contrast palette.
+- Wired `src\main.cpp` to persist and apply window mode, fullscreen, overlay visibility, visual mode, reduced motion, high contrast, audio levels, and remappable controls.
+- Extended the settings, guidance, UI-palette, session-shell, and user-settings tests so the active bindings and readable high-contrast colors stay verified.
+- Updated `README.md`, `docs\user-settings.md`, and `docs\manual-verification-checklist.md` to match the live settings workflow.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\verify-all.ps1`
+- `physics_sim_settings_menu_tests`
+- `physics_sim_player_guidance_tests`
+- `physics_sim_user_settings_tests`
+- `physics_sim_ui_palette_tests`
+- `physics_sim_session_shell_tests`
 
 ### PSIM-0060: Save/load UX, autosave, and recovery flow
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2869,12 +2925,26 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because raw scene save/load works, but the player-facing named-save browser, autosave policy, recovery flow, and backup rules are not implemented yet.
-- The current scene persistence tests remain the baseline for the lower-level format behavior.
+- Added `include\physics_sim\save_browser.hpp` and `physics_sim::SaveBrowserEntry` so pause-menu load can browse autosave plus named saves in the per-user `SDL_GetPrefPath(...)/saves/` directory.
+- Updated `src\main.cpp` to save named scenes with backups, refresh autosave after destructive edits, and surface save/load failures through the player-feedback layer and status overlay.
+- Documented autosave, backup, and recovery behavior in `README.md`, `docs\diagnostics.md`, `docs\manual-verification-checklist.md`, and `regression\README.md`.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\verify-demo-scene.ps1`
+- `.\scripts\verify-demo-scene-density.ps1`
+- `.\scripts\verify-replay-suite.ps1`
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\verify-all.ps1`
+- `save_browser_tests`
+- `scene_persistence_tests`
 
 ### PSIM-0061: Player-facing error handling and diagnostics polish
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2914,8 +2984,23 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred because logs and fallback scene loading are in place, but the polished player-facing error taxonomy and recovery shell are not yet implemented.
-- The existing diagnostics notes and runtime fallback path remain the current evidence trail.
+- Added `include\physics_sim\player_feedback.hpp` mappings for scene, settings, audio, renderer, replay, and package-content failures plus recovery actions.
+- Wired startup and scene-loading paths in `src\main.cpp` to log the mapped detail, surface clearer dialogs or on-screen messages, and fall back to the demo scene where possible.
+- Extended `physics_sim_player_feedback_tests` and the manual verification checklist to cover the mapped failure cases and a recoverable missing-scene startup check.
+- Updated `docs\diagnostics.md` so the player-facing and log-facing failure behaviors match the runtime.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\verify-replay-suite.ps1`
+- `.\scripts\verify-fluid-quality-suite.ps1`
+- `.\scripts\measure-water-solver.ps1`
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\verify-all.ps1`
+- `physics_sim_player_feedback_tests`
+- `missing-scene smoke check: .\build\windows-x64\Debug\physics-sim.exe --log-file build\windows-x64\missing-scene-check.log --skip-session-shell --scene-path scenes\does-not-exist.pscene --auto-exit-ms 1500`
 
 ### PSIM-0062: Release package, first-launch, and install handoff
 

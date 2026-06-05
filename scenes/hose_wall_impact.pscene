@@ -1,0 +1,34 @@
+physics-sim-scene 1
+title Hose Wall Impact
+description A horizontal hose strikes a wall and throws spray back.
+author Nic
+tag gallery
+tag impact
+note The wall gives the flow something to collide with.
+note Good for checking wall interaction and rebound.
+grid 80 45 16
+wall 45 12
+wall 45 13
+wall 45 14
+wall 45 15
+wall 45 16
+wall 45 17
+wall 45 18
+wall 45 19
+wall 45 20
+wall 45 21
+wall 45 22
+wall 45 23
+wall 45 24
+wall 45 25
+wall 45 26
+wall 45 27
+wall 45 28
+wall 45 29
+wall 45 30
+wall 45 31
+wall 45 32
+wall 45 33
+wall 45 34
+wall 45 35
+emitter directional 176 208 1 0 8 120 1

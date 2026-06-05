@@ -1,0 +1,5 @@
+physics-sim-replay 1
+tick 0 tool omni
+tick 0 speed 8
+tick 0 rate 192
+tick 0 place 880 120

@@ -79,6 +79,14 @@ int main()
         REQUIRE(!simulation.grid().solid(4, 5), "erase stroke did not remove the target cell");
         REQUIRE(!simulation.grid().solid(5, 5), "erase stroke did not remove the target cell");
         REQUIRE(simulation.grid().solid(6, 5), "erase stroke removed unrelated wall cells");
+        REQUIRE(controller.undo_scene_edit(), "undo_scene_edit did not restore the erased wall");
+        REQUIRE(simulation.grid().solid(3, 5), "undo_scene_edit did not restore a wall cell");
+        REQUIRE(simulation.grid().solid(4, 5), "undo_scene_edit did not restore a wall cell");
+        REQUIRE(simulation.grid().solid(5, 5), "undo_scene_edit did not restore a wall cell");
+        REQUIRE(controller.redo_scene_edit(), "redo_scene_edit did not reapply the wall erase");
+        REQUIRE(!simulation.grid().solid(3, 5), "redo_scene_edit did not reapply the erase");
+        REQUIRE(!simulation.grid().solid(4, 5), "redo_scene_edit did not reapply the erase");
+        REQUIRE(!simulation.grid().solid(5, 5), "redo_scene_edit did not reapply the erase");
     }
 
     {
@@ -89,7 +97,7 @@ int main()
         controller.set_emitter_direction(physics_sim::Vec2{1.0f, 0.0f});
 
         controller.set_tool(physics_sim::SceneTool::DirectionalEmitter);
-        controller.place_fixture(physics_sim::Vec2{80.0f, 96.0f});
+        REQUIRE(controller.place_fixture(physics_sim::Vec2{80.0f, 96.0f}), "directional fixture placement was rejected");
 
         REQUIRE(simulation.emitters().size() == 1, "directional fixture did not create an emitter");
         REQUIRE(simulation.emitters().front().kind == physics_sim::WaterEmitterKind::Directional, "directional fixture kind incorrect");
@@ -97,15 +105,89 @@ int main()
         REQUIRE(nearly_equal(simulation.emitters().front().direction.y, 0.0f), "directional emitter direction y incorrect");
         REQUIRE(nearly_equal(simulation.emitters().front().speed, 8.0f), "directional emitter speed incorrect");
         REQUIRE(nearly_equal(simulation.emitters().front().emission_rate, 24.0f), "directional emitter rate incorrect");
+        REQUIRE(controller.has_selected_fixture(), "placing a fixture did not select it");
+        REQUIRE(controller.selected_fixture() != nullptr, "selected fixture pointer was null after placement");
+        REQUIRE(controller.selected_fixture()->kind == physics_sim::WaterEmitterKind::Directional, "selected fixture kind incorrect");
+
+        simulation.set_solid_cell(10, 8, true);
+        REQUIRE(!controller.place_fixture(physics_sim::Vec2{160.0f, 128.0f}), "invalid placement was not rejected");
+        REQUIRE(simulation.emitters().size() == 1, "invalid placement added an emitter");
 
         controller.set_tool(physics_sim::SceneTool::OmniEmitter);
-        controller.place_fixture(physics_sim::Vec2{240.0f, 96.0f});
+        REQUIRE(controller.place_fixture(physics_sim::Vec2{240.0f, 96.0f}), "omni fixture placement was rejected");
 
         REQUIRE(simulation.emitters().size() == 2, "omni fixture did not create an emitter");
         REQUIRE(simulation.emitters().back().kind == physics_sim::WaterEmitterKind::Omni, "omni fixture kind incorrect");
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{80.0f, 96.0f}, 20.0f), "fixture selection missed the first emitter");
+        REQUIRE(controller.selected_fixture() != nullptr, "selected fixture pointer was null after hit test");
+        REQUIRE(controller.selected_fixture()->kind == physics_sim::WaterEmitterKind::Directional, "hit test selected the wrong fixture");
+
+        REQUIRE(controller.delete_selected_fixture(), "delete_selected_fixture did not remove the selected emitter");
+        REQUIRE(simulation.emitters().size() == 1, "delete_selected_fixture removed the wrong number of emitters");
+        REQUIRE(simulation.emitters().front().kind == physics_sim::WaterEmitterKind::Omni, "delete_selected_fixture removed the wrong emitter");
+        REQUIRE(controller.undo_scene_edit(), "undo_scene_edit did not restore a deleted emitter");
+        REQUIRE(simulation.emitters().size() == 2, "undo_scene_edit did not restore the deleted emitter");
+        REQUIRE(controller.redo_scene_edit(), "redo_scene_edit did not reapply the deletion");
+        REQUIRE(simulation.emitters().size() == 1, "redo_scene_edit did not remove the emitter again");
+
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{240.0f, 96.0f}, 20.0f), "reselecting the remaining emitter failed");
+        REQUIRE(controller.selected_fixture() != nullptr, "reselecting the remaining emitter failed");
+        const physics_sim::Vec2 original_position = controller.selected_fixture()->position;
+        REQUIRE(controller.move_selected_fixture(physics_sim::Vec2{16.0f, -16.0f}), "move_selected_fixture failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->position.x, original_position.x + 16.0f), "move_selected_fixture did not update x");
+        REQUIRE(nearly_equal(controller.selected_fixture()->position.y, original_position.y - 16.0f), "move_selected_fixture did not update y");
+        REQUIRE(controller.undo_scene_edit(), "undo_scene_edit did not revert the move");
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{240.0f, 96.0f}, 20.0f), "reselecting after undo failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->position.x, original_position.x), "undo_scene_edit did not restore x");
+        REQUIRE(nearly_equal(controller.selected_fixture()->position.y, original_position.y), "undo_scene_edit did not restore y");
+        REQUIRE(controller.redo_scene_edit(), "redo_scene_edit did not reapply the move");
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{256.0f, 80.0f}, 20.0f), "reselecting after redo failed");
+        REQUIRE(controller.rotate_selected_fixture(3.1415926f * 0.5f), "rotate_selected_fixture failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->direction.x, 0.0f, 0.0002f), "rotate_selected_fixture did not rotate x");
+        REQUIRE(nearly_equal(controller.selected_fixture()->direction.y, 1.0f, 0.0002f), "rotate_selected_fixture did not rotate y");
+        REQUIRE(controller.set_selected_fixture_speed(10.0f), "set_selected_fixture_speed failed");
+        REQUIRE(controller.adjust_selected_fixture_emission_rate(6.0f), "adjust_selected_fixture_emission_rate failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->speed, 10.0f), "selected fixture speed incorrect");
+        REQUIRE(nearly_equal(controller.selected_fixture()->emission_rate, 30.0f), "selected fixture emission rate incorrect");
+        REQUIRE(controller.undo_scene_edit(), "undo_scene_edit did not revert the emission-rate edit");
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{256.0f, 80.0f}, 20.0f), "reselecting after parameter undo failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->emission_rate, 24.0f), "undo_scene_edit did not restore the emission rate");
+        REQUIRE(controller.redo_scene_edit(), "redo_scene_edit did not reapply the emission-rate edit");
+        REQUIRE(controller.select_fixture_at(physics_sim::Vec2{256.0f, 80.0f}, 20.0f), "reselecting after parameter redo failed");
+        REQUIRE(nearly_equal(controller.selected_fixture()->emission_rate, 30.0f), "redo_scene_edit did not restore the emission rate");
+        REQUIRE(controller.toggle_selected_fixture_enabled(), "toggle_selected_fixture_enabled failed");
+        REQUIRE(!controller.selected_fixture()->enabled, "selected fixture enabled state did not toggle");
+
+        controller.set_tool(physics_sim::SceneTool::Gate);
+        REQUIRE(controller.place_gate(physics_sim::Vec2{400.0f, 160.0f}), "gate placement was rejected");
+        REQUIRE(simulation.gates().size() == 1, "gate placement did not create a gate");
+        REQUIRE(controller.has_selected_gate(), "placing a gate did not select it");
+        REQUIRE(controller.selected_gate() != nullptr, "selected gate pointer was null after placement");
+        REQUIRE(simulation.grid().solid(25, 10), "closed gate did not block the grid cell");
+        REQUIRE(controller.toggle_selected_gate_open(), "toggle_selected_gate_open failed");
+        REQUIRE(!simulation.grid().solid(25, 10), "open gate remained solid");
+        REQUIRE(controller.toggle_selected_gate_open(), "toggle_selected_gate_open did not re-close the gate");
+        REQUIRE(simulation.grid().solid(25, 10), "closed gate did not restore solidity");
+        REQUIRE(controller.delete_selected_gate(), "delete_selected_gate failed");
+        REQUIRE(simulation.gates().empty(), "delete_selected_gate did not remove the gate");
+        REQUIRE(controller.undo_scene_edit(), "undo_scene_edit did not restore the deleted gate");
+        REQUIRE(simulation.gates().size() == 1, "undo_scene_edit did not restore the gate");
+
+        controller.set_tool(physics_sim::SceneTool::Sensor);
+        REQUIRE(controller.place_sensor(physics_sim::Vec2{528.0f, 160.0f}), "sensor placement was rejected");
+        REQUIRE(simulation.sensors().size() == 1, "sensor placement did not create a sensor");
+        REQUIRE(controller.has_selected_sensor(), "placing a sensor did not select it");
+        REQUIRE(controller.selected_sensor() != nullptr, "selected sensor pointer was null after placement");
+        REQUIRE(!simulation.sensors().front().active, "sensor should start inactive");
+        simulation.add_particle({physics_sim::Vec2{536.0f, 168.0f}, physics_sim::Vec2{0.0f, 0.0f}});
+        simulation.step(0.016);
+        REQUIRE(simulation.sensors().front().active, "sensor did not become active when water entered");
+        REQUIRE(!controller.place_sensor(physics_sim::Vec2{528.0f, 160.0f}), "overlapping sensor placement was not rejected");
 
         controller.reset_scene();
         REQUIRE(simulation.emitters().empty(), "reset_scene did not clear emitters");
+        REQUIRE(simulation.gates().empty(), "reset_scene did not clear gates");
+        REQUIRE(simulation.sensors().empty(), "reset_scene did not clear sensors");
         REQUIRE(!simulation.grid().solid(5, 5), "reset_scene did not clear walls");
     }
 

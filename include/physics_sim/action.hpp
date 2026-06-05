@@ -12,6 +12,7 @@ enum class Action
     TogglePause,
     StepOnce,
     Reset,
+    ResetFluid,
 };
 
 inline std::optional<Action> action_from_keycode(SDL_Keycode keycode) noexcept
@@ -25,10 +26,11 @@ inline std::optional<Action> action_from_keycode(SDL_Keycode keycode) noexcept
     case SDLK_s:
         return Action::StepOnce;
     case SDLK_r:
+        return Action::ResetFluid;
+    case SDLK_F10:
         return Action::Reset;
     default:
         return std::nullopt;
     }
 }
 } // namespace physics_sim
-
