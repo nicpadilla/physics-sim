@@ -30,6 +30,8 @@ Important commands:
 - Release package: `.\scripts\package-release.ps1`
 - Demo regression: `.\scripts\verify-demo-scene.ps1`
 - Tracking check: `.\scripts\check-tracking.ps1`
+- Install Git hooks: `.\scripts\install-git-hooks.ps1`
+- Hook contract check: `.\scripts\test-git-hooks.ps1`
 
 ## Tracking Requirements
 
@@ -58,6 +60,7 @@ Important commands:
 - If verification fails, do not commit a success-state change. Report the failure, keep the issue open, and leave the worktree for follow-up unless the user asks for a checkpoint commit.
 - If a commit cannot be made because the worktree contains ambiguous overlapping user changes, report the exact blocker instead of staging broadly.
 - Use concise commit messages that name the issue or workflow area, for example `PSIM-0073 add viscosity force pass` or `docs tighten agent handoff workflow`.
+- Run `.\scripts\install-git-hooks.ps1` in a new checkout so Git uses the versioned hooks under `scripts\git-hooks`.
 
 ## Engineering Rules
 

@@ -91,6 +91,7 @@ Allowed priorities:
 | PSIM-0075 | Open | P1 | Physics Accuracy And Particle Interaction | R13.04, R13.05, R13.07, R8.05, R8.07 | Physics validation scenarios and numeric acceptance thresholds |
 | PSIM-0076 | Open | P1 | Physics Accuracy And Particle Interaction | R13.09, R8.06, R12.04 | Live/offline quality tiers and performance budgets |
 | PSIM-0077 | Open | P1 | Physics Accuracy And Particle Interaction | R13.01, R13.02, R13.03, R13.04, R13.05, R13.06, R13.07, R13.08, R13.09, R12.04 | Final physics interaction audit |
+| PSIM-0078 | Done | P1 | Agentic Project Ops | R12.04, R12.07 | Versioned workflow Git hooks |
 
 ## Epic 1: V1 Closure
 
@@ -1919,6 +1920,58 @@ Implementation notes:
 
 - Added a backlog review cadence to `docs\TRACKING.md` and referenced it from `AGENTS.md`.
 - The cadence defines when to review, defer, or close stale backlog items.
+
+### PSIM-0078: Versioned workflow Git hooks
+
+Status: Done
+
+Priority: P1
+
+Linked roadmap IDs: R12.04, R12.07
+
+Problem:
+The agent workflow says verified work should be committed and tracking rules should be followed, but local Git hooks are not versioned or installable.
+
+Technical implementation direction:
+
+- Add versioned hooks under `scripts\git-hooks` and install them with a repository-local `core.hooksPath`.
+- Keep hooks focused on existing workflow rules: staged diff sanity, tracking validation, generated-output protection, commit-message shape, and pre-push tests.
+- Avoid non-versioned `.git\hooks` as the source of truth.
+- Keep expensive checks out of `pre-commit`; use `pre-push` for `.\scripts\test.ps1`.
+
+Acceptance criteria:
+
+- `pre-commit` runs staged whitespace checks, tracking validation, and generated-output path checks.
+- `commit-msg` requires either `PSIM-####` or an approved workflow prefix.
+- `pre-push` runs tracking validation and tests by default, with explicit local skip mechanisms.
+- A PowerShell installer configures `core.hooksPath`.
+- A hook contract test can verify behavior without making commits.
+
+Subtasks:
+
+- Add `scripts\git-hooks\pre-commit`, `commit-msg`, `pre-push`, and shared runner.
+- Add `scripts\install-git-hooks.ps1`.
+- Add `scripts\test-git-hooks.ps1`.
+- Document hook installation, checks, and skip policy.
+- Extend tracking validation to require hook workflow files.
+
+Verification:
+
+- `.\scripts\test-git-hooks.ps1`
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\install-git-hooks.ps1 -Check`
+
+Dependencies:
+
+- PSIM-0040.
+
+Implementation notes:
+
+- Added versioned Git hook wrappers under `scripts\git-hooks` plus `run-hook.ps1` for shared pre-commit, commit-msg, and pre-push logic.
+- Added `scripts\install-git-hooks.ps1` for local `core.hooksPath` setup and `scripts\test-git-hooks.ps1` for hook contract checks.
+- Documented hook install/test commands and skip policy in `AGENTS.md` and `docs\TRACKING.md`.
+- Extended `scripts\check-tracking.ps1` so hook workflow files are required.
 
 ## Epic 9: Fluid Realism And Validation
 

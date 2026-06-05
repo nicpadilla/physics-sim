@@ -187,6 +187,35 @@ Dirty worktree handling:
 - If a file contains both current-task edits and unrelated edits, either isolate the intended hunk safely or report the overlap.
 - If safe staging is not possible, leave the work uncommitted and explain the exact blocker.
 
+## Git Hook Workflow
+
+The repo keeps workflow hooks versioned under `scripts\git-hooks`.
+
+Install or verify local hook wiring:
+
+```powershell
+.\scripts\install-git-hooks.ps1
+.\scripts\install-git-hooks.ps1 -Check
+```
+
+Test hook behavior without making a commit:
+
+```powershell
+.\scripts\test-git-hooks.ps1
+```
+
+Hook responsibilities:
+
+- `pre-commit` runs `git diff --cached --check`, runs `.\scripts\check-tracking.ps1`, and rejects staged generated/local-output paths such as `build/` and `dist/`.
+- `commit-msg` requires either a `PSIM-####` reference or an approved workflow prefix: `docs`, `chore`, `build`, `test`, `release`, `ci`, or `refactor`.
+- `pre-push` runs `.\scripts\check-tracking.ps1` and `.\scripts\test.ps1` by default.
+
+Pre-push escape hatches:
+
+- Set environment variable `PSIM_SKIP_PRE_PUSH_TESTS=1` for a one-off push that should skip `.\scripts\test.ps1`.
+- Set `git config hooks.physicsSim.skipPrePushTests true` for a local persistent skip.
+- Skips should be reported in the final response or handoff note.
+
 ## Backlog Review Cadence
 
 Review open issues on a regular cadence so the backlog does not drift:

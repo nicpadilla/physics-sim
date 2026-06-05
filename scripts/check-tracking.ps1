@@ -35,6 +35,10 @@ if ($trackingText -notmatch 'Stage only the files intentionally changed')
 {
     Fail "docs\TRACKING.md must document path-scoped staging."
 }
+if ($trackingText -notmatch '(?m)^## Git Hook Workflow$')
+{
+    Fail "docs\TRACKING.md is missing the Git Hook Workflow section."
+}
 
 $roadmapLines = Get-Content -LiteralPath $roadmapPath
 $expectedIds = New-Object System.Collections.Generic.List[string]
@@ -271,7 +275,13 @@ foreach ($relativePath in @(
     'scripts\verify-all.ps1',
     'scripts\package-release.ps1',
     'scripts\verify-demo-scene.ps1',
-    'scripts\check-tracking.ps1'
+    'scripts\check-tracking.ps1',
+    'scripts\install-git-hooks.ps1',
+    'scripts\test-git-hooks.ps1',
+    'scripts\git-hooks\pre-commit',
+    'scripts\git-hooks\commit-msg',
+    'scripts\git-hooks\pre-push',
+    'scripts\git-hooks\run-hook.ps1'
 ))
 {
     $fullPath = Join-Path $repoRoot $relativePath
