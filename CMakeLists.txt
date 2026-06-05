@@ -112,6 +112,26 @@ if(BUILD_TESTING)
 
     add_test(NAME physics_sim_editor_tests COMMAND physics_sim_editor_tests)
 
+    add_executable(physics_sim_ui_tests
+        tests/visual_mode_tests.cpp
+        tests/debug_overlay_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_ui_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_ui_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_ui_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_ui_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_ui_tests COMMAND physics_sim_ui_tests)
+
     add_executable(physics_sim_scene_persistence_tests
         tests/scene_persistence_tests.cpp
     )
@@ -131,7 +151,142 @@ if(BUILD_TESTING)
 
     add_test(NAME physics_sim_scene_persistence_tests COMMAND physics_sim_scene_persistence_tests)
 
+    add_executable(physics_sim_scene_gallery_tests
+        tests/scene_gallery_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_scene_gallery_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_scene_gallery_tests PRIVATE cxx_std_20)
+
+    target_compile_definitions(physics_sim_scene_gallery_tests PRIVATE
+        PHYSICS_SIM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+
+    if(MSVC)
+        target_compile_options(physics_sim_scene_gallery_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_scene_gallery_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_scene_gallery_tests COMMAND physics_sim_scene_gallery_tests)
+
+    add_executable(physics_sim_device_runtime_tests
+        tests/device_runtime_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_device_runtime_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_device_runtime_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_device_runtime_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_device_runtime_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_device_runtime_tests COMMAND physics_sim_device_runtime_tests)
+
+    add_executable(physics_sim_replay_script_tests
+        tests/replay_script_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_replay_script_tests
+        PRIVATE
+            physics_sim_core
+            SDL2::SDL2
+    )
+
+    target_compile_features(physics_sim_replay_script_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_replay_script_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_replay_script_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_replay_script_tests COMMAND physics_sim_replay_script_tests)
+
+    add_executable(physics_sim_user_settings_tests
+        tests/user_settings_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_user_settings_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_user_settings_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_user_settings_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_user_settings_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_user_settings_tests COMMAND physics_sim_user_settings_tests)
+
+    add_executable(physics_sim_session_shell_tests
+        tests/session_shell_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_session_shell_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_session_shell_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_session_shell_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_session_shell_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_session_shell_tests COMMAND physics_sim_session_shell_tests)
+
+    add_executable(physics_sim_fluid_quality_tests
+        tests/fluid_quality_tests.cpp
+    )
+
+    target_link_libraries(physics_sim_fluid_quality_tests
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_fluid_quality_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_fluid_quality_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_fluid_quality_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_fluid_quality_tests COMMAND physics_sim_fluid_quality_tests)
+
+    add_executable(physics_sim_solver_benchmark
+        tests/water_solver_benchmark.cpp
+    )
+
+    target_link_libraries(physics_sim_solver_benchmark
+        PRIVATE
+            physics_sim_core
+    )
+
+    target_compile_features(physics_sim_solver_benchmark PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(physics_sim_solver_benchmark PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_solver_benchmark PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    add_test(NAME physics_sim_solver_benchmark COMMAND physics_sim_solver_benchmark)
+
     add_test(NAME physics_sim_demo_regression
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene.ps1
+    )
+
+    add_test(NAME physics_sim_demo_regression_density
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-density.ps1
     )
 endif()

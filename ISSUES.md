@@ -57,7 +57,7 @@ Allowed priorities:
 | PSIM-0041 | Done | P1 | Agentic Project Ops | R12.07 | Backlog pruning and reprioritization cadence |
 | PSIM-0042 | Done | P0 | Solver Quality | R3.05, R5.01, R6.02, R8.06 | Restore visible emitter flow and live-scene frame rate |
 | PSIM-0043 | Done | P1 | Fluid Realism And Validation | R5.03, R8.03, R8.04, R8.05, R8.07 | Fluid quality metrics and snapshot harness |
-| PSIM-0044 | Deferred | P1 | Fluid Realism And Validation | R3.02, R3.03, R3.06, R8.01, R8.02, R8.06, R8.07 | Pressure solver and incompressibility upgrade |
+| PSIM-0044 | Done | P1 | Fluid Realism And Validation | R3.02, R3.03, R3.06, R8.01, R8.02, R8.06, R8.07 | Pressure solver and incompressibility upgrade |
 | PSIM-0045 | Done | P1 | Fluid Realism And Validation | R3.06, R4.08, R8.02, R8.03, R11.04 | Pooling, resting water, and free-surface stability |
 | PSIM-0046 | Done | P1 | Fluid Realism And Validation | R3.03, R3.06, R4.08, R8.02 | Wall interaction, deflection, and no-penetration behavior |
 | PSIM-0047 | Done | P1 | Fluid Realism And Validation | R8.05, R8.07, R10.05, R12.04 | Multi-scenario fluid regression suite |
@@ -86,11 +86,11 @@ Allowed priorities:
 | PSIM-0070 | Done | P1 | Physics Accuracy And Particle Interaction | R13.04, R3.02, R3.03, R3.06, R8.02, R8.06, R8.07 | Matrix-free pressure projection and incompressibility upgrade |
 | PSIM-0071 | Done | P1 | Physics Accuracy And Particle Interaction | R13.05, R3.06, R8.02, R8.03 | Local particle interaction and density constraint correction |
 | PSIM-0072 | Done | P1 | Physics Accuracy And Particle Interaction | R13.06, R3.03, R3.06, R4.08, R8.02 | World and material boundary interaction |
-| PSIM-0073 | Open | P1 | Physics Accuracy And Particle Interaction | R13.07, R11.04, R8.02, R8.07 | Viscosity, surface tension, and free-surface stability |
-| PSIM-0074 | Open | P1 | Physics Accuracy And Particle Interaction | R13.08, R5.01, R11.04, R8.03 | Particle resampling and physical surface rendering |
-| PSIM-0075 | Open | P1 | Physics Accuracy And Particle Interaction | R13.04, R13.05, R13.07, R8.05, R8.07 | Physics validation scenarios and numeric acceptance thresholds |
-| PSIM-0076 | Open | P1 | Physics Accuracy And Particle Interaction | R13.09, R8.06, R12.04 | Live/offline quality tiers and performance budgets |
-| PSIM-0077 | Open | P1 | Physics Accuracy And Particle Interaction | R13.01, R13.02, R13.03, R13.04, R13.05, R13.06, R13.07, R13.08, R13.09, R12.04 | Final physics interaction audit |
+| PSIM-0073 | Done | P1 | Physics Accuracy And Particle Interaction | R13.07, R11.04, R8.02, R8.07 | Viscosity, surface tension, and free-surface stability |
+| PSIM-0074 | Done | P1 | Physics Accuracy And Particle Interaction | R13.08, R5.01, R11.04, R8.03 | Particle resampling and physical surface rendering |
+| PSIM-0075 | Done | P1 | Physics Accuracy And Particle Interaction | R13.04, R13.05, R13.07, R8.05, R8.07 | Physics validation scenarios and numeric acceptance thresholds |
+| PSIM-0076 | Done | P1 | Physics Accuracy And Particle Interaction | R13.09, R8.06, R12.04 | Live/offline quality tiers and performance budgets |
+| PSIM-0077 | Done | P1 | Physics Accuracy And Particle Interaction | R13.01, R13.02, R13.03, R13.04, R13.05, R13.06, R13.07, R13.08, R13.09, R12.04 | Final physics interaction audit |
 | PSIM-0078 | Done | P1 | Agentic Project Ops | R12.04, R12.07 | Versioned workflow Git hooks |
 
 ## Epic 1: V1 Closure
@@ -2019,7 +2019,7 @@ Implementation notes:
 
 ### PSIM-0044: Pressure solver and incompressibility upgrade
 
-Status: Deferred
+Status: Done
 
 Priority: P1
 
@@ -2057,9 +2057,8 @@ Dependencies:
 
 Implementation notes:
 
-- Deferred for now: the current solver still uses the baseline Jacobi-style projection, and the fluid-quality suite now documents that baseline while keeping the live 60 FPS-oriented performance budget intact.
-- The stronger incompressibility upgrade, solver comparison note, and tolerance tightening remain future work.
-- Superseded by PSIM-0070, which adds matrix-free pressure projection, residual reporting, and updated benchmark evidence under Epic 11.
+- Closed as superseded by PSIM-0070, which adds matrix-free pressure projection, residual reporting, and updated benchmark evidence under Epic 11.
+- The original incompressibility upgrade plan is now implemented under the more specific Epic 11 pressure-projection workstream.
 
 ### PSIM-0045: Pooling, resting water, and free-surface stability
 
@@ -2461,7 +2460,7 @@ Implementation notes:
 
 ### PSIM-0052: Main menu, pause menu, and session shell
 
-Status: Deferred
+Status: Done
 
 Priority: P2
 
@@ -2497,10 +2496,20 @@ Dependencies:
 
 - PSIM-0051.
 
+Technical implementation direction:
+
+- Introduce a small `SessionShellState` model for `MainMenu`, `SceneBrowser`, `Settings`, `About`, `PauseMenu`, and `Playing` states, plus command routing for continue, resume, retry, reset fluid, clear scene, save, load, return-to-menu, quit, and settings toggles.
+- Keep the shell logic deterministic and self-contained in the runtime, with shared helpers for menu drawing, mouse/keyboard activation, and window-title status.
+- Preserve existing direct-launch automation by adding a `--skip-session-shell` launch flag and updating smoke/replay/capture scripts to use it.
+- Cover state transitions with unit tests so the menu shell remains testable without requiring SDL interaction.
+
 Implementation notes:
 
-- Deferred because the app still launches directly into simulation for deterministic smoke, replay, and capture workflows, and the main-menu / pause-menu shell is not implemented yet.
-- The current direct-launch behavior remains intentional until a player-facing session shell is added.
+- Added `SessionShellState` and session-shell command routing in `src\main.cpp` for main menu, scene browser, settings, about, pause menu, continue, resume, retry, reset fluid, clear scene, save, load, and return-to-menu flows.
+- Added `tests\session_shell_tests.cpp` and a `physics_sim_session_shell_tests` CTest target to cover state transitions without SDL interaction.
+- Added `--skip-session-shell` and updated `scripts\run-smoke.ps1`, `scripts\verify-demo-scene.ps1`, `scripts\verify-demo-scene-density.ps1`, and `scripts\verify-replay-suite.ps1` so deterministic automation bypasses the shell.
+- Updated `README.md`, the in-app help overlay, and the window title to reflect the session shell flow.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\run-smoke.ps1`, `.\scripts\verify-demo-scene.ps1`, `.\scripts\verify-demo-scene-density.ps1`, `.\scripts\verify-replay-suite.ps1`, `.\scripts\verify-fluid-quality-suite.ps1`, `.\scripts\measure-water-solver.ps1 -Tier All`, `.\scripts\verify-all.ps1`, `.\scripts\check-tracking.ps1`.
 
 ### PSIM-0053: HUD, tool palette, and in-game readability pass
 
@@ -3427,7 +3436,7 @@ Implementation notes:
 
 ### PSIM-0073: Viscosity, surface tension, and free-surface stability
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -3531,11 +3540,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added bounded viscosity and surface-tension passes to `WaterSimulation2D::step` with zero-effect defaults and live settings that preserve the deterministic fixed-step loop.
+- Kept density correction bounded and covered by the still-pool, dam-break, hose-wall, and overcrowding quality checks so the live solver stays stable with the new physics forces.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\verify-fluid-quality-suite.ps1`, `.\scripts\measure-water-solver.ps1 -Tier All`, `.\scripts\verify-all.ps1`, and `.\scripts\check-tracking.ps1` passed on 2026-06-05.
 
 ### PSIM-0074: Particle resampling and physical surface rendering
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -3643,11 +3654,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added deterministic particle resampling settings and mass/volume-aware merge/split behavior, then switched mixed/density rendering to volume-fraction-backed alpha instead of particle-size growth.
+- Extended the water and fluid-quality tests to cover helper-level conservation, overcrowding, and sparse-cell splitting, then regenerated the clean-frame, density, and replay baselines that changed with the new physics output.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\verify-demo-scene.ps1`, `.\scripts\verify-demo-scene-density.ps1`, `.\scripts\verify-replay-suite.ps1`, `.\scripts\verify-fluid-quality-suite.ps1`, `.\scripts\verify-all.ps1`, and `.\scripts\check-tracking.ps1` passed on 2026-06-05.
 
 ### PSIM-0075: Physics validation scenarios and numeric acceptance thresholds
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -3768,11 +3781,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Extended the fluid-quality snapshot with mass, momentum, divergence, pressure, hydrostatic, and surface-height metrics; added hydrostatic-column and particle-overcrowding scenarios; and replaced count-based assumptions with explicit mass-balance thresholds.
+- Updated the benchmark harness and quality-suite manifest so live/offline pressure residuals, mass error, and solver budgets are reported deterministically for both quality tiers.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\verify-fluid-quality-suite.ps1`, `.\scripts\measure-water-solver.ps1 -Tier All`, `.\scripts\verify-all.ps1`, and `.\scripts\check-tracking.ps1` passed on 2026-06-05.
 
 ### PSIM-0076: Live/offline quality tiers and performance budgets
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -3890,11 +3905,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added explicit live/offline solver settings and benchmark tier filtering, then recorded the measured live/offline budgets in `docs\performance-budget.md`.
+- Updated the benchmark output to report pressure targets, residuals, particles, active cells, and mass error so tier-specific validation can be checked without ad hoc scripts.
+- Verification: `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\measure-water-solver.ps1 -Tier All`, `.\scripts\verify-all.ps1`, and `.\scripts\check-tracking.ps1` passed on 2026-06-05.
 
 ### PSIM-0077: Final physics interaction audit
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -4007,4 +4024,6 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Reconciled the physics accuracy contract, documented accepted scope constraints in `docs\physics-known-limitations.md`, and updated the performance and regression docs so they match the implemented physics and replay output.
+- Verified that every Epic 11 issue from `PSIM-0066` through `PSIM-0076` is now `Done`, and recorded the exact validation commands for the physics audit.
+- Verification: `.\scripts\check-tracking.ps1`, `.\scripts\build.ps1`, `.\scripts\test.ps1`, `.\scripts\run-smoke.ps1`, `.\scripts\verify-replay-suite.ps1`, `.\scripts\verify-demo-scene.ps1`, `.\scripts\verify-demo-scene-density.ps1`, `.\scripts\verify-fluid-quality-suite.ps1`, `.\scripts\measure-water-solver.ps1 -Tier All`, and `.\scripts\verify-all.ps1` passed on 2026-06-05.

@@ -5,6 +5,8 @@ $exe = Join-Path $repoRoot 'build\windows-x64\Debug\physics-sim.exe'
 $baseline = Join-Path $repoRoot 'regression\demo_scene_golden.bmp'
 $capture = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression_capture.bmp'
 $log = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression.log'
+$appLog = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression-app.log'
+$settings = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression-settings.txt'
 
 function Write-Log
 {
@@ -33,12 +35,20 @@ if (Test-Path $capture)
     Remove-Item -LiteralPath $capture -Force
 }
 
+if (Test-Path -LiteralPath $settings)
+{
+    Remove-Item -LiteralPath $settings -Force
+}
+
 Write-Log "[demo-regression] launching app"
 $process = Start-Process -FilePath $exe -ArgumentList @(
+    '--log-file', $appLog,
+    '--settings-file', $settings,
+    '--skip-session-shell',
     '--dump-frame', $capture,
     '--dump-frame-after-ticks', '240',
     '--auto-exit-ms', '10000'
-) -Wait -PassThru
+) -Wait -PassThru -WorkingDirectory $repoRoot
 Write-Log "[demo-regression] app exit code: $($process.ExitCode)"
 
 if ($process.ExitCode -ne 0)
