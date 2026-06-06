@@ -93,6 +93,7 @@ struct SceneDocument
     std::size_t grid_width = 0;
     std::size_t grid_height = 0;
     float cell_size = 1.0f;
+    std::optional<FluidSolverProfile> solver_profile{};
     SceneMetadata metadata{};
     std::vector<SceneCell> solid_cells{};
     std::vector<SceneEmitter> emitters{};
@@ -103,8 +104,8 @@ struct SceneDocument
     std::vector<SceneValve> valves{};
 };
 
-// Version 1 is the current on-disk scene format. Unknown versions are rejected until migration support exists.
-inline constexpr int SceneFormatVersion = 1;
+// Version 2 adds an optional solver profile while preserving version 1 scene loading.
+inline constexpr int SceneFormatVersion = 2;
 
 [[nodiscard]] inline SceneDocument capture_scene(const WaterSimulation2D& simulation, SceneMetadata metadata = {})
 {
@@ -112,6 +113,7 @@ inline constexpr int SceneFormatVersion = 1;
     document.grid_width = simulation.grid().width();
     document.grid_height = simulation.grid().height();
     document.cell_size = simulation.grid().cell_size();
+    document.solver_profile = simulation.solver_settings().profile;
     document.metadata = std::move(metadata);
 
     for (std::size_t y = 0; y < simulation.grid().height(); ++y)
@@ -202,9 +204,33 @@ inline constexpr int SceneFormatVersion = 1;
     return document;
 }
 
-inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simulation)
+[[nodiscard]] inline FluidSolverProfile effective_scene_solver_profile(
+    const SceneDocument& document,
+    FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
+    std::optional<FluidSolverProfile> forced_profile = std::nullopt) noexcept
 {
+    if (forced_profile.has_value())
+    {
+        return *forced_profile;
+    }
+
+    if (document.solver_profile.has_value())
+    {
+        return *document.solver_profile;
+    }
+
+    return fallback_profile;
+}
+
+inline void apply_scene(
+    const SceneDocument& document,
+    WaterSimulation2D& simulation,
+    FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
+    std::optional<FluidSolverProfile> forced_profile = std::nullopt)
+{
+    const FluidSolverProfile profile = effective_scene_solver_profile(document, fallback_profile, forced_profile);
     simulation.resize(document.grid_width, document.grid_height, document.cell_size);
+    simulation.set_solver_settings(WaterSimulation2D::solver_settings_for_profile(profile));
 
     for (const auto& cell : document.solid_cells)
     {
@@ -284,6 +310,7 @@ inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simula
 
     bool saw_header = false;
     bool saw_grid = false;
+    int file_version = 0;
 
     auto trim = [](std::string& line)
     {
@@ -320,11 +347,30 @@ inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simula
         if (keyword == "physics-sim-scene")
         {
             int version = 0;
-            if (!(line_stream >> version) || version != SceneFormatVersion)
+            if (!(line_stream >> version) || version < 1 || version > SceneFormatVersion)
             {
                 return std::nullopt;
             }
+            file_version = version;
             saw_header = true;
+            continue;
+        }
+
+        if (keyword == "solver-profile" || keyword == "solver_profile")
+        {
+            std::string token;
+            if (!(line_stream >> token))
+            {
+                return std::nullopt;
+            }
+
+            const auto profile = parse_solver_profile_token(token);
+            if (!profile.has_value())
+            {
+                return std::nullopt;
+            }
+
+            document.solver_profile = *profile;
             continue;
         }
 
@@ -517,7 +563,7 @@ inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simula
         return std::nullopt;
     }
 
-    if (!saw_header || !saw_grid)
+    if (!saw_header || !saw_grid || file_version == 0)
     {
         return std::nullopt;
     }
@@ -554,6 +600,10 @@ inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simula
     }
 
     file << "physics-sim-scene " << SceneFormatVersion << "\n";
+    if (document.solver_profile.has_value())
+    {
+        file << "solver-profile " << solver_profile_name(*document.solver_profile) << "\n";
+    }
     if (!document.metadata.title.empty())
     {
         file << "title " << document.metadata.title << "\n";
@@ -689,6 +739,28 @@ inline void apply_scene(const SceneDocument& document, WaterSimulation2D& simula
     }
 
     apply_scene(*document, simulation);
+    return true;
+}
+
+[[nodiscard]] inline bool load_scene(
+    const std::filesystem::path& path,
+    WaterSimulation2D& simulation,
+    SceneMetadata* metadata_out,
+    FluidSolverProfile fallback_profile,
+    std::optional<FluidSolverProfile> forced_profile = std::nullopt)
+{
+    const auto document = load_scene(path);
+    if (!document.has_value())
+    {
+        return false;
+    }
+
+    if (metadata_out != nullptr)
+    {
+        *metadata_out = document->metadata;
+    }
+
+    apply_scene(*document, simulation, fallback_profile, forced_profile);
     return true;
 }
 } // namespace physics_sim

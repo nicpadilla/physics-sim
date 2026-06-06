@@ -71,7 +71,7 @@ Use this checklist after building the app on this machine:
 ## Visual And Help Overlays
 
 1. Press `V`.
-   - Expected: the visual mode cycles between mixed, density, and particles.
+   - Expected: the visual mode cycles between surface, mixed, density, and particles.
 2. Press `H`.
    - Expected: the in-app help overlay appears and disappears.
 3. Confirm the overlay shows FPS, fixed step, tick count, particle count, divergence, visual mode, active tool, and selected fixture state.
@@ -86,9 +86,11 @@ Use this checklist after building the app on this machine:
    - Expected: the window mode changes immediately, the palette switches to the higher-contrast colors, and the settings persist after restart.
 3. Adjust the master, effects, and music volume entries.
    - Expected: the values clamp between `0` and `100` and remain after restart.
-4. Remap `Pause / Resume` to a different key, then use the new key.
+4. Cycle the solver profile entry.
+   - Expected: the selected profile changes immediately and remains after restart unless a loaded scene or CLI override supplies a different profile.
+5. Remap `Pause / Resume` to a different key, then use the new key.
    - Expected: the help overlay and tutorial text show the new binding, and the new key still toggles pause/resume.
-5. Press `F5` to save the current scene, then open the pause menu and choose `Load Save`.
+6. Press `F5` to save the current scene, then open the pause menu and choose `Load Save`.
    - Expected: the browser shows the autosave plus named saves, and loading one restores that scene without restarting the executable.
 
 ## Failure Paths

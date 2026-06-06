@@ -31,6 +31,7 @@ int main()
     settings.window_size = {1600, 900};
     settings.help_overlay_visible = true;
     settings.visual_mode = physics_sim::VisualMode::Density;
+    settings.solver_profile = physics_sim::FluidSolverProfile::Quality;
     settings.reduced_motion = true;
     settings.fullscreen = true;
     settings.high_contrast = true;
@@ -45,14 +46,15 @@ int main()
     settings.input_bindings.speed_up = SDLK_EQUALS;
 
     const auto entries = physics_sim::build_settings_menu_entries(settings);
-    REQUIRE(entries.size() == 34, "settings menu entry count was incorrect");
+    REQUIRE(entries.size() == 35, "settings menu entry count was incorrect");
     REQUIRE(entries.front().label == "Display: Window Size 1600x900", "settings menu window size label was incorrect");
     REQUIRE(entries[1].label == "Display: Fullscreen On", "settings menu fullscreen label was incorrect");
-    REQUIRE(entries[6].label == "Audio: Muted On", "settings menu audio mute label was incorrect");
-    REQUIRE(entries[7].label == "Audio: Master Volume 80 (-)", "settings menu master volume label was incorrect");
-    REQUIRE(entries[8].label == "Audio: Master Volume 80 (+)", "settings menu master volume increase label was incorrect");
-    REQUIRE(entries[13].label == "Controls: Pause / Resume -> P", "settings menu remap label did not use the active binding");
-    REQUIRE(entries[24].label == "Controls: Previous Tool -> [", "settings menu tool-prev label was incorrect");
+    REQUIRE(entries[4].label == "Simulation: Solver Profile quality", "settings menu solver profile label was incorrect");
+    REQUIRE(entries[7].label == "Audio: Muted On", "settings menu audio mute label was incorrect");
+    REQUIRE(entries[8].label == "Audio: Master Volume 80 (-)", "settings menu master volume label was incorrect");
+    REQUIRE(entries[9].label == "Audio: Master Volume 80 (+)", "settings menu master volume increase label was incorrect");
+    REQUIRE(entries[14].label == "Controls: Pause / Resume -> P", "settings menu remap label did not use the active binding");
+    REQUIRE(entries[25].label == "Controls: Previous Tool -> [", "settings menu tool-prev label was incorrect");
     REQUIRE(entries.back().kind == physics_sim::SettingsMenuEntryKind::Back, "settings menu did not end with back");
 
     const auto presets = physics_sim::settings_window_size_presets();

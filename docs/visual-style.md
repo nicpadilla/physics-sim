@@ -13,13 +13,13 @@ This note records the current visual direction for the sandbox so future polish 
 
 ## Readability Rules
 
-- Water, walls, and devices must remain readable in mixed, density, and particle views.
+- Water, walls, and devices must remain readable in surface, mixed, density, and particle views.
 - Debug diagnostics should stay visually separated from the player-facing state summary.
 - Hover, selection, disabled, active, and triggered states should be distinct without relying on motion alone.
 - Panels, tool labels, and scene-state text should stay legible at the supported 80 x 45, 16 px demo scale.
 
 ## Rendering Boundaries
 
-- The default view should look like a deliberate sandbox, not a debug capture.
-- Particle and density modes remain available for diagnostics and regression work.
+- The default surface view should look like a deliberate sandbox, not a debug capture.
+- Mixed, particle, and density modes remain available for diagnostics and regression work.
 - UI feedback should not change simulation behavior or regression outputs.

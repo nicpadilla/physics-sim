@@ -4,6 +4,8 @@
 
 `demo_scene_density_golden.bmp` is the committed later-stage density-view baseline used by `scripts/verify-demo-scene-density.ps1`.
 
+`demo_scene_surface_golden.bmp` is the committed later-stage surface-view baseline used by `scripts/verify-demo-scene-surface.ps1`.
+
 To regenerate the clean-frame baseline, rebuild the app and capture the demo scene with:
 
 ```powershell
@@ -16,6 +18,12 @@ To regenerate the later density baseline, rebuild the app and capture the demo s
 .\build\windows-x64\Debug\physics-sim.exe --visual-mode density --dump-frame build\windows-x64\probe_density_960.bmp --dump-frame-after-ticks 960 --auto-exit-ms 30000
 ```
 
+To regenerate the later surface baseline, rebuild the app and capture the demo scene with:
+
+```powershell
+.\build\windows-x64\Debug\physics-sim.exe --visual-mode surface --dump-frame build\windows-x64\probe_surface_2400.bmp --dump-frame-after-ticks 2400 --auto-exit-ms 60000
+```
+
 To regenerate the replay baselines, rebuild the app and capture each manifest replay with:
 
 ```powershell
@@ -25,6 +33,21 @@ To regenerate the replay baselines, rebuild the app and capture each manifest re
 
 The tick-based capture mode suppresses the HUD so the frame stays stable across runs.
 Compare the new frame to the committed baseline before replacing it.
+
+PSIM-0085 added a dedicated surface-view regression baseline after making `surface` the default visual mode and adding volume-fraction surface rendering. Commands used:
+
+```powershell
+.\build\windows-x64\Debug\physics-sim.exe --log-file build\windows-x64\psim0085-surface-baseline-app.log --settings-file build\windows-x64\psim0085-surface-baseline-settings.txt --skip-session-shell --visual-mode surface --dump-frame regression\demo_scene_surface_golden.bmp --dump-frame-after-ticks 2400 --auto-exit-ms 60000
+.\scripts\verify-demo-scene-surface.ps1
+```
+
+PSIM-0085 also refreshed the directional replay baseline because replay captures use the default visual mode and now render through the surface view. Commands used:
+
+```powershell
+.\scripts\verify-replay-suite.ps1
+Copy-Item -LiteralPath build\windows-x64\replay-suite\demo-add-directional-capture.bmp -Destination regression\demo_scene_replay_add_directional_golden.bmp -Force
+.\scripts\verify-replay-suite.ps1
+```
 
 PSIM-0070 regenerated `demo_scene_golden.bmp` and `demo_scene_density_golden.bmp` after replacing the pressure iteration with matrix-free residual-reporting projection. Commands used:
 

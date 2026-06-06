@@ -39,6 +39,7 @@ int main()
     original.set_solid_cell(2, 3, true);
     original.set_solid_cell(3, 3, true);
     original.set_solid_cell(4, 3, true);
+    original.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Quality));
 
     physics_sim::WaterEmitter directional;
     directional.kind = physics_sim::WaterEmitterKind::Directional;
@@ -61,6 +62,7 @@ int main()
     REQUIRE(snapshot.grid_width == 12, "capture_scene lost grid width");
     REQUIRE(snapshot.grid_height == 9, "capture_scene lost grid height");
     REQUIRE(nearly_equal(snapshot.cell_size, 1.5f), "capture_scene lost cell size");
+    REQUIRE(snapshot.solver_profile == physics_sim::FluidSolverProfile::Quality, "capture_scene lost solver profile");
     REQUIRE(snapshot.solid_cells.size() == 3, "capture_scene lost solid cells");
     REQUIRE(snapshot.emitters.size() == 2, "capture_scene lost emitters");
 
@@ -89,6 +91,7 @@ int main()
         REQUIRE(loaded_metadata.notes[1] == "The thumbnail lives next to the scene file.", "load_scene lost the second note");
         REQUIRE(metadata_restored.grid().width() == 12, "load_scene lost grid width in metadata overload");
         REQUIRE(metadata_restored.emitters().size() == 2, "load_scene lost emitters in metadata overload");
+        REQUIRE(metadata_restored.solver_settings().profile == physics_sim::FluidSolverProfile::Quality, "load_scene lost solver profile in metadata overload");
 
         fs::remove(metadata_path);
     }
@@ -134,6 +137,7 @@ int main()
     REQUIRE(loaded->grid_width == 12, "load_scene lost grid width");
     REQUIRE(loaded->grid_height == 9, "load_scene lost grid height");
     REQUIRE(nearly_equal(loaded->cell_size, 1.5f), "load_scene lost cell size");
+    REQUIRE(loaded->solver_profile == physics_sim::FluidSolverProfile::Quality, "load_scene lost solver profile");
 
     physics_sim::WaterSimulation2D restored;
     physics_sim::apply_scene(*loaded, restored);
@@ -152,19 +156,51 @@ int main()
     REQUIRE(nearly_equal(restored.emitters().back().emission_rate, 12.0f), "apply_scene lost omni emission rate");
     REQUIRE(restored.gates().empty(), "apply_scene unexpectedly created gates");
     REQUIRE(restored.sensors().empty(), "apply_scene unexpectedly created sensors");
+    REQUIRE(restored.solver_settings().profile == physics_sim::FluidSolverProfile::Quality, "apply_scene lost solver profile");
 
     {
         const auto supported = physics_sim::parse_scene_text(
             "physics-sim-scene 1\n"
             "grid 2 2 1\n");
         REQUIRE(supported.has_value(), "parse_scene_text rejected supported version 1");
+        REQUIRE(!supported->solver_profile.has_value(), "version 1 scene unexpectedly carried a solver profile");
+
+        physics_sim::WaterSimulation2D version_one_target;
+        version_one_target.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Fast));
+        physics_sim::apply_scene(*supported, version_one_target);
+        REQUIRE(version_one_target.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "version 1 scene did not fall back to balanced");
+    }
+
+    {
+        const auto supported = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\n"
+            "solver-profile fast\n"
+            "grid 2 2 1\n");
+        REQUIRE(supported.has_value(), "parse_scene_text rejected supported version 2");
+        REQUIRE(supported->solver_profile == physics_sim::FluidSolverProfile::Fast, "version 2 scene lost solver profile");
+
+        physics_sim::WaterSimulation2D fallback_target;
+        physics_sim::apply_scene(*supported, fallback_target, physics_sim::FluidSolverProfile::Quality);
+        REQUIRE(fallback_target.solver_settings().profile == physics_sim::FluidSolverProfile::Fast, "scene solver profile did not override fallback");
+
+        physics_sim::WaterSimulation2D forced_target;
+        physics_sim::apply_scene(*supported, forced_target, physics_sim::FluidSolverProfile::Quality, physics_sim::FluidSolverProfile::Balanced);
+        REQUIRE(forced_target.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "forced solver profile did not override scene profile");
     }
 
     {
         const auto unsupported = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\n"
+            "physics-sim-scene 3\n"
             "grid 2 2 1\n");
-        REQUIRE(!unsupported.has_value(), "parse_scene_text accepted unsupported version 2");
+        REQUIRE(!unsupported.has_value(), "parse_scene_text accepted unsupported version 3");
+    }
+
+    {
+        const auto invalid_profile = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\n"
+            "solver-profile impossible\n"
+            "grid 2 2 1\n");
+        REQUIRE(!invalid_profile.has_value(), "parse_scene_text accepted invalid solver profile");
     }
 
     {

@@ -11,7 +11,7 @@ The default wall material is a near-free-slip water boundary:
 - Tangential damping: `mu = 0` by default, so tangential motion is preserved unless a later material issue adds friction.
 - Static world walls, closed gates, and closed valves use the same no-penetration rule.
 
-This matches the current axis-separated particle collision behavior: when a particle crosses a solid cell along one axis, the solver projects it to the solid face, zeroes the normal velocity component, and preserves the tangential component. If a particle reaches a corner or remains embedded after axis separation, the solver restores the previous safe position and clears velocity to preserve no-penetration determinism.
+This matches the current swept-sample plus axis-separated particle collision behavior: high-speed particles first sample along their segment to avoid skipping through solid cells. The solver then projects solid contact to the cell face, zeroes the normal velocity component, and preserves tangential velocity for the default free-slip material. If a damped wall material is selected in solver settings, tangential velocity is multiplied by the configured retention. If a particle reaches a corner or remains embedded after axis separation, the solver restores the previous safe position and clears velocity to preserve no-penetration determinism.
 
 ## Equations
 
@@ -46,7 +46,7 @@ The current grid-cell implementation uses axis-separated cell-face contact inste
 
 ## Current Limitations
 
-- Friction and no-slip material parameters are documented but not exposed as editable scene data.
+- Damped material behavior exists as a solver setting, but material parameters are not exposed as editable scene data.
 - Moving solid velocity `u_solid` is effectively zero for current gates and valves because they toggle between open and closed states rather than moving continuously.
 - The collision model is cell-face based, not a smooth signed-distance field.
 - Foam, splashes, turbulence, and 3D wall wetting are out of scope for this 2D solver.

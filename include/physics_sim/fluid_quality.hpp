@@ -143,7 +143,7 @@ using FluidQualityTickCallback = std::function<void(WaterSimulation2D&, std::uin
                 + static_cast<double>(particle.velocity.y) * static_cast<double>(particle.velocity.y));
             speed_sum += speed;
             speed_max = std::max(speed_max, speed);
-            kinetic_energy_sum += 0.5 * speed * speed;
+            kinetic_energy_sum += 0.5 * static_cast<double>(particle.mass) * speed * speed;
 
             snapshot.min_position.x = std::min(snapshot.min_position.x, particle.position.x);
             snapshot.min_position.y = std::min(snapshot.min_position.y, particle.position.y);
@@ -287,6 +287,8 @@ using FluidQualityTickCallback = std::function<void(WaterSimulation2D&, std::uin
 {
     std::sort(sample_ticks.begin(), sample_ticks.end());
     sample_ticks.erase(std::unique(sample_ticks.begin(), sample_ticks.end()), sample_ticks.end());
+
+    simulation.set_solver_settings(WaterSimulation2D::live_solver_settings());
 
     if (setup)
     {

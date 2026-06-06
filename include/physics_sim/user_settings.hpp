@@ -1,6 +1,7 @@
 #pragma once
 
 #include <physics_sim/input_bindings.hpp>
+#include <physics_sim/solver_profile.hpp>
 #include <physics_sim/visual_mode.hpp>
 
 #include <algorithm>
@@ -26,7 +27,8 @@ struct UserSettings
 {
     WindowSize window_size{};
     bool help_overlay_visible = false;
-    VisualMode visual_mode = VisualMode::Mixed;
+    VisualMode visual_mode = VisualMode::Surface;
+    FluidSolverProfile solver_profile = FluidSolverProfile::Balanced;
     bool reduced_motion = false;
     bool fullscreen = false;
     bool high_contrast = false;
@@ -37,10 +39,15 @@ struct UserSettings
     InputBindings input_bindings{};
 };
 
-inline constexpr int UserSettingsVersion = 2;
+inline constexpr int UserSettingsVersion = 3;
 
 [[nodiscard]] inline std::optional<VisualMode> parse_visual_mode_token(std::string_view value)
 {
+    if (value == "surface")
+    {
+        return VisualMode::Surface;
+    }
+
     if (value == "mixed")
     {
         return VisualMode::Mixed;
@@ -107,12 +114,14 @@ inline constexpr int UserSettingsVersion = 2;
     bool saw_window = false;
     bool saw_help_overlay = false;
     bool saw_visual_mode = false;
+    bool saw_solver_profile = false;
     bool saw_fullscreen = false;
     bool saw_high_contrast = false;
     bool saw_audio_muted = false;
     bool saw_audio_master_volume = false;
     bool saw_audio_effects_volume = false;
     bool saw_audio_music_volume = false;
+    int file_version = 0;
 
     auto trim = [](std::string& line)
     {
@@ -141,11 +150,12 @@ inline constexpr int UserSettingsVersion = 2;
         if (keyword == "physics-sim-settings")
         {
             int version = 0;
-            if (!(line_stream >> version) || (version != 1 && version != UserSettingsVersion))
+            if (!(line_stream >> version) || (version < 1 || version > UserSettingsVersion))
             {
                 return std::nullopt;
             }
 
+            file_version = version;
             saw_header = true;
             continue;
         }
@@ -201,6 +211,25 @@ inline constexpr int UserSettingsVersion = 2;
 
             settings.visual_mode = *parsed;
             saw_visual_mode = true;
+            continue;
+        }
+
+        if (keyword == "solver_profile")
+        {
+            std::string token;
+            if (!(line_stream >> token))
+            {
+                return std::nullopt;
+            }
+
+            const auto parsed = parse_solver_profile_token(token);
+            if (!parsed.has_value())
+            {
+                return std::nullopt;
+            }
+
+            settings.solver_profile = *parsed;
+            saw_solver_profile = true;
             continue;
         }
 
@@ -367,6 +396,11 @@ inline constexpr int UserSettingsVersion = 2;
         return std::nullopt;
     }
 
+    if (file_version >= 3 && !saw_solver_profile)
+    {
+        return std::nullopt;
+    }
+
     if (!validate_input_bindings(settings.input_bindings))
     {
         return std::nullopt;
@@ -413,6 +447,7 @@ inline constexpr int UserSettingsVersion = 2;
     file << "window " << settings.window_size.width << ' ' << settings.window_size.height << "\n";
     file << "help_overlay " << (settings.help_overlay_visible ? 1 : 0) << "\n";
     file << "visual_mode " << visual_mode_name(settings.visual_mode) << "\n";
+    file << "solver_profile " << solver_profile_name(settings.solver_profile) << "\n";
     file << "reduced_motion " << (settings.reduced_motion ? 1 : 0) << "\n";
     file << "fullscreen " << (settings.fullscreen ? 1 : 0) << "\n";
     file << "high_contrast " << (settings.high_contrast ? 1 : 0) << "\n";

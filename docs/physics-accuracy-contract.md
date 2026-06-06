@@ -108,9 +108,13 @@ When too many particles move into one location, individual particles must not be
 - The occupied fluid region or reconstructed free surface grows according to total volume.
 - Rendering reads the larger pool from volume fraction or surface occupancy, not from per-particle visual size.
 
-## Live And Offline Quality Tiers
+## Solver Profiles And Quality Tiers
 
-Live mode and offline mode use the same equations with different budgets.
+The app exposes three runtime solver profiles. They use the same equations with different budgets and enabled passes:
+
+- `fast`: compatibility profile for the legacy live benchmark path.
+- `balanced`: default app profile with calibrated particle volume and conservative runtime settings.
+- `quality`: stricter profile with density correction, resampling, and APIC affine transfer enabled.
 
 Live tier:
 
@@ -132,9 +136,11 @@ The solver now includes the physical state and bounded correction passes needed 
 - Particle mass, volume, density, neighbor counts, and affine velocity are part of `FluidParticle`.
 - Fluid, air, and solid cell classification uses deterministic volume fractions and cell density diagnostics.
 - Transfer uses mass-weighted APIC scatter helpers, PIC/FLIP blending, and deterministic affine state support.
+- Runtime APIC affine updates are profile controlled; the quality profile enables affine transfer while balanced keeps it disabled for current stability.
 - Pressure projection reports matrix-free PCG iterations, residuals, convergence, and active pressure cells.
+- Pressure projection also reports visible fluid cells, pressure-active cells, overreach ratio, RHS norm, solution norm, `dt`, and rest density for diagnostics.
 - Local density correction is implemented as a bounded deterministic pass with mass and center-of-mass diagnostics.
-- Boundary interaction is documented as a near-free-slip no-penetration material model using deterministic cell-face contact.
+- Boundary interaction is documented as a near-free-slip no-penetration material model using deterministic swept-sample and cell-face contact. A damped material setting can reduce tangential velocity, but scene-authored wall materials are not exposed yet.
 - Viscosity and surface tension are implemented as bounded deterministic forces with zero-effect defaults.
 - Particle resampling preserves physical mass and volume and keeps rendering tied to volume fraction rather than particle size.
 

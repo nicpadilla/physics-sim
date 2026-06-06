@@ -110,25 +110,39 @@ int main()
     {
         const auto live_settings = physics_sim::WaterSimulation2D::live_solver_settings();
         const auto offline_settings = physics_sim::WaterSimulation2D::offline_solver_settings();
+        const auto fast_settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Fast);
+        const auto balanced_settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Balanced);
+        const auto quality_settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Quality);
 
         REQUIRE(live_settings.tier == physics_sim::FluidSolverQualityTier::Live, "live solver settings did not report live tier");
         REQUIRE(offline_settings.tier == physics_sim::FluidSolverQualityTier::Offline, "offline solver settings did not report offline tier");
-        REQUIRE(live_settings.pressure_max_iterations == 120, "live solver settings did not preserve the current iteration cap");
+        REQUIRE(fast_settings.profile == physics_sim::FluidSolverProfile::Fast, "fast solver settings did not report fast profile");
+        REQUIRE(balanced_settings.profile == physics_sim::FluidSolverProfile::Balanced, "balanced solver settings did not report balanced profile");
+        REQUIRE(quality_settings.profile == physics_sim::FluidSolverProfile::Quality, "quality solver settings did not report quality profile");
+        REQUIRE(live_settings.profile == physics_sim::FluidSolverProfile::Fast, "live solver settings did not map to the fast profile");
+        REQUIRE(offline_settings.profile == physics_sim::FluidSolverProfile::Quality, "offline solver settings did not map to the quality profile");
+        REQUIRE(live_settings.pressure_max_iterations == fast_settings.pressure_max_iterations, "live solver settings did not preserve benchmark compatibility");
         REQUIRE(live_settings.pressure_relative_residual_target > offline_settings.pressure_relative_residual_target, "offline solver settings did not tighten the pressure target");
-        REQUIRE(live_settings.viscosity_coefficient == 0.0f, "live solver settings should keep viscosity disabled by default");
-        REQUIRE(live_settings.surface_tension_coefficient == 0.0f, "live solver settings should keep surface tension disabled by default");
-        REQUIRE(!live_settings.resampling.enabled, "live solver settings should keep resampling disabled by default");
+        REQUIRE(quality_settings.density_correction_iterations > live_settings.density_correction_iterations, "quality solver settings did not enable density correction");
+        REQUIRE(quality_settings.resampling.enabled, "quality solver settings did not enable particle resampling");
+        REQUIRE(quality_settings.apic_affine_ratio > 0.0f, "quality solver settings did not enable APIC affine transfer");
+        REQUIRE(quality_settings.pressure_max_iterations > balanced_settings.pressure_max_iterations, "quality solver settings did not increase pressure iterations");
+        REQUIRE(quality_settings.particles_per_full_cell >= balanced_settings.particles_per_full_cell, "quality solver settings did not keep enough particles per cell");
 
         physics_sim::WaterSimulation2D simulation{8, 8, 1.0f};
-        REQUIRE(simulation.solver_settings().pressure_max_iterations == live_settings.pressure_max_iterations, "simulation did not start with live solver defaults");
+        REQUIRE(simulation.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "simulation did not start with balanced solver defaults");
 
         auto custom_settings = live_settings;
         custom_settings.pressure_max_iterations = 1;
         custom_settings.pressure_relative_residual_target = 1.0e-8f;
+        custom_settings.particles_per_full_cell = 6;
+        custom_settings.apic_affine_ratio = 0.5f;
         simulation.set_solver_settings(custom_settings);
 
         REQUIRE(simulation.solver_settings().pressure_max_iterations == 1, "simulation did not store custom solver settings");
         REQUIRE(nearly_equal(simulation.solver_settings().pressure_relative_residual_target, 1.0e-8, 1.0e-10), "simulation did not preserve the custom pressure target");
+        REQUIRE(simulation.solver_settings().particles_per_full_cell == 6, "simulation did not preserve particles-per-cell calibration");
+        REQUIRE(nearly_equal(simulation.solver_settings().apic_affine_ratio, 0.5, 0.000001), "simulation did not preserve APIC blend");
     }
 
     {
@@ -307,6 +321,8 @@ int main()
     {
         physics_sim::WaterSimulation2D control{16, 16, 1.0f};
         physics_sim::WaterSimulation2D corrected{16, 16, 1.0f};
+        control.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
+        corrected.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
 
         for (auto* simulation : {&control, &corrected})
         {
@@ -409,12 +425,17 @@ int main()
         sim.step(1.0 / 120.0);
 
         REQUIRE(sim.metrics().active_cells > 0, "local particle did not mark any active cells");
-        REQUIRE(sim.metrics().active_cells < 200, "local particle activated too much of the demo grid");
+        REQUIRE(sim.metrics().visible_fluid_cells > 0, "local particle did not report visible fluid cells");
+        REQUIRE(sim.metrics().pressure_active_cells > 0, "local particle did not report pressure-active cells");
+        REQUIRE(sim.metrics().pressure_active_cells <= 16, "local particle activated too much of the demo grid");
+        REQUIRE(sim.metrics().active_cell_overreach_ratio <= 16.0, "local particle overreach ratio was not bounded");
     }
 
     {
         physics_sim::WaterSimulation2D control{8, 8, 1.0f};
         physics_sim::WaterSimulation2D resampled{8, 8, 1.0f};
+        control.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
+        resampled.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
 
         for (auto* simulation : {&control, &resampled})
         {
@@ -460,6 +481,8 @@ int main()
     {
         physics_sim::WaterSimulation2D control{8, 8, 1.0f};
         physics_sim::WaterSimulation2D resampled{8, 8, 1.0f};
+        control.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
+        resampled.set_solver_settings(physics_sim::WaterSimulation2D::live_solver_settings());
 
         for (auto* simulation : {&control, &resampled})
         {
@@ -560,6 +583,33 @@ int main()
     }
 
     {
+        physics_sim::WaterSimulation2D sim{12, 12, 1.0f};
+        auto settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Quality);
+        settings.apic_affine_ratio = 1.0f;
+        settings.density_correction_iterations = 0;
+        settings.resampling.enabled = false;
+        sim.set_solver_settings(settings);
+        sim.particles().push_back({Vec2{5.25f, 5.25f}, Vec2{0.0f, -2.0f}});
+        sim.particles().push_back({Vec2{5.75f, 5.25f}, Vec2{0.0f, 2.0f}});
+        sim.particles().push_back({Vec2{5.25f, 5.75f}, Vec2{2.0f, 0.0f}});
+        sim.particles().push_back({Vec2{5.75f, 5.75f}, Vec2{-2.0f, 0.0f}});
+
+        sim.step(1.0 / 120.0);
+
+        double max_affine_component = 0.0;
+        for (const auto& particle : sim.particles())
+        {
+            max_affine_component = std::max(max_affine_component, std::abs(static_cast<double>(particle.affine_velocity.m00)));
+            max_affine_component = std::max(max_affine_component, std::abs(static_cast<double>(particle.affine_velocity.m01)));
+            max_affine_component = std::max(max_affine_component, std::abs(static_cast<double>(particle.affine_velocity.m10)));
+            max_affine_component = std::max(max_affine_component, std::abs(static_cast<double>(particle.affine_velocity.m11)));
+        }
+
+        REQUIRE(max_affine_component > 0.001, "runtime APIC transfer did not update affine state");
+        REQUIRE(max_affine_component < 20.0, "runtime APIC transfer produced unbounded affine state");
+    }
+
+    {
         const physics_sim::Vec2 blended = physics_sim::pic_flip_blend(
             Vec2{3.0f, 5.0f},
             Vec2{10.0f, 20.0f},
@@ -615,6 +665,29 @@ int main()
 
     {
         physics_sim::WaterSimulation2D sim{8, 8, 1.0f};
+        auto settings = sim.solver_settings();
+        settings.wall_material = physics_sim::WallBoundaryMaterial::Damped;
+        settings.wall_tangential_velocity_retention = 0.25f;
+        sim.set_solver_settings(settings);
+        sim.set_solid_cell(5, 4, true);
+        sim.particles().push_back({Vec2{4.75f, 4.25f}, Vec2{6.0f, 2.0f}});
+
+        sim.step(0.1);
+
+        REQUIRE(sim.particles().size() == 1, "damped wall-slide particle was unexpectedly removed");
+        const auto& particle = sim.particles().front();
+        const auto cell_x = static_cast<std::size_t>(std::floor(particle.position.x));
+        const auto cell_y = static_cast<std::size_t>(std::floor(particle.position.y));
+
+        REQUIRE(!sim.grid().solid(cell_x, cell_y), "damped wall-slide particle penetrated a solid cell");
+        REQUIRE(particle.position.x < 5.0f, "damped wall-slide particle crossed the blocking wall");
+        REQUIRE(std::fabs(particle.velocity.x) < 0.0005f, "damped wall-slide particle kept velocity into the wall");
+        REQUIRE(particle.velocity.y > 0.0f, "damped wall-slide particle reversed tangential velocity");
+        REQUIRE(particle.velocity.y < 1.5f, "damped wall-slide particle did not reduce tangential velocity");
+    }
+
+    {
+        physics_sim::WaterSimulation2D sim{8, 8, 1.0f};
         sim.particles().push_back({Vec2{-0.25f, 4.0f}, Vec2{-2.0f, 0.0f}});
         sim.step(0.1);
 
@@ -644,11 +717,20 @@ int main()
         REQUIRE(sim.metrics().average_divergence_after_projection < 0.15, "average divergence too high");
         REQUIRE(sim.metrics().max_divergence_after_projection < 0.5, "max divergence too high");
         REQUIRE(sim.metrics().pressure_solve.active_cells > 0, "pressure solve did not report active cells");
+        REQUIRE(sim.metrics().pressure_solve.visible_cells == sim.metrics().visible_fluid_cells, "pressure solve visible-cell count did not match metrics");
+        REQUIRE(sim.metrics().pressure_solve.pressure_active_cells == sim.metrics().pressure_active_cells, "pressure solve active-cell count did not match metrics");
+        REQUIRE(std::isfinite(sim.metrics().pressure_solve.active_cell_overreach_ratio), "pressure solve overreach ratio was non-finite");
         REQUIRE(sim.metrics().pressure_solve.iterations > 0, "pressure solve did not report iterations");
         REQUIRE(std::isfinite(sim.metrics().pressure_solve.initial_residual), "pressure solve initial residual was non-finite");
         REQUIRE(std::isfinite(sim.metrics().pressure_solve.final_residual), "pressure solve final residual was non-finite");
+        REQUIRE(std::isfinite(sim.metrics().pressure_solve.absolute_residual), "pressure solve absolute residual was non-finite");
         REQUIRE(std::isfinite(sim.metrics().pressure_solve.relative_residual), "pressure solve relative residual was non-finite");
+        REQUIRE(std::isfinite(sim.metrics().pressure_solve.rhs_l2), "pressure solve RHS norm was non-finite");
+        REQUIRE(std::isfinite(sim.metrics().pressure_solve.solution_l2), "pressure solve solution norm was non-finite");
+        REQUIRE(nearly_equal(sim.metrics().pressure_solve.pressure_dt, 0.1f, 0.000001f), "pressure solve did not report dt");
+        REQUIRE(nearly_equal(sim.metrics().pressure_solve.rest_density, sim.solver_settings().rest_density, 0.000001f), "pressure solve did not report rest density");
         REQUIRE(sim.metrics().pressure_solve.final_residual <= sim.metrics().pressure_solve.initial_residual + 0.000001, "pressure solve did not reduce residual");
+        REQUIRE(sim.metrics().pressure_solve.absolute_residual <= sim.metrics().pressure_solve.initial_residual + 0.000001, "pressure solve absolute residual did not match final residual");
         REQUIRE(sim.metrics().pressure_solve.relative_residual <= 1.0, "pressure solve relative residual did not improve");
     }
 
@@ -679,8 +761,9 @@ int main()
             sim.step(1.0 / 120.0);
         }
 
-        REQUIRE(sim.metrics().total_emitted == sim.particles().size(), "closed-box mass did not match emitted particle count");
         REQUIRE(sim.metrics().total_emitted > 0, "closed-box fill test never emitted fluid");
+        const double expected_mass = sim.metrics().total_emitted_mass - sim.metrics().total_removed_mass - sim.metrics().total_outflow_mass;
+        REQUIRE(nearly_equal(physics_sim::total_particle_mass(sim.particles()), expected_mass, 0.000001), "closed-box mass did not match emitted mass");
         for (const auto& particle : sim.particles())
         {
             const auto cell_x = static_cast<std::size_t>(std::floor(particle.position.x));

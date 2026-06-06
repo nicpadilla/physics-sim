@@ -139,7 +139,7 @@ namespace detail
         };
     }
 
-    if (*version != SceneFormatVersion)
+    if (*version < 1 || *version > SceneFormatVersion)
     {
         return {
             "SCENE VERSION NOT SUPPORTED",

@@ -479,4 +479,8 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_demo_regression_density
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-density.ps1
     )
+
+    add_test(NAME physics_sim_demo_regression_surface
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-surface.ps1
+    )
 endif()

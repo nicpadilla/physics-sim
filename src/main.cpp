@@ -50,6 +50,9 @@ using Clock = std::chrono::steady_clock;
 namespace fs = std::filesystem;
 using physics_sim::VisualMode;
 using physics_sim::next_visual_mode;
+using physics_sim::next_solver_profile;
+using physics_sim::parse_solver_profile_token;
+using physics_sim::solver_profile_name;
 using physics_sim::visual_mode_name;
 
 struct RuntimeOptions
@@ -66,6 +69,7 @@ struct RuntimeOptions
     std::optional<fs::path> settingsFilePath;
     std::optional<fs::path> startupScenePath;
     std::optional<VisualMode> initialVisualMode;
+    std::optional<physics_sim::FluidSolverProfile> initialSolverProfile;
     bool disableAudio = false;
     bool tutorialMode = false;
     bool skipSessionShell = false;
@@ -256,6 +260,11 @@ std::optional<VisualMode> parse_visual_mode(std::string_view value)
         return VisualMode::Particles;
     }
 
+    if (value == "surface")
+    {
+        return VisualMode::Surface;
+    }
+
     return std::nullopt;
 }
 
@@ -413,6 +422,14 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg.starts_with("--visual-mode="))
         {
             options.initialVisualMode = parse_visual_mode(arg.substr(std::string_view("--visual-mode=").size()));
+        }
+        else if (arg == "--solver-profile" && i + 1 < argc)
+        {
+            options.initialSolverProfile = parse_solver_profile_token(argv[++i]);
+        }
+        else if (arg.starts_with("--solver-profile="))
+        {
+            options.initialSolverProfile = parse_solver_profile_token(arg.substr(std::string_view("--solver-profile=").size()));
         }
         else if (arg == "--window-size" && i + 1 < argc)
         {
@@ -671,6 +688,73 @@ void draw_fluid_density(
                 {static_cast<float>(x) * grid.cell_size(), static_cast<float>(y) * grid.cell_size()},
                 {grid.cell_size(), grid.cell_size()});
             SDL_RenderFillRectF(renderer, &rect);
+        }
+    }
+}
+
+void draw_fluid_surface(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneViewport& viewport,
+    const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::UiPalette& palette)
+{
+    const auto& grid = simulation.grid();
+    if (grid.width() == 0 || grid.height() == 0)
+    {
+        return;
+    }
+
+    constexpr float visible_threshold = 0.01f;
+    const float cell_size = grid.cell_size();
+    for (std::size_t y = 0; y < grid.height(); ++y)
+    {
+        for (std::size_t x = 0; x < grid.width(); ++x)
+        {
+            if (grid.solid(x, y))
+            {
+                continue;
+            }
+
+            const float volume_fraction = std::clamp(simulation.cell_volume_fraction(x, y), 0.0f, 1.0f);
+            if (volume_fraction <= visible_threshold)
+            {
+                continue;
+            }
+
+            const std::uint8_t alpha = static_cast<std::uint8_t>(std::min(235.0f, 96.0f + volume_fraction * 139.0f));
+            SDL_SetRenderDrawColor(renderer, palette.water.r, palette.water.g, palette.water.b, alpha);
+            const SDL_FRect rect = world_rect(
+                viewport,
+                {static_cast<float>(x) * cell_size, static_cast<float>(y) * cell_size},
+                {cell_size, cell_size});
+            SDL_RenderFillRectF(renderer, &rect);
+
+            const auto neighbor_fraction = [&](int nx, int ny) noexcept
+            {
+                if (nx < 0 || ny < 0 || static_cast<std::size_t>(nx) >= grid.width() || static_cast<std::size_t>(ny) >= grid.height())
+                {
+                    return 0.0f;
+                }
+                return simulation.cell_volume_fraction(static_cast<std::size_t>(nx), static_cast<std::size_t>(ny));
+            };
+
+            SDL_SetRenderDrawColor(renderer, 210, 246, 255, static_cast<std::uint8_t>(std::min(210.0f, 80.0f + volume_fraction * 130.0f)));
+            if (neighbor_fraction(static_cast<int>(x), static_cast<int>(y) - 1) <= visible_threshold)
+            {
+                SDL_RenderDrawLineF(renderer, rect.x, rect.y, rect.x + rect.w, rect.y);
+            }
+            if (neighbor_fraction(static_cast<int>(x) - 1, static_cast<int>(y)) <= visible_threshold)
+            {
+                SDL_RenderDrawLineF(renderer, rect.x, rect.y, rect.x, rect.y + rect.h);
+            }
+            if (neighbor_fraction(static_cast<int>(x) + 1, static_cast<int>(y)) <= visible_threshold)
+            {
+                SDL_RenderDrawLineF(renderer, rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + rect.h);
+            }
+            if (neighbor_fraction(static_cast<int>(x), static_cast<int>(y) + 1) <= visible_threshold)
+            {
+                SDL_RenderDrawLineF(renderer, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h);
+            }
         }
     }
 }
@@ -1440,7 +1524,9 @@ bool load_scene_from_file(
     physics_sim::SceneController& controller,
     physics_sim::SceneMetadata* metadata_out = nullptr,
     const AppLogger* logger = nullptr,
-    physics_sim::PlayerFeedback* feedback_out = nullptr)
+    physics_sim::PlayerFeedback* feedback_out = nullptr,
+    physics_sim::FluidSolverProfile fallback_solver_profile = physics_sim::FluidSolverProfile::Balanced,
+    std::optional<physics_sim::FluidSolverProfile> forced_solver_profile = std::nullopt)
 {
     if (logger != nullptr)
     {
@@ -1449,7 +1535,7 @@ bool load_scene_from_file(
         logger->log(stream.str());
     }
 
-    if (!physics_sim::load_scene(path, simulation, metadata_out))
+    if (!physics_sim::load_scene(path, simulation, metadata_out, fallback_solver_profile, forced_solver_profile))
     {
         const auto feedback = physics_sim::describe_scene_load_failure(path);
         if (feedback_out != nullptr)
@@ -1562,9 +1648,11 @@ bool restore_demo_scene(
     physics_sim::FixedStepDriver& driver,
     physics_sim::SceneController& controller,
     physics_sim::SceneMetadata* metadata_out = nullptr,
-    const AppLogger* logger = nullptr)
+    const AppLogger* logger = nullptr,
+    physics_sim::FluidSolverProfile fallback_solver_profile = physics_sim::FluidSolverProfile::Balanced,
+    std::optional<physics_sim::FluidSolverProfile> forced_solver_profile = std::nullopt)
 {
-    if (load_scene_from_file(path, simulation, viewport, state, driver, controller, metadata_out, logger))
+    if (load_scene_from_file(path, simulation, viewport, state, driver, controller, metadata_out, logger, nullptr, fallback_solver_profile, forced_solver_profile))
     {
         return true;
     }
@@ -1577,6 +1665,8 @@ bool restore_demo_scene(
     }
 
     load_demo_scene(controller);
+    const auto profile = forced_solver_profile.value_or(fallback_solver_profile);
+    simulation.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(profile));
     sync_viewport_to_simulation(viewport, simulation);
     state.reset();
     driver.reset();
@@ -1697,7 +1787,9 @@ void apply_action(
     physics_sim::SceneMetadata* metadata_out = nullptr,
     std::string* feedback_out = nullptr,
     const AppLogger* logger = nullptr,
-    physics_sim::TutorialProgress* tutorialProgress = nullptr)
+    physics_sim::TutorialProgress* tutorialProgress = nullptr,
+    physics_sim::FluidSolverProfile fallback_solver_profile = physics_sim::FluidSolverProfile::Balanced,
+    std::optional<physics_sim::FluidSolverProfile> forced_solver_profile = std::nullopt)
 {
     switch (action)
     {
@@ -1728,7 +1820,17 @@ void apply_action(
         {
             logger->log("action: reset");
         }
-        restore_demo_scene(current_scene_path, simulation, viewport, state, driver, controller, metadata_out, logger);
+        restore_demo_scene(
+            current_scene_path,
+            simulation,
+            viewport,
+            state,
+            driver,
+            controller,
+            metadata_out,
+            logger,
+            fallback_solver_profile,
+            forced_solver_profile);
         if (tutorialProgress != nullptr)
         {
             physics_sim::tutorial_mark_reset_or_retry(*tutorialProgress);
@@ -1977,6 +2079,10 @@ int main(int argc, char* argv[])
         {
             stream << " initial_visual_mode=" << visual_mode_name(*options.initialVisualMode);
         }
+        if (options.initialSolverProfile.has_value())
+        {
+            stream << " initial_solver_profile=" << solver_profile_name(*options.initialSolverProfile);
+        }
         logger.log(stream.str());
     }
 
@@ -2025,6 +2131,10 @@ int main(int argc, char* argv[])
     {
         userSettings.visual_mode = *options.initialVisualMode;
     }
+    if (options.initialSolverProfile.has_value())
+    {
+        userSettings.solver_profile = *options.initialSolverProfile;
+    }
     if (options.initialReducedMotion.has_value())
     {
         userSettings.reduced_motion = *options.initialReducedMotion;
@@ -2036,6 +2146,7 @@ int main(int argc, char* argv[])
                << " window=" << userSettings.window_size.width << 'x' << userSettings.window_size.height
                << " help_overlay=" << (userSettings.help_overlay_visible ? "on" : "off")
                << " visual_mode=" << visual_mode_name(userSettings.visual_mode)
+               << " solver_profile=" << solver_profile_name(userSettings.solver_profile)
                << " reduced_motion=" << (userSettings.reduced_motion ? "on" : "off");
         logger.log(stream.str());
     }
@@ -2162,9 +2273,14 @@ int main(int argc, char* argv[])
     physics_sim::FixedStepDriver stepDriver;
     physics_sim::SimulationState simulationState;
     physics_sim::WaterSimulation2D simulation{80, 45, 16.0f};
+    simulation.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(userSettings.solver_profile));
     physics_sim::SceneController controller{simulation};
     physics_sim::SceneViewport viewport;
     physics_sim::SceneMetadata sceneMetadata;
+    const auto sync_solver_profile_from_simulation = [&]()
+    {
+        userSettings.solver_profile = simulation.solver_settings().profile;
+    };
     viewport.set_world_size({1280.0f, 720.0f});
     viewport.set_window_size(windowWidth, windowHeight);
     const bool captureByTickCount = options.dumpFrameAfterTicks.has_value();
@@ -2191,14 +2307,45 @@ int main(int argc, char* argv[])
             const auto feedback = physics_sim::describe_package_content_failure("tutorial scene missing");
             logger.log(feedback.detail);
             show_error(feedback.status_message.c_str(), feedback.detail, &logger);
-            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            static_cast<void>(restore_demo_scene(
+                demoScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                userSettings.solver_profile,
+                options.initialSolverProfile));
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             logger.log("tutorial scene fallback: loaded demo scene after tutorial content missing");
         }
-        else if (!load_scene_from_file(tutorialScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger))
+        else if (!load_scene_from_file(
+                     tutorialScenePath,
+                     simulation,
+                     viewport,
+                     simulationState,
+                     stepDriver,
+                     controller,
+                     &sceneMetadata,
+                     &logger,
+                     nullptr,
+                     userSettings.solver_profile,
+                     options.initialSolverProfile))
         {
-            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            static_cast<void>(restore_demo_scene(
+                demoScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                userSettings.solver_profile,
+                options.initialSolverProfile));
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             logger.log("tutorial scene fallback: loaded demo scene after tutorial load failure");
@@ -2206,10 +2353,21 @@ int main(int argc, char* argv[])
     }
     else
     {
-        static_cast<void>(restore_demo_scene(startupScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+        static_cast<void>(restore_demo_scene(
+            startupScenePath,
+            simulation,
+            viewport,
+            simulationState,
+            stepDriver,
+            controller,
+            &sceneMetadata,
+            &logger,
+            userSettings.solver_profile,
+            options.initialSolverProfile));
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
     }
 
+    sync_solver_profile_from_simulation();
     refresh_save_browser_entries();
 
     bool tutorialActive = tutorialStartup;
@@ -2432,6 +2590,16 @@ int main(int argc, char* argv[])
             play_audio(physics_sim::AudioCue::UiSelect);
             set_status_message(std::string{"VISUAL "} + visual_mode_name(visualMode), StatusMessageKind::Info);
             return true;
+        case physics_sim::SettingsMenuEntryKind::CycleSolverProfile:
+            userSettings.solver_profile = next_solver_profile(userSettings.solver_profile);
+            simulation.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(userSettings.solver_profile));
+            if (!persist_settings_or_report())
+            {
+                return false;
+            }
+            play_audio(physics_sim::AudioCue::UiSelect);
+            set_status_message(std::string{"SOLVER "} + solver_profile_name(userSettings.solver_profile), StatusMessageKind::Info);
+            return true;
         case physics_sim::SettingsMenuEntryKind::ToggleHighContrast:
             userSettings.high_contrast = !userSettings.high_contrast;
             if (!persist_settings_or_report())
@@ -2631,7 +2799,18 @@ int main(int argc, char* argv[])
 
         const fs::path& path = galleryScenePaths[index];
         physics_sim::PlayerFeedback feedback;
-        if (!load_scene_from_file(path, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        if (!load_scene_from_file(
+                path,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                &feedback,
+                userSettings.solver_profile,
+                options.initialSolverProfile))
         {
             logger.log(feedback.detail);
             set_status_message(feedback.status_message, StatusMessageKind::Error);
@@ -2639,6 +2818,7 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        sync_solver_profile_from_simulation();
         currentScenePath = path;
         currentGalleryIndex = index;
         sync_scene_feedback_metrics();
@@ -2656,10 +2836,32 @@ int main(int argc, char* argv[])
     const auto load_autosave_or_demo = [&]() -> bool
     {
         physics_sim::PlayerFeedback feedback;
-        if (!load_scene_from_file(autosaveScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        if (!load_scene_from_file(
+                autosaveScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                &feedback,
+                userSettings.solver_profile,
+                options.initialSolverProfile))
         {
             logger.log(feedback.detail);
-            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            static_cast<void>(restore_demo_scene(
+                demoScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                userSettings.solver_profile,
+                options.initialSolverProfile));
+            sync_solver_profile_from_simulation();
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             sync_scene_feedback_metrics();
@@ -2674,6 +2876,7 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        sync_solver_profile_from_simulation();
         currentScenePath = autosaveScenePath;
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
         sync_scene_feedback_metrics();
@@ -2719,7 +2922,18 @@ int main(int argc, char* argv[])
         }
 
         physics_sim::PlayerFeedback feedback;
-        if (!load_scene_from_file(entry.path, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        if (!load_scene_from_file(
+                entry.path,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                &feedback,
+                userSettings.solver_profile,
+                options.initialSolverProfile))
         {
             logger.log(feedback.detail);
             set_status_message(feedback.status_message, StatusMessageKind::Error);
@@ -2727,6 +2941,7 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        sync_solver_profile_from_simulation();
         currentScenePath = entry.path;
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
         sync_scene_feedback_metrics();
@@ -2797,7 +3012,18 @@ int main(int argc, char* argv[])
         {
             const auto package_feedback = physics_sim::describe_package_content_failure("tutorial scene missing");
             logger.log(package_feedback.detail);
-            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            static_cast<void>(restore_demo_scene(
+                demoScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                userSettings.solver_profile,
+                options.initialSolverProfile));
+            sync_solver_profile_from_simulation();
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             sync_scene_feedback_metrics();
@@ -2807,10 +3033,32 @@ int main(int argc, char* argv[])
             return false;
         }
 
-        if (!load_scene_from_file(tutorialScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger, &feedback))
+        if (!load_scene_from_file(
+                tutorialScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                &feedback,
+                userSettings.solver_profile,
+                options.initialSolverProfile))
         {
             logger.log(feedback.detail);
-            static_cast<void>(restore_demo_scene(demoScenePath, simulation, viewport, simulationState, stepDriver, controller, &sceneMetadata, &logger));
+            static_cast<void>(restore_demo_scene(
+                demoScenePath,
+                simulation,
+                viewport,
+                simulationState,
+                stepDriver,
+                controller,
+                &sceneMetadata,
+                &logger,
+                userSettings.solver_profile,
+                options.initialSolverProfile));
+            sync_solver_profile_from_simulation();
             currentScenePath = demoScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             sync_scene_feedback_metrics();
@@ -2820,6 +3068,7 @@ int main(int argc, char* argv[])
             return false;
         }
 
+        sync_solver_profile_from_simulation();
         currentScenePath = tutorialScenePath;
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
         sync_scene_feedback_metrics();
@@ -2853,10 +3102,13 @@ int main(int argc, char* argv[])
             &sceneMetadata,
             &actionFeedback,
             &logger,
-            tutorialActive ? &tutorialProgress : nullptr);
+            tutorialActive ? &tutorialProgress : nullptr,
+            userSettings.solver_profile,
+            options.initialSolverProfile);
 
         if (action == physics_sim::Action::Reset || action == physics_sim::Action::ResetFluid)
         {
+            sync_solver_profile_from_simulation();
             sync_scene_feedback_metrics();
             static_cast<void>(save_autosave_scene());
         }
@@ -4008,12 +4260,16 @@ int main(int argc, char* argv[])
         SDL_RenderClear(renderer);
 
         draw_grid(renderer, viewport, simulation, palette);
-        if (visualMode != VisualMode::Particles)
+        if (visualMode == VisualMode::Surface)
+        {
+            draw_fluid_surface(renderer, viewport, simulation, palette);
+        }
+        else if (visualMode != VisualMode::Particles)
         {
             draw_fluid_density(renderer, viewport, simulation, palette);
         }
         draw_walls(renderer, viewport, simulation, palette);
-        if (visualMode != VisualMode::Density)
+        if (visualMode != VisualMode::Density && visualMode != VisualMode::Surface)
         {
             draw_particles(renderer, viewport, simulation, palette);
         }

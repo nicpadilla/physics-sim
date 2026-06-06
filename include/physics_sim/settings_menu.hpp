@@ -18,6 +18,7 @@ enum class SettingsMenuEntryKind
     ToggleFullscreen,
     ToggleHelpOverlay,
     CycleVisualMode,
+    CycleSolverProfile,
     ToggleHighContrast,
     ToggleReducedMotion,
     ToggleAudioMute,
@@ -110,6 +111,12 @@ struct SettingsMenuEntry
     entries.push_back({
         SettingsMenuEntryKind::CycleVisualMode,
         std::string{"Display: Visual Mode "} + visual_mode_name(settings.visual_mode),
+        {},
+        0,
+    });
+    entries.push_back({
+        SettingsMenuEntryKind::CycleSolverProfile,
+        std::string{"Simulation: Solver Profile "} + solver_profile_name(settings.solver_profile),
         {},
         0,
     });

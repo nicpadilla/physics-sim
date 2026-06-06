@@ -4,6 +4,7 @@ namespace physics_sim
 {
 enum class VisualMode
 {
+    Surface,
     Mixed,
     Density,
     Particles,
@@ -13,6 +14,8 @@ enum class VisualMode
 {
     switch (mode)
     {
+    case VisualMode::Surface:
+        return "surface";
     case VisualMode::Mixed:
         return "mixed";
     case VisualMode::Density:
@@ -28,14 +31,16 @@ enum class VisualMode
 {
     switch (mode)
     {
+    case VisualMode::Surface:
+        return VisualMode::Mixed;
     case VisualMode::Mixed:
         return VisualMode::Density;
     case VisualMode::Density:
         return VisualMode::Particles;
     case VisualMode::Particles:
-        return VisualMode::Mixed;
+        return VisualMode::Surface;
     }
 
-    return VisualMode::Mixed;
+    return VisualMode::Surface;
 }
 } // namespace physics_sim

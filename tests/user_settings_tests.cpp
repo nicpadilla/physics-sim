@@ -34,7 +34,8 @@ int main()
         physics_sim::UserSettings settings;
         settings.window_size = {1024, 768};
         settings.help_overlay_visible = true;
-        settings.visual_mode = physics_sim::VisualMode::Density;
+        settings.visual_mode = physics_sim::VisualMode::Surface;
+        settings.solver_profile = physics_sim::FluidSolverProfile::Quality;
         settings.reduced_motion = true;
         settings.fullscreen = true;
         settings.high_contrast = true;
@@ -54,7 +55,8 @@ int main()
         REQUIRE(loaded->window_size.width == 1024, "loaded window width incorrect");
         REQUIRE(loaded->window_size.height == 768, "loaded window height incorrect");
         REQUIRE(loaded->help_overlay_visible, "loaded help overlay state incorrect");
-        REQUIRE(loaded->visual_mode == physics_sim::VisualMode::Density, "loaded visual mode incorrect");
+        REQUIRE(loaded->visual_mode == physics_sim::VisualMode::Surface, "loaded visual mode incorrect");
+        REQUIRE(loaded->solver_profile == physics_sim::FluidSolverProfile::Quality, "loaded solver profile incorrect");
         REQUIRE(loaded->reduced_motion, "loaded reduced-motion state incorrect");
         REQUIRE(loaded->fullscreen, "loaded fullscreen state incorrect");
         REQUIRE(loaded->high_contrast, "loaded high-contrast state incorrect");
@@ -71,10 +73,11 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 2\n"
+            "physics-sim-settings 3\n"
             "window 1280 720\n"
             "help_overlay 0\n"
-            "visual_mode mixed\n"
+            "visual_mode surface\n"
+            "solver_profile balanced\n"
             "reduced_motion 1\n"
             "fullscreen 1\n"
             "high_contrast 1\n"
@@ -86,6 +89,8 @@ int main()
             "bind reset f12\n"
             "bind tool_hotkey_1 0\n");
         REQUIRE(parsed.has_value(), "parse_user_settings_text rejected valid settings");
+        REQUIRE(parsed->visual_mode == physics_sim::VisualMode::Surface, "parse_user_settings_text lost surface visual mode");
+        REQUIRE(parsed->solver_profile == physics_sim::FluidSolverProfile::Balanced, "parse_user_settings_text lost solver profile");
         REQUIRE(parsed->reduced_motion, "parse_user_settings_text lost reduced-motion state");
         REQUIRE(parsed->fullscreen, "parse_user_settings_text lost fullscreen state");
         REQUIRE(parsed->high_contrast, "parse_user_settings_text lost high-contrast state");
@@ -100,7 +105,7 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 3\n"
+            "physics-sim-settings 4\n"
             "window 1280 720\n"
             "help_overlay 0\n"
             "visual_mode mixed\n");
@@ -144,7 +149,8 @@ int main()
         REQUIRE(defaults.window_size.width == 1280, "default window width incorrect");
         REQUIRE(defaults.window_size.height == 720, "default window height incorrect");
         REQUIRE(!defaults.help_overlay_visible, "default help overlay state incorrect");
-        REQUIRE(defaults.visual_mode == physics_sim::VisualMode::Mixed, "default visual mode incorrect");
+        REQUIRE(defaults.visual_mode == physics_sim::VisualMode::Surface, "default visual mode incorrect");
+        REQUIRE(defaults.solver_profile == physics_sim::FluidSolverProfile::Balanced, "default solver profile incorrect");
         REQUIRE(!defaults.reduced_motion, "default reduced-motion state incorrect");
     }
 

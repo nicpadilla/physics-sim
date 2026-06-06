@@ -1,6 +1,6 @@
 # Scene Format Policy
 
-The current on-disk scene format version is `1`.
+The current on-disk scene format version is `2`.
 
 Version 1 stores:
 
@@ -13,6 +13,10 @@ Version 1 stores:
 - drains with rectangular footprints and enabled state
 - pumps with rectangular footprints, enabled state, direction, and strength
 
+Version 2 adds:
+
+- optional `solver-profile <fast|balanced|quality>` scene-level solver profile
+
 Thumbnail policy:
 
 - Thumbnails are stored as sibling BMP files next to the scene rather than embedded in the scene text.
@@ -20,9 +24,11 @@ Thumbnail policy:
 
 Compatibility policy:
 
-- The loader accepts version `1`.
+- The loader accepts version `1` and `2`.
+- Version `1` scenes have no authored solver profile. Direct `load_scene` calls use the `balanced` fallback, while the app can pass the current user profile as the fallback.
+- Version `2` scenes may specify `solver-profile`; if present, that profile overrides the user setting unless the app was launched with `--solver-profile`.
 - Unknown, future, malformed, or missing versions are rejected.
-- `save_scene` always writes version `1`.
+- `save_scene` always writes version `2`.
 - If the format changes in the future, the parser should be updated with an explicit compatibility or migration rule instead of silently accepting unknown data.
 
 Failure behavior:

@@ -156,7 +156,7 @@ bool run_benchmark(
     const double average_step_ms = (elapsed_seconds * 1000.0) / static_cast<double>(steps);
 
     std::printf(
-        "scene=%s tier=%s grid=%zux%zu cell=%.1f steps=%d end_particles=%zu active_cells=%zu pressure_active_cells=%zu pressure_iterations=%d pressure_relative_residual=%.6f pressure_target_relative_residual=%.6f pressure_converged=%s average_density_error=%.6f max_density_error=%.6f mass_error=%.6f elapsed_seconds=%.2f average_step_ms=%.4f budget_seconds=%.2f\n",
+        "scene=%s tier=%s grid=%zux%zu cell=%.1f steps=%d end_particles=%zu active_cells=%zu visible_cells=%zu pressure_active_cells=%zu active_cell_overreach=%.6f pressure_iterations=%d pressure_relative_residual=%.6f pressure_target_relative_residual=%.6f pressure_absolute_residual=%.6f pressure_target_absolute_residual=%.6f pressure_rhs_l2=%.6f pressure_solution_l2=%.6f pressure_dt=%.6f rest_density=%.6f pressure_converged=%s average_density_error=%.6f max_density_error=%.6f mass_error=%.6f elapsed_seconds=%.2f average_step_ms=%.4f budget_seconds=%.2f\n",
         name,
         tier_name(tier),
         sim.grid().width(),
@@ -165,10 +165,18 @@ bool run_benchmark(
         steps,
         sim.particles().size(),
         sim.metrics().active_cells,
-        pressure.active_cells,
+        sim.metrics().visible_fluid_cells,
+        pressure.pressure_active_cells,
+        pressure.active_cell_overreach_ratio,
         pressure.iterations,
         pressure.relative_residual,
         pressure.target_relative_residual,
+        pressure.absolute_residual,
+        pressure.target_absolute_residual,
+        pressure.rhs_l2,
+        pressure.solution_l2,
+        pressure.pressure_dt,
+        pressure.rest_density,
         pressure.converged ? "true" : "false",
         sim.metrics().average_density_error,
         sim.metrics().max_density_error,
