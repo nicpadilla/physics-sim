@@ -123,6 +123,19 @@ int main()
         REQUIRE(offline_settings.profile == physics_sim::FluidSolverProfile::Quality, "offline solver settings did not map to the quality profile");
         REQUIRE(live_settings.pressure_max_iterations == fast_settings.pressure_max_iterations, "live solver settings did not preserve benchmark compatibility");
         REQUIRE(live_settings.pressure_relative_residual_target > offline_settings.pressure_relative_residual_target, "offline solver settings did not tighten the pressure target");
+        REQUIRE(balanced_settings.tier == physics_sim::FluidSolverQualityTier::Live, "balanced solver settings did not report the live tier");
+        REQUIRE(balanced_settings.particles_per_full_cell == 4, "balanced solver settings did not preserve the target particle density");
+        REQUIRE(balanced_settings.density_correction_iterations == 1, "balanced solver settings did not enable a single density correction pass");
+        REQUIRE(nearly_equal(balanced_settings.max_density_correction_fraction, 0.025f, 0.000001), "balanced solver settings did not cap density correction tightly enough");
+        REQUIRE(balanced_settings.resampling.enabled, "balanced solver settings did not enable resampling");
+        REQUIRE(balanced_settings.resampling.min_particles_per_fluid_cell == 1, "balanced solver settings did not lower the minimum particle count");
+        REQUIRE(balanced_settings.resampling.target_particles_per_fluid_cell == 4, "balanced solver settings did not keep the target particle count");
+        REQUIRE(balanced_settings.resampling.max_particles_per_fluid_cell == 8, "balanced solver settings did not keep the maximum particle count");
+        REQUIRE(balanced_settings.resampling.max_resampling_operations_per_step == 48, "balanced solver settings did not cap resampling operations");
+        REQUIRE(nearly_equal(balanced_settings.flip_blend, 0.55f, 0.000001), "balanced solver settings did not tune the FLIP blend");
+        REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.88f, 0.000001), "balanced solver settings did not tune the velocity retention");
+        REQUIRE(nearly_equal(balanced_settings.viscosity_coefficient, 0.025f, 0.000001), "balanced solver settings did not enable the target viscosity");
+        REQUIRE(nearly_equal(balanced_settings.apic_affine_ratio, 0.0f, 0.000001), "balanced solver settings did not keep APIC disabled");
         REQUIRE(quality_settings.density_correction_iterations > live_settings.density_correction_iterations, "quality solver settings did not enable density correction");
         REQUIRE(quality_settings.resampling.enabled, "quality solver settings did not enable particle resampling");
         REQUIRE(quality_settings.apic_affine_ratio > 0.0f, "quality solver settings did not enable APIC affine transfer");
@@ -316,6 +329,43 @@ int main()
         REQUIRE(nearly_equal(correction.center_of_mass_before.y, correction.center_of_mass_after.y, 0.0005), "density correction shifted center of mass y");
         REQUIRE(correction.max_density_error_after < correction.max_density_error_before, "density correction did not reduce max density error");
         REQUIRE(correction.max_applied_correction <= correction_settings.max_correction + 0.000001f, "density correction exceeded the configured cap");
+    }
+
+    {
+        physics_sim::WaterSimulation2D control{48, 48, 1.0f};
+        physics_sim::WaterSimulation2D corrected{48, 48, 1.0f};
+        auto control_settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Balanced);
+        auto corrected_settings = control_settings;
+        control_settings.density_correction_iterations = 0;
+        corrected_settings.density_correction_iterations = 1;
+        control_settings.resampling.enabled = false;
+        corrected_settings.resampling.enabled = false;
+        control.set_solver_settings(control_settings);
+        corrected.set_solver_settings(corrected_settings);
+
+        const auto populate_cluster = [](physics_sim::WaterSimulation2D& simulation)
+        {
+            for (std::size_t y = 0; y < 33; ++y)
+            {
+                for (std::size_t x = 0; x < 33; ++x)
+                {
+                    const float offset_x = (static_cast<float>(x) - 16.0f) * 0.035f;
+                    const float offset_y = (static_cast<float>(y) - 16.0f) * 0.035f;
+                    simulation.add_particle({Vec2{24.0f + offset_x, 24.0f + offset_y}, Vec2{0.0f, 0.0f}});
+                }
+            }
+        };
+
+        populate_cluster(control);
+        populate_cluster(corrected);
+
+        control.step(1.0 / 120.0);
+        corrected.step(1.0 / 120.0);
+        control.refresh_density_metrics();
+        corrected.refresh_density_metrics();
+
+        REQUIRE(corrected.metrics().max_density_error < control.metrics().max_density_error, "solver density correction did not run above the old particle-count cutoff");
+        REQUIRE(corrected.metrics().average_density_error <= control.metrics().average_density_error, "solver density correction did not improve average density error above the old particle-count cutoff");
     }
 
     {
@@ -825,8 +875,19 @@ int main()
             sim.step(1.0 / 120.0);
         }
 
-        REQUIRE(sim.metrics().total_emitted == sim.particles().size(), "U-container mass did not match emitted particle count");
         REQUIRE(sim.metrics().total_emitted > 0, "U-container fill test never emitted fluid");
+        double current_mass = 0.0;
+        for (const auto& particle : sim.particles())
+        {
+            current_mass += static_cast<double>(particle.mass > 0.0f ? particle.mass : 0.0f);
+        }
+        const double emitted_mass = std::max(sim.metrics().total_emitted_mass, 1.0e-9);
+        const double mass_error = std::abs(
+            current_mass
+            - sim.metrics().total_emitted_mass
+            + sim.metrics().total_removed_mass
+            + sim.metrics().total_outflow_mass) / emitted_mass;
+        REQUIRE(mass_error < 1.0e-6, "U-container mass accounting drifted under the balanced profile");
         for (const auto& particle : sim.particles())
         {
             const auto cell_x = static_cast<std::size_t>(std::floor(particle.position.x / sim.grid().cell_size()));

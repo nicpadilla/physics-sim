@@ -334,20 +334,20 @@ public:
             settings.rest_density = 1.0f;
             settings.particles_per_full_cell = 4;
             settings.density_kernel_radius_cells = 1.0f;
-            settings.density_correction_iterations = 0;
-            settings.max_density_correction_fraction = 0.0f;
-            settings.flip_blend = 0.60f;
-            settings.velocity_retention = 0.90f;
+            settings.density_correction_iterations = 1;
+            settings.max_density_correction_fraction = 0.025f;
+            settings.flip_blend = 0.55f;
+            settings.velocity_retention = 0.88f;
             settings.apic_affine_ratio = 0.0f;
-            settings.viscosity_coefficient = 0.02f;
+            settings.viscosity_coefficient = 0.025f;
             settings.surface_tension_coefficient = 0.0f;
             settings.max_surface_velocity_delta_fraction = 0.12f;
-            settings.resampling.enabled = false;
+            settings.resampling.enabled = true;
             settings.resampling.min_particles_per_fluid_cell = 1;
             settings.resampling.target_particles_per_fluid_cell = 4;
-            settings.resampling.max_particles_per_fluid_cell = 10;
-            settings.resampling.max_resampling_operations_per_step = 96;
-            settings.resampling.split_offset_fraction = 0.18f;
+            settings.resampling.max_particles_per_fluid_cell = 8;
+            settings.resampling.max_resampling_operations_per_step = 48;
+            settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
             settings.density_metrics_interval_ticks = 60;
             break;
@@ -1977,7 +1977,7 @@ private:
 
     void apply_local_density_correction(float step_seconds)
     {
-        if (particles_.size() < 2 || particles_.size() > 1024 || step_seconds <= 0.0f)
+        if (particles_.size() < 2 || step_seconds <= 0.0f)
         {
             return;
         }

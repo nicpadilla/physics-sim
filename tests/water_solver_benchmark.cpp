@@ -1,4 +1,5 @@
 #include <physics_sim/math.hpp>
+#include <physics_sim/solver_profile.hpp>
 #include <physics_sim/water_simulation.hpp>
 
 #include <algorithm>
@@ -58,59 +59,55 @@ void require_finite_grid(const physics_sim::WaterSimulation2D& sim)
     return total;
 }
 
-enum class BenchmarkTierFilter
-{
-    Live,
-    Offline,
-    All,
-};
-
 [[nodiscard]] const char* tier_name(physics_sim::FluidSolverQualityTier tier) noexcept
 {
     return tier == physics_sim::FluidSolverQualityTier::Offline ? "offline" : "live";
 }
 
-[[nodiscard]] bool tier_matches(BenchmarkTierFilter filter, physics_sim::FluidSolverQualityTier tier) noexcept
+[[nodiscard]] std::vector<physics_sim::FluidSolverProfile> all_profiles()
 {
-    switch (filter)
-    {
-    case BenchmarkTierFilter::Live:
-        return tier == physics_sim::FluidSolverQualityTier::Live;
-    case BenchmarkTierFilter::Offline:
-        return tier == physics_sim::FluidSolverQualityTier::Offline;
-    case BenchmarkTierFilter::All:
-        return true;
-    }
-
-    return false;
+    return {
+        physics_sim::FluidSolverProfile::Fast,
+        physics_sim::FluidSolverProfile::Balanced,
+        physics_sim::FluidSolverProfile::Quality,
+    };
 }
 
-[[nodiscard]] BenchmarkTierFilter parse_tier_filter(int argc, char* argv[])
+[[nodiscard]] std::vector<physics_sim::FluidSolverProfile> parse_profile_value(std::string_view value)
 {
-    BenchmarkTierFilter filter = BenchmarkTierFilter::Live;
+    if (value == "all")
+    {
+        return all_profiles();
+    }
+
+    if (value == "fast" || value == "live")
+    {
+        return {physics_sim::FluidSolverProfile::Fast};
+    }
+
+    if (value == "balanced")
+    {
+        return {physics_sim::FluidSolverProfile::Balanced};
+    }
+
+    if (value == "quality" || value == "offline")
+    {
+        return {physics_sim::FluidSolverProfile::Quality};
+    }
+
+    std::fprintf(stderr, "Unknown benchmark profile: %.*s\n", static_cast<int>(value.size()), value.data());
+    std::exit(1);
+}
+
+[[nodiscard]] std::vector<physics_sim::FluidSolverProfile> parse_profile_selection(int argc, char* argv[])
+{
+    std::vector<physics_sim::FluidSolverProfile> selected{physics_sim::FluidSolverProfile::Fast};
     for (int i = 1; i < argc; ++i)
     {
         const std::string_view arg = argv[i];
-        if (arg == "--tier" && i + 1 < argc)
+        if ((arg == "--profile" || arg == "--tier") && i + 1 < argc)
         {
-            const std::string_view value = argv[++i];
-            if (value == "live")
-            {
-                filter = BenchmarkTierFilter::Live;
-            }
-            else if (value == "offline")
-            {
-                filter = BenchmarkTierFilter::Offline;
-            }
-            else if (value == "all")
-            {
-                filter = BenchmarkTierFilter::All;
-            }
-            else
-            {
-                std::fprintf(stderr, "Unknown benchmark tier: %.*s\n", static_cast<int>(value.size()), value.data());
-                std::exit(1);
-            }
+            selected = parse_profile_value(argv[++i]);
             continue;
         }
 
@@ -118,12 +115,74 @@ enum class BenchmarkTierFilter
         std::exit(1);
     }
 
-    return filter;
+    return selected;
+}
+
+[[nodiscard]] double budget_seconds_for_profile(physics_sim::FluidSolverProfile profile, bool demo_scene) noexcept
+{
+    switch (profile)
+    {
+    case physics_sim::FluidSolverProfile::Fast:
+        return demo_scene ? 3.0 : 20.0;
+    case physics_sim::FluidSolverProfile::Balanced:
+        return demo_scene ? 4.0 : 24.0;
+    case physics_sim::FluidSolverProfile::Quality:
+        return demo_scene ? 6.0 : 30.0;
+    }
+
+    return demo_scene ? 4.0 : 24.0;
+}
+
+void require_finite_pressure(const physics_sim::PressureSolveResult& pressure)
+{
+    REQUIRE(pressure.iterations >= 0, "pressure iteration count became negative");
+    REQUIRE(std::isfinite(pressure.initial_residual), "pressure initial residual became non-finite");
+    REQUIRE(std::isfinite(pressure.final_residual), "pressure final residual became non-finite");
+    REQUIRE(std::isfinite(pressure.relative_residual), "pressure relative residual became non-finite");
+    REQUIRE(std::isfinite(pressure.absolute_residual), "pressure absolute residual became non-finite");
+    REQUIRE(std::isfinite(pressure.target_relative_residual), "pressure target relative residual became non-finite");
+    REQUIRE(std::isfinite(pressure.target_absolute_residual), "pressure target absolute residual became non-finite");
+    REQUIRE(std::isfinite(pressure.rhs_l2), "pressure RHS norm became non-finite");
+    REQUIRE(std::isfinite(pressure.solution_l2), "pressure solution norm became non-finite");
+    REQUIRE(std::isfinite(pressure.pressure_dt), "pressure dt became non-finite");
+    REQUIRE(std::isfinite(pressure.rest_density), "pressure rest density became non-finite");
+    REQUIRE(std::isfinite(pressure.active_cell_overreach_ratio), "pressure overreach became non-finite");
+}
+
+void require_profile_acceptance(
+    physics_sim::FluidSolverProfile profile,
+    const physics_sim::WaterSimulation2D& sim,
+    const physics_sim::PressureSolveResult& pressure,
+    double mass_error)
+{
+    REQUIRE(pressure.converged, "pressure solve did not converge during benchmark");
+    REQUIRE(std::isfinite(sim.metrics().average_density_error), "average density error became non-finite during benchmark");
+    REQUIRE(std::isfinite(sim.metrics().max_density_error), "max density error became non-finite during benchmark");
+    REQUIRE(std::isfinite(sim.metrics().kinetic_energy), "kinetic energy became non-finite during benchmark");
+    REQUIRE(std::isfinite(mass_error), "mass error became non-finite during benchmark");
+    REQUIRE(mass_error <= 1.0e-6, "benchmark mass accounting drifted");
+
+    if (profile == physics_sim::FluidSolverProfile::Fast)
+    {
+        return;
+    }
+
+    REQUIRE(pressure.active_cell_overreach_ratio <= 3.0, "pressure active-cell overreach exceeded the benchmark budget");
+
+    if (profile == physics_sim::FluidSolverProfile::Balanced)
+    {
+        REQUIRE(sim.metrics().average_density_error <= 3.0, "balanced profile average density error exceeded budget");
+        REQUIRE(sim.metrics().max_density_error <= 10.0, "balanced profile max density error exceeded budget");
+        return;
+    }
+
+    REQUIRE(sim.metrics().average_density_error <= 1.0, "quality profile average density error exceeded budget");
+    REQUIRE(sim.metrics().max_density_error <= 1.25, "quality profile max density error exceeded budget");
 }
 
 bool run_benchmark(
+    physics_sim::FluidSolverProfile profile,
     const char* name,
-    physics_sim::FluidSolverQualityTier tier,
     physics_sim::WaterSimulation2D& sim,
     int steps,
     double budget_seconds)
@@ -152,13 +211,21 @@ bool run_benchmark(
         - sim.metrics().total_emitted_mass
         + sim.metrics().total_removed_mass
         + sim.metrics().total_outflow_mass) / denominator;
+    const double kinetic_energy = sim.metrics().kinetic_energy;
+
+    require_finite_pressure(pressure);
+    REQUIRE(std::isfinite(kinetic_energy), "benchmark kinetic energy became non-finite");
+    require_profile_acceptance(profile, sim, pressure, mass_error);
 
     const double average_step_ms = (elapsed_seconds * 1000.0) / static_cast<double>(steps);
+    const char* profile_name = physics_sim::solver_profile_name(profile);
+    const char* tier_label = tier_name(sim.solver_settings().tier);
 
     std::printf(
-        "scene=%s tier=%s grid=%zux%zu cell=%.1f steps=%d end_particles=%zu active_cells=%zu visible_cells=%zu pressure_active_cells=%zu active_cell_overreach=%.6f pressure_iterations=%d pressure_relative_residual=%.6f pressure_target_relative_residual=%.6f pressure_absolute_residual=%.6f pressure_target_absolute_residual=%.6f pressure_rhs_l2=%.6f pressure_solution_l2=%.6f pressure_dt=%.6f rest_density=%.6f pressure_converged=%s average_density_error=%.6f max_density_error=%.6f mass_error=%.6f elapsed_seconds=%.2f average_step_ms=%.4f budget_seconds=%.2f\n",
+        "scene=%s profile=%s tier=%s grid=%zux%zu cell=%.1f steps=%d end_particles=%zu active_cells=%zu visible_cells=%zu pressure_active_cells=%zu active_cell_overreach=%.6f pressure_iterations=%d pressure_relative_residual=%.6f pressure_target_relative_residual=%.6f pressure_absolute_residual=%.6f pressure_target_absolute_residual=%.6f pressure_rhs_l2=%.6f pressure_solution_l2=%.6f pressure_dt=%.6f rest_density=%.6f pressure_converged=%s average_density_error=%.6f max_density_error=%.6f kinetic_energy=%.6f mass_error=%.6f elapsed_seconds=%.2f average_step_ms=%.4f budget_seconds=%.2f\n",
         name,
-        tier_name(tier),
+        profile_name,
+        tier_label,
         sim.grid().width(),
         sim.grid().height(),
         sim.grid().cell_size(),
@@ -180,6 +247,7 @@ bool run_benchmark(
         pressure.converged ? "true" : "false",
         sim.metrics().average_density_error,
         sim.metrics().max_density_error,
+        kinetic_energy,
         mass_error,
         elapsed_seconds,
         average_step_ms,
@@ -187,7 +255,7 @@ bool run_benchmark(
 
     if (elapsed_seconds > budget_seconds)
     {
-        std::fprintf(stderr, "Benchmark %s (%s) exceeded budget: %.2f > %.2f seconds\n", name, tier_name(tier), elapsed_seconds, budget_seconds);
+        std::fprintf(stderr, "Benchmark %s (%s/%s) exceeded budget: %.2f > %.2f seconds\n", name, profile_name, tier_label, elapsed_seconds, budget_seconds);
         return false;
     }
 
@@ -197,31 +265,24 @@ bool run_benchmark(
 
 int main(int argc, char* argv[])
 {
-    const BenchmarkTierFilter filter = parse_tier_filter(argc, argv);
+    const auto selected_profiles = parse_profile_selection(argc, argv);
 
-    const auto run_if_selected = [&](physics_sim::FluidSolverQualityTier tier,
+    const auto run_case = [&](physics_sim::FluidSolverProfile profile,
                                      const char* name,
                                      int width,
                                      int height,
                                      float cell_size,
                                      int steps,
-                                     double budget_seconds,
+                                     bool demo_scene,
                                      const auto& setup) -> bool
     {
-        if (!tier_matches(filter, tier))
-        {
-            return true;
-        }
-
         physics_sim::WaterSimulation2D sim{static_cast<std::size_t>(width), static_cast<std::size_t>(height), cell_size};
-        physics_sim::FluidSolverSettings settings = tier == physics_sim::FluidSolverQualityTier::Offline
-            ? physics_sim::WaterSimulation2D::offline_solver_settings()
-            : physics_sim::WaterSimulation2D::live_solver_settings();
+        physics_sim::FluidSolverSettings settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(profile);
 
         setup(sim, settings);
         sim.set_solver_settings(settings);
 
-        return run_benchmark(name, tier, sim, steps, budget_seconds);
+        return run_benchmark(profile, name, sim, steps, budget_seconds_for_profile(profile, demo_scene));
     };
 
     const auto configure_small_container = [](physics_sim::WaterSimulation2D& sim, physics_sim::FluidSolverSettings&)
@@ -266,22 +327,17 @@ int main(int argc, char* argv[])
         sim.add_emitter(emitter);
     };
 
-    if (!run_if_selected(physics_sim::FluidSolverQualityTier::Live, "small-container-stress", 12, 12, 1.0f, 6000, 20.0, configure_small_container))
+    for (const auto profile : selected_profiles)
     {
-        return 1;
-    }
-    if (!run_if_selected(physics_sim::FluidSolverQualityTier::Offline, "small-container-stress", 12, 12, 1.0f, 6000, 30.0, configure_small_container))
-    {
-        return 1;
-    }
+        if (!run_case(profile, "small-container-stress", 12, 12, 1.0f, 6000, false, configure_small_container))
+        {
+            return 1;
+        }
 
-    if (!run_if_selected(physics_sim::FluidSolverQualityTier::Live, "demo-grid-flow", 80, 45, 16.0f, 240, 3.0, configure_demo_grid))
-    {
-        return 1;
-    }
-    if (!run_if_selected(physics_sim::FluidSolverQualityTier::Offline, "demo-grid-flow", 80, 45, 16.0f, 240, 6.0, configure_demo_grid))
-    {
-        return 1;
+        if (!run_case(profile, "demo-grid-flow", 80, 45, 16.0f, 240, true, configure_demo_grid))
+        {
+            return 1;
+        }
     }
 
     return 0;

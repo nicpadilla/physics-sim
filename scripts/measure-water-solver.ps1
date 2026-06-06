@@ -1,6 +1,7 @@
 param(
-    [ValidateSet('Live', 'Offline', 'All')]
-    [string]$Tier
+    [Alias('Tier')]
+    [ValidateSet('Fast', 'Balanced', 'Quality', 'All', 'Live', 'Offline')]
+    [string]$Profile = 'All'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,11 +14,27 @@ if (-not (Test-Path -LiteralPath $exe))
     throw "Could not find $exe. Run .\scripts\build.ps1 first."
 }
 
-if ($Tier)
+switch ($Profile.ToLowerInvariant())
 {
-    & $exe --tier $Tier.ToLowerInvariant()
-}
-else
-{
-    & $exe
+    'fast' {
+        & $exe --profile fast
+    }
+    'balanced' {
+        & $exe --profile balanced
+    }
+    'quality' {
+        & $exe --profile quality
+    }
+    'all' {
+        & $exe --profile all
+    }
+    'live' {
+        & $exe --tier live
+    }
+    'offline' {
+        & $exe --tier offline
+    }
+    default {
+        throw "Unsupported solver profile selection: $Profile"
+    }
 }

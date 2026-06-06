@@ -283,12 +283,13 @@ using FluidQualityTickCallback = std::function<void(WaterSimulation2D&, std::uin
     const FluidQualitySetupCallback& setup,
     const FluidQualityTickCallback& tick_callback = {},
     std::optional<float> basin_floor_y = std::nullopt,
-    std::optional<std::size_t> pool_width_cells = std::nullopt)
+    std::optional<std::size_t> pool_width_cells = std::nullopt,
+    FluidSolverProfile profile = FluidSolverProfile::Balanced)
 {
     std::sort(sample_ticks.begin(), sample_ticks.end());
     sample_ticks.erase(std::unique(sample_ticks.begin(), sample_ticks.end()), sample_ticks.end());
 
-    simulation.set_solver_settings(WaterSimulation2D::live_solver_settings());
+    simulation.set_solver_settings(WaterSimulation2D::solver_settings_for_profile(profile));
 
     if (setup)
     {

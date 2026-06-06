@@ -108,26 +108,23 @@ When too many particles move into one location, individual particles must not be
 - The occupied fluid region or reconstructed free surface grows according to total volume.
 - Rendering reads the larger pool from volume fraction or surface occupancy, not from per-particle visual size.
 
-## Solver Profiles And Quality Tiers
+## Solver Profiles And Quality Budgets
 
-The app exposes three runtime solver profiles. They use the same equations with different budgets and enabled passes:
+The contract is profile-based. The benchmark still reports `tier` for compatibility, but the runtime quality contract is the solver profile:
 
-- `fast`: compatibility profile for the legacy live benchmark path.
-- `balanced`: default app profile with calibrated particle volume and conservative runtime settings.
-- `quality`: stricter profile with density correction, resampling, and APIC affine transfer enabled.
+| Profile | Benchmark tier | Role | Pressure target | Density target |
+| --- | --- | --- | --- | --- |
+| `fast` | `live` | Compatibility and performance path for legacy regression coverage | relative residual `<= 1e-4` | relaxed, not a hard quality gate |
+| `balanced` | `live` | Default app profile and main runtime quality gate | relative residual `<= 5e-5` | average density error `<= 3.0`, max density error `<= 10.0`, active-cell overreach `<= 3.0` |
+| `quality` | `offline` | Strict offline/reference profile | relative residual `<= 1e-5` | average density error `<= 1.0`, max density error `<= 1.25`, active-cell overreach `<= 3.0` |
 
-Live tier:
+All three profiles use the same governing equations and deterministic ordering. The differences are in enabled passes, iteration budgets, and density targets:
 
-- Current target scale: `80 x 45` cells, `16` world units per cell, fixed `1 / 120` second simulation tick, 60 FPS interaction target.
-- Pressure projection target: relative residual `<= 1e-4` or a bounded live iteration limit.
-- Density correction, viscosity, surface tension, and resampling must be capped to preserve frame budget.
+- `fast` preserves the legacy live-budget path and is allowed to keep relaxed density behavior.
+- `balanced` is the default app profile and should remain inside the documented runtime density budget.
+- `quality` enables the strictest density correction, resampling, and APIC affine transfer settings used for offline-style checks.
 
-Offline tier:
-
-- Same equations and deterministic ordering.
-- Pressure projection target: relative residual `<= 1e-5` or a higher offline iteration limit.
-- Stricter scenario thresholds are allowed.
-- Runtime may be slower if the documented offline budget passes.
+The current target scale remains `80 x 45` cells, `16` world units per cell, fixed `1 / 120` second simulation tick, 60 FPS interaction target. The live/offline benchmark tiers are retained only as compatibility labels for the benchmark and scripts.
 
 ## Current Implementation Notes
 
