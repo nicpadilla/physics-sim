@@ -42,7 +42,7 @@ int main()
     REQUIRE(!metadata.notes.empty(), "tutorial scene is missing notes");
     REQUIRE(metadata.notes.front() == "Use this scene on first launch or with --tutorial-mode.", "tutorial scene note mismatch");
     REQUIRE(metadata.notes[1].find("gallery browsing") != std::string::npos, "tutorial scene note did not describe the tutorial loop");
-    REQUIRE(!simulation.emitters().empty(), "tutorial scene is missing its water emitter");
+    REQUIRE(simulation.emitters().empty(), "tutorial scene should not contain a persistent water emitter");
     REQUIRE(fs::exists(thumbnail_path), "tutorial scene is missing its thumbnail sidecar");
 
     return 0;

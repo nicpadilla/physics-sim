@@ -1,13 +1,12 @@
 physics-sim-scene 1
-title Guided Tutorial
-description First-run guided scene for learning the sandbox loop.
+title Starter Basin
+description No-spout starter basin for pointer-water play.
 author Nic
-tag tutorial
-tag onboarding
-tag guided
-note Use this scene on first launch or with --tutorial-mode.
-note The tutorial prompts teach camera movement, pause and resume, wall painting and erasing, fixture placement, device use, reset and retry, save and load, and gallery browsing.
-note The thumbnail lives next to the scene file.
+tag starter
+tag water
+tag basin
+note Default startup scene with no persistent emitter.
+note Use the pointer-water tool to pour into the basin.
 grid 80 45 16
 wall 20 24
 wall 60 24

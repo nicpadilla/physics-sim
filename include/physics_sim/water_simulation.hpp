@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -649,6 +650,11 @@ public:
 
     void step(double dt)
     {
+        step(dt, std::span<WaterEmitter>{});
+    }
+
+    void step(double dt, std::span<WaterEmitter> transient_emitters)
+    {
         if (dt <= 0.0 || grid_.width() == 0 || grid_.height() == 0)
         {
             metrics_ = {};
@@ -661,7 +667,7 @@ public:
 
         sync_gate_cells();
         cull_out_of_domain_particles();
-        emit_particles(step_seconds);
+        emit_particles(step_seconds, transient_emitters);
         cull_out_of_domain_particles();
         remove_particles_in_drains();
         apply_pump_forces(step_seconds);
@@ -1151,50 +1157,60 @@ private:
         return {u, v};
     }
 
-    void emit_particles(float dt)
+    void emit_from_emitter(WaterEmitter& emitter, float dt)
+    {
+        if (!emitter.enabled || emitter.emission_rate <= 0.0f)
+        {
+            return;
+        }
+
+        const double calibrated_particle_rate = static_cast<double>(emitter.emission_rate)
+            * static_cast<double>(std::max<std::size_t>(1, solver_settings_.particles_per_full_cell));
+        emitter.emission_accumulator += calibrated_particle_rate * static_cast<double>(dt);
+        const auto direction = normalized_or_default(emitter.direction, Vec2{0.0f, 1.0f});
+
+        while (emitter.emission_accumulator >= 1.0)
+        {
+            emitter.emission_accumulator -= 1.0;
+
+            Vec2 spawn_position = emitter.position;
+            Vec2 spawn_velocity = direction * emitter.speed * grid_.cell_size();
+            const double seed = static_cast<double>(emitter.emitted_particles + 1);
+            const double phase = std::fmod(seed * 0.6180339887498948482, 1.0);
+            const float centered_phase = static_cast<float>(phase - 0.5);
+            const Vec2 tangent{-direction.y, direction.x};
+            const float aperture = grid_.cell_size() * 0.45f;
+            spawn_position = spawn_position + tangent * (centered_phase * aperture);
+
+            if (emitter.kind == WaterEmitterKind::Omni)
+            {
+                const double angle = std::fmod(seed * 2.39996322972865332, 6.2831853071795864769);
+                const float c = static_cast<float>(std::cos(angle));
+                const float s = static_cast<float>(std::sin(angle));
+                Vec2 radial{c, s};
+                spawn_velocity = radial * emitter.speed * grid_.cell_size();
+                spawn_position = emitter.position + radial * (aperture * 0.5f);
+            }
+
+            const float particle_volume = density_settings().particle_volume;
+            const float particle_mass = density_settings().rest_density * particle_volume;
+            particles_.push_back({spawn_position, spawn_velocity, particle_mass, particle_volume});
+            ++emitter.emitted_particles;
+            ++total_emitted_;
+            total_emitted_mass_ += static_cast<double>(particle_mass);
+        }
+    }
+
+    void emit_particles(float dt, std::span<WaterEmitter> transient_emitters)
     {
         for (auto& emitter : emitters_)
         {
-            if (!emitter.enabled || emitter.emission_rate <= 0.0f)
-            {
-                continue;
-            }
+            emit_from_emitter(emitter, dt);
+        }
 
-            const double calibrated_particle_rate = static_cast<double>(emitter.emission_rate)
-                * static_cast<double>(std::max<std::size_t>(1, solver_settings_.particles_per_full_cell));
-            emitter.emission_accumulator += calibrated_particle_rate * static_cast<double>(dt);
-            const auto direction = normalized_or_default(emitter.direction, Vec2{0.0f, 1.0f});
-
-            while (emitter.emission_accumulator >= 1.0)
-            {
-                emitter.emission_accumulator -= 1.0;
-
-                Vec2 spawn_position = emitter.position;
-                Vec2 spawn_velocity = direction * emitter.speed * grid_.cell_size();
-                const double seed = static_cast<double>(emitter.emitted_particles + 1);
-                const double phase = std::fmod(seed * 0.6180339887498948482, 1.0);
-                const float centered_phase = static_cast<float>(phase - 0.5);
-                const Vec2 tangent{-direction.y, direction.x};
-                const float aperture = grid_.cell_size() * 0.45f;
-                spawn_position = spawn_position + tangent * (centered_phase * aperture);
-
-                if (emitter.kind == WaterEmitterKind::Omni)
-                {
-                    const double angle = std::fmod(seed * 2.39996322972865332, 6.2831853071795864769);
-                    const float c = static_cast<float>(std::cos(angle));
-                    const float s = static_cast<float>(std::sin(angle));
-                    Vec2 radial{c, s};
-                    spawn_velocity = radial * emitter.speed * grid_.cell_size();
-                    spawn_position = emitter.position + radial * (aperture * 0.5f);
-                }
-
-                const float particle_volume = density_settings().particle_volume;
-                const float particle_mass = density_settings().rest_density * particle_volume;
-                particles_.push_back({spawn_position, spawn_velocity, particle_mass, particle_volume});
-                ++emitter.emitted_particles;
-                ++total_emitted_;
-                total_emitted_mass_ += static_cast<double>(particle_mass);
-            }
+        for (auto& emitter : transient_emitters)
+        {
+            emit_from_emitter(emitter, dt);
         }
     }
 

@@ -15,6 +15,7 @@ namespace physics_sim
 {
 enum class SceneTool
 {
+    PointerWater,
     PaintWall,
     EraseWall,
     DirectionalEmitter,
@@ -33,7 +34,8 @@ enum class SceneTool
         return tool;
     }
 
-    constexpr std::array<SceneTool, 9> order{
+    constexpr std::array<SceneTool, 10> order{
+        SceneTool::PointerWater,
         SceneTool::PaintWall,
         SceneTool::EraseWall,
         SceneTool::DirectionalEmitter,
@@ -1297,7 +1299,7 @@ private:
     }
 
     WaterSimulation2D* simulation_ = nullptr;
-    SceneTool tool_ = SceneTool::PaintWall;
+    SceneTool tool_ = SceneTool::PointerWater;
     bool stroke_active_ = false;
     Vec2 stroke_previous_{};
     Vec2 emitter_direction_{0.0f, 1.0f};

@@ -63,6 +63,7 @@ $requiredFiles = @(
     'physics-sim.exe',
     'README.md',
     'package-manifest.txt',
+    'scenes\starter_basin.pscene',
     'scenes\demo_scene.pscene'
 )
 

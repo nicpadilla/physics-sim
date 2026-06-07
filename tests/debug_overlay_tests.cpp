@@ -75,6 +75,10 @@ int main()
     REQUIRE(cleared_lines[13].find("DEF SPD ") == 0, "overlay default parameter line incorrect");
     REQUIRE(cleared_lines[14].empty(), "overlay feedback line should be empty when inactive");
 
+    controller.set_tool(physics_sim::SceneTool::PointerWater);
+    const auto pointer_lines = physics_sim::build_debug_overlay_lines(metrics, 2.0f);
+    REQUIRE(pointer_lines[9] == "TOOL POUR", "overlay tool line did not report pointer water");
+
     controller.set_tool(physics_sim::SceneTool::Gate);
     REQUIRE(controller.place_gate(physics_sim::Vec2{400.0f, 160.0f}), "gate placement was rejected in overlay test");
     const auto gate_lines = physics_sim::build_debug_overlay_lines(metrics, 2.0f);

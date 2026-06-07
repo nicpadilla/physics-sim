@@ -34,6 +34,8 @@ struct DebugOverlayMetrics
 {
     switch (tool)
     {
+    case SceneTool::PointerWater:
+        return "POUR";
     case SceneTool::PaintWall:
         return "WALL";
     case SceneTool::EraseWall:

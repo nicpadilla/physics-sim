@@ -15,9 +15,10 @@ namespace physics_sim
     std::vector<std::string> lines;
     lines.reserve(22);
     lines.emplace_back("HELP");
+    lines.emplace_back("Pointer water: hold LMB to pour");
     lines.emplace_back("LMB paint / place / select");
     lines.emplace_back("RMB clear selection");
-    lines.emplace_back("1-9 tools, " + keycode_label(bindings.tool_prev) + "/" + keycode_label(bindings.tool_next) + " cycle, " + keycode_label(bindings.cycle_visual_mode) + " visual mode");
+    lines.emplace_back("0 pointer water, 1-9 tools, " + keycode_label(bindings.tool_prev) + "/" + keycode_label(bindings.tool_next) + " cycle, " + keycode_label(bindings.cycle_visual_mode) + " visual mode");
     lines.emplace_back(keycode_label(bindings.toggle_help) + " toggle help");
     lines.emplace_back("Esc opens pause menu / backs out");
     lines.emplace_back("Enter or click confirm menus");

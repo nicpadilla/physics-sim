@@ -173,14 +173,16 @@ int main()
         assert(*physics_sim::action_from_keycode(SDLK_ESCAPE) == physics_sim::Action::Quit);
         assert(!physics_sim::action_from_keycode(SDLK_a).has_value());
 
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PointerWater, 1) == physics_sim::SceneTool::PaintWall);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PaintWall, -1) == physics_sim::SceneTool::PointerWater);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PointerWater, -1) == physics_sim::SceneTool::Valve);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PaintWall, 1) == physics_sim::SceneTool::EraseWall);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::EraseWall, 1) == physics_sim::SceneTool::DirectionalEmitter);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::OmniEmitter, 1) == physics_sim::SceneTool::Gate);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Sensor, 1) == physics_sim::SceneTool::Drain);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Drain, 1) == physics_sim::SceneTool::Pump);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Pump, 1) == physics_sim::SceneTool::Valve);
-        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Valve, 1) == physics_sim::SceneTool::PaintWall);
-        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::PaintWall, -1) == physics_sim::SceneTool::Valve);
+        assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Valve, 1) == physics_sim::SceneTool::PointerWater);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::DirectionalEmitter, 0) == physics_sim::SceneTool::DirectionalEmitter);
         assert(physics_sim::next_scene_tool(physics_sim::SceneTool::Gate, 1) == physics_sim::SceneTool::Sensor);
     }

@@ -9,6 +9,7 @@ Windows C++ 2D physics simulator scaffold focused on water first.
 - A small shared math header for future simulation code
 - A running app that opens a window, renders water, draws walls, and shows cursor feedback
 - Mouse-driven wall painting, erasing, emitter placement, zoom, and pan
+- A no-spout starter basin with pointer-held water emission
 - A repeatable demo scene with a directional hose feeding a U-shaped container
 - Scene save/load support through a plain-text scene format
 - Curated scene gallery with metadata notes and browser shortcuts
@@ -61,7 +62,8 @@ Controls:
 - The pause menu's `Load Save` entry opens the save browser for autosave plus named saves in the same per-user save directory.
 - Important actions flash a short `MSG` line in the debug overlay.
 - `PgUp` and `PgDn` browse the curated scene gallery.
-- `Tab` cycles through the wall, emitter, gate, sensor, drain, pump, and valve tools.
+- `Tab` cycles through pointer water, wall, emitter, gate, sensor, drain, pump, and valve tools.
+- `0` selects pointer water.
 - `1` selects wall paint mode.
 - `2` selects wall erase mode.
 - `3` selects the directional hose fixture.
@@ -76,11 +78,13 @@ Controls:
 - `Esc` opens the pause menu while playing, backs out of menu screens, and returns to the sandbox from the main menu.
 - `Enter` and mouse clicks activate menu items.
 - The app opens to the tutorial on a fresh launch, then returns to the sandbox shell on later launches unless `--skip-session-shell` is passed.
+- Normal sandbox startup uses `scenes/starter_basin.pscene`, a no-spout U-shaped basin; explicit demo and gallery scenes keep their authored hose fixtures.
 - Use `--tutorial-mode` to replay the guided first-run tutorial directly.
 - Use `--reduced-motion` to seed reduced-motion mode for local verification.
 - `--skip-session-shell` bypasses the menu shell and tutorial for smoke, replay, and capture flows.
 - `Ctrl+Z` undoes the last wall or fixture edit.
 - `Ctrl+Y` redoes the last undone edit.
+- Hold left mouse with pointer water active to emit water from the cursor; releasing the mouse or changing tools stops the transient source.
 - Left-drag draws or erases walls, depending on the active tool.
 - Left-click on empty space places the selected emitter, gate, or sensor tool.
 - Left-click on an existing emitter, gate, or sensor selects it instead of placing a new one.

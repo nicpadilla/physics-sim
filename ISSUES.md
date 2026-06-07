@@ -100,6 +100,7 @@ Allowed priorities:
 | PSIM-0084 | Done | P1 | Physics Accuracy And Particle Interaction | R3.06, R4.08, R8.02, R13.06 | Swept material-aware wall interaction |
 | PSIM-0085 | Done | P1 | Physics Accuracy And Particle Interaction | R5.01, R5.02, R5.09, R11.04, R13.08 | Reconstructed surface rendering and demo regression |
 | PSIM-0086 | Done | P1 | Physics Accuracy And Particle Interaction | R8.06, R12.04, R13.01, R13.02, R13.03, R13.04, R13.05, R13.06, R13.07, R13.08, R13.09 | Final water behavior audit |
+| PSIM-0087 | Done | P2 | Sandbox Game Experience | R6.02, R6.06, R11.01, R11.07 | No-spout startup and pointer water |
 
 ## Epic 1: V1 Closure
 
@@ -1608,6 +1609,62 @@ Verification:
 - `.\scripts\test.ps1`
 - `.\scripts\run-smoke.ps1`
 - `.\scripts\check-tracking.ps1`
+
+### PSIM-0087: No-spout startup and pointer water
+
+Status: Done
+
+Priority: P2
+
+Linked roadmap IDs: R6.02, R6.06, R11.01, R11.07
+
+Problem:
+The default creative and tutorial scenes begin with a persistent hose spout, so the first interactive water source is already authored into the map instead of being controlled directly by the player.
+
+Technical implementation direction:
+
+- Update `include\physics_sim\scene_controller.hpp`, `include\physics_sim\water_simulation.hpp`, `include\physics_sim\debug_overlay.hpp`, `include\physics_sim\player_guidance.hpp`, `src\main.cpp`, startup/tutorial scene files, scene/package docs, tests, and tracking files.
+- Add a dedicated `SceneTool::PointerWater` that is selected by default on app start, appears first in the tool cycle, is selectable with `0`, and does not change the behavior of existing `1` through `9` tool shortcuts.
+- While the pointer-water tool is active, left mouse hold should emit water from the current pointer world position using transient directional-emitter data derived from the current emitter direction, speed, and emission-rate controls; the default direction remains downward.
+- Pointer water must stop on mouse release, tool change, scene load/retry, pause/menu entry, and window focus loss, and it must not create persistent emitters, save into scenes, or enter undo/redo scene history.
+- Keep `WaterSimulation2D::step(dt)` source-compatible for existing callers and add a transient-emitter stepping path for runtime pointer water.
+- Make normal startup load a no-spout starter basin scene and make tutorial startup no-spout, while preserving hose-fed gallery/regression scenes and existing demo baselines unless visual regression commands prove an intentional change is required.
+
+Acceptance criteria:
+
+- Fresh normal startup uses a basin scene with no persistent emitter and the pointer-water tool active.
+- First-run tutorial startup does not include a persistent emitter.
+- Holding left mouse with pointer-water active emits water from the cursor until release; releasing or leaving play state stops emission.
+- Scene saves, autosaves, undo/redo snapshots, and gallery/demo scenes do not record transient pointer-water sources.
+- Existing directional and omni fixture placement, selection, persistence, and demo regressions remain available.
+
+Subtasks:
+
+- Add failing tests for transient-emitter stepping, tool cycling/labels/help, starter and tutorial scenes, and gallery preservation.
+- Implement the transient-emitter solver path and runtime pointer-water state.
+- Add the no-spout starter scene, remove the tutorial emitter, and update startup/fallback/package paths.
+- Update README, help overlay, `PROGRESS.md`, and issue implementation notes after verification.
+
+Verification:
+
+- `.\scripts\check-tracking.ps1`
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\verify-demo-scene.ps1`
+
+Dependencies:
+
+- None.
+
+Implementation notes:
+
+- Added `SceneTool::PointerWater` as the default tool, included it in `Tab` cycling, mapped `0` to it, and updated the help/debug labels to show pointer water as `POUR`.
+- Added a transient-emitter `WaterSimulation2D::step` overload and wired runtime pointer water so left-hold emits from the cursor until release, tool changes, scene loads/retries, menu entry, or focus loss.
+- Added `scenes\starter_basin.pscene` as the no-spout startup basin and removed the authored emitter from `scenes\tutorial_intro.pscene`, while keeping hose-fed demo/gallery scenes intact.
+- Updated demo regression scripts to load `scenes\demo_scene.pscene` explicitly and pin the legacy wall cursor via `regression\replays\demo-tool-wall.replay`, preserving committed baselines without refreshing them.
+- Updated README, scene gallery docs, release packaging docs, package-required scene list, and focused tests for transient stepping, tool cycle/help labels, starter/tutorial scenes, and gallery preservation.
+- Verification passed on 2026-06-06: `.\scripts\check-tracking.ps1`, `.\scripts\build.ps1`, `.\scripts\test.ps1` (26/26 tests), `.\scripts\run-smoke.ps1`, and `.\scripts\verify-demo-scene.ps1`.
 
 ## Epic 7: Platform And Automation
 

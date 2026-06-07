@@ -9,29 +9,29 @@
 To regenerate the clean-frame baseline, rebuild the app and capture the demo scene with:
 
 ```powershell
-.\build\windows-x64\Debug\physics-sim.exe --dump-frame build\windows-x64\probe_tick240_ok.bmp --dump-frame-after-ticks 240 --auto-exit-ms 10000
+.\build\windows-x64\Debug\physics-sim.exe --skip-session-shell --scene-path scenes\demo_scene.pscene --replay-file regression\replays\demo-tool-wall.replay --dump-frame build\windows-x64\probe_tick240_ok.bmp --dump-frame-after-ticks 240 --auto-exit-ms 10000
 ```
 
 To regenerate the later density baseline, rebuild the app and capture the demo scene with:
 
 ```powershell
-.\build\windows-x64\Debug\physics-sim.exe --visual-mode density --dump-frame build\windows-x64\probe_density_960.bmp --dump-frame-after-ticks 960 --auto-exit-ms 30000
+.\build\windows-x64\Debug\physics-sim.exe --skip-session-shell --scene-path scenes\demo_scene.pscene --replay-file regression\replays\demo-tool-wall.replay --visual-mode density --dump-frame build\windows-x64\probe_density_960.bmp --dump-frame-after-ticks 960 --auto-exit-ms 30000
 ```
 
 To regenerate the later surface baseline, rebuild the app and capture the demo scene with:
 
 ```powershell
-.\build\windows-x64\Debug\physics-sim.exe --visual-mode surface --dump-frame build\windows-x64\probe_surface_2400.bmp --dump-frame-after-ticks 2400 --auto-exit-ms 60000
+.\build\windows-x64\Debug\physics-sim.exe --skip-session-shell --scene-path scenes\demo_scene.pscene --replay-file regression\replays\demo-tool-wall.replay --visual-mode surface --dump-frame build\windows-x64\probe_surface_2400.bmp --dump-frame-after-ticks 2400 --auto-exit-ms 60000
 ```
 
 To regenerate the replay baselines, rebuild the app and capture each manifest replay with:
 
 ```powershell
-.\build\windows-x64\Debug\physics-sim.exe --replay-file regression\replays\demo-add-directional.replay --dump-frame regression\demo_scene_replay_add_directional_golden.bmp --dump-frame-after-ticks 240 --auto-exit-ms 30000
-.\build\windows-x64\Debug\physics-sim.exe --replay-file regression\replays\demo-add-omni.replay --dump-frame regression\demo_scene_replay_add_omni_golden.bmp --dump-frame-after-ticks 240 --auto-exit-ms 30000
+.\build\windows-x64\Debug\physics-sim.exe --skip-session-shell --scene-path scenes\demo_scene.pscene --replay-file regression\replays\demo-add-directional.replay --dump-frame regression\demo_scene_replay_add_directional_golden.bmp --dump-frame-after-ticks 240 --auto-exit-ms 30000
+.\build\windows-x64\Debug\physics-sim.exe --skip-session-shell --scene-path scenes\demo_scene.pscene --replay-file regression\replays\demo-add-omni.replay --dump-frame regression\demo_scene_replay_add_omni_golden.bmp --dump-frame-after-ticks 240 --auto-exit-ms 30000
 ```
 
-The tick-based capture mode suppresses the HUD so the frame stays stable across runs.
+The tick-based capture mode suppresses the HUD so the frame stays stable across runs. `demo-tool-wall.replay` pins the legacy wall-tool cursor for direct demo captures; the runtime default remains pointer water.
 Compare the new frame to the committed baseline before replacing it.
 
 PSIM-0085 added a dedicated surface-view regression baseline after making `surface` the default visual mode and adding volume-fraction surface rendering. Commands used:

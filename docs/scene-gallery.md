@@ -1,8 +1,10 @@
 # Scene Gallery
 
-Physics Sim ships with a small curated gallery of scene files under `scenes\`.
+Physics Sim ships with a no-spout starter basin and a small curated gallery of scene files under `scenes\`.
 
 Browse the gallery in the app with `PgUp` and `PgDn`. The window title shows the current scene title, and the debug overlay flashes a short `MSG` line when a scene loads.
+
+`scenes\starter_basin.pscene` is the normal sandbox startup scene. It keeps the default U-shaped basin but has no authored emitter, so player-controlled pointer water is the first water source. It is packaged with the app but is not part of the gallery cycle.
 
 Gallery scenes:
 

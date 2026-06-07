@@ -7,6 +7,7 @@ $capture = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression_capture.
 $log = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression.log'
 $appLog = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression-app.log'
 $settings = Join-Path $repoRoot 'build\windows-x64\demo_scene_regression-settings.txt'
+$toolReplay = Join-Path $repoRoot 'regression\replays\demo-tool-wall.replay'
 
 function Write-Log
 {
@@ -30,6 +31,12 @@ if (-not (Test-Path $baseline))
     throw "Missing regression baseline: $baseline"
 }
 
+if (-not (Test-Path $toolReplay))
+{
+    Write-Log "[demo-regression] missing tool replay"
+    throw "Missing regression tool replay: $toolReplay"
+}
+
 if (Test-Path $capture)
 {
     Remove-Item -LiteralPath $capture -Force
@@ -45,6 +52,8 @@ $process = Start-Process -FilePath $exe -ArgumentList @(
     '--log-file', $appLog,
     '--settings-file', $settings,
     '--skip-session-shell',
+    '--scene-path', 'scenes/demo_scene.pscene',
+    '--replay-file', $toolReplay,
     '--dump-frame', $capture,
     '--dump-frame-after-ticks', '240',
     '--auto-exit-ms', '10000'

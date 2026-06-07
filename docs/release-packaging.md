@@ -8,6 +8,7 @@ Package layout:
 - `SDL2d.dll`
 - `README.md`
 - `package-manifest.txt`
+- `scenes\starter_basin.pscene`
 - `scenes\demo_scene.pscene`
 
 Command:

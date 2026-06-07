@@ -32,6 +32,18 @@ namespace
 int main()
 {
     const fs::path repo_root{PHYSICS_SIM_SOURCE_DIR};
+    {
+        physics_sim::WaterSimulation2D simulation;
+        physics_sim::SceneMetadata metadata;
+        const fs::path path = repo_root / "scenes/starter_basin.pscene";
+        REQUIRE(physics_sim::load_scene(path, simulation, &metadata), "starter basin scene failed to load");
+        REQUIRE(metadata.title == "Starter Basin", "starter basin title mismatch");
+        REQUIRE(simulation.emitters().empty(), "starter basin should not contain a persistent emitter");
+        REQUIRE(simulation.grid().solid(20, 24), "starter basin should keep the left basin wall");
+        REQUIRE(simulation.grid().solid(60, 24), "starter basin should keep the right basin wall");
+        REQUIRE(simulation.grid().solid(40, 36), "starter basin should keep the basin floor");
+    }
+
     const std::array<std::pair<std::string_view, std::string_view>, 6> scenes{
         std::make_pair(std::string_view{"scenes/demo_scene.pscene"}, std::string_view{"U-Container Demo"}),
         std::make_pair(std::string_view{"scenes/free_fall.pscene"}, std::string_view{"Free Fall"}),
@@ -51,6 +63,11 @@ int main()
         REQUIRE(!metadata.notes.empty(), "gallery scene is missing purpose notes");
         REQUIRE(!metadata.description.empty(), "gallery scene is missing a description");
         REQUIRE(fs::exists(path.parent_path() / (path.stem().string() + ".thumb.bmp")), "gallery scene is missing its thumbnail sidecar");
+
+        if (relative_path == std::string_view{"scenes/demo_scene.pscene"})
+        {
+            REQUIRE(!simulation.emitters().empty(), "hose-fed demo scene should keep its persistent emitter");
+        }
 
         if (relative_path == std::string_view{"scenes/objective_fill.pscene"})
         {

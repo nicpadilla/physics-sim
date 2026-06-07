@@ -270,6 +270,11 @@ std::optional<VisualMode> parse_visual_mode(std::string_view value)
 
 std::optional<physics_sim::SceneTool> parse_replay_tool(std::string_view value)
 {
+    if (value == "pointer-water" || value == "pour" || value == "water")
+    {
+        return physics_sim::SceneTool::PointerWater;
+    }
+
     if (value == "wall")
     {
         return physics_sim::SceneTool::PaintWall;
@@ -505,6 +510,8 @@ const char* tool_name(physics_sim::SceneTool tool) noexcept
 {
     switch (tool)
     {
+    case physics_sim::SceneTool::PointerWater:
+        return "pour";
     case physics_sim::SceneTool::PaintWall:
         return "wall";
     case physics_sim::SceneTool::EraseWall:
@@ -1333,7 +1340,23 @@ void draw_tool_preview(
 {
     const float cell_size = simulation.grid().cell_size();
     const auto tool = controller.tool();
-    if (tool == physics_sim::SceneTool::PaintWall || tool == physics_sim::SceneTool::EraseWall)
+    if (tool == physics_sim::SceneTool::PointerWater)
+    {
+        SDL_SetRenderDrawColor(renderer, palette.tool_preview_valid.r, palette.tool_preview_valid.g, palette.tool_preview_valid.b, palette.tool_preview_valid.a);
+        const float circle_size = cell_size * 0.55f;
+        const SDL_FRect rect = world_rect(
+            viewport,
+            {mouse_world.x - circle_size * 0.5f, mouse_world.y - circle_size * 0.5f},
+            {circle_size, circle_size});
+        draw_filled_circle(renderer, rect);
+
+        const physics_sim::Vec2 direction = controller.emitter_direction();
+        const physics_sim::Vec2 arrow_end = mouse_world + direction * (cell_size * 0.7f);
+        const physics_sim::Vec2 window_start = viewport.world_to_window(mouse_world);
+        const physics_sim::Vec2 window_end = viewport.world_to_window(arrow_end);
+        SDL_RenderDrawLineF(renderer, window_start.x, window_start.y, window_end.x, window_end.y);
+    }
+    else if (tool == physics_sim::SceneTool::PaintWall || tool == physics_sim::SceneTool::EraseWall)
     {
         const physics_sim::Vec2 cell_top_left{
             std::floor(mouse_world.x / cell_size) * cell_size,
@@ -1494,16 +1517,31 @@ void paint_wall_line(
     controller.end_stroke(end);
 }
 
+void paint_default_basin(physics_sim::SceneController& controller)
+{
+    controller.set_tool(physics_sim::SceneTool::PaintWall);
+    paint_wall_line(controller, {320.0f, 576.0f}, {960.0f, 576.0f});
+    paint_wall_line(controller, {320.0f, 384.0f}, {320.0f, 576.0f});
+    paint_wall_line(controller, {960.0f, 384.0f}, {960.0f, 576.0f});
+}
+
+void load_starter_scene(physics_sim::SceneController& controller)
+{
+    const auto previous_tool = controller.tool();
+
+    controller.reset_scene();
+    paint_default_basin(controller);
+
+    controller.set_tool(previous_tool);
+    controller.sync_history();
+}
+
 void load_demo_scene(physics_sim::SceneController& controller)
 {
     const auto previous_tool = controller.tool();
 
     controller.reset_scene();
-
-    controller.set_tool(physics_sim::SceneTool::PaintWall);
-    paint_wall_line(controller, {320.0f, 576.0f}, {960.0f, 576.0f});
-    paint_wall_line(controller, {320.0f, 384.0f}, {320.0f, 576.0f});
-    paint_wall_line(controller, {960.0f, 384.0f}, {960.0f, 576.0f});
+    paint_default_basin(controller);
 
     controller.set_emitter_direction({0.0f, 1.0f});
     controller.set_emitter_speed(8.0f);
@@ -1664,7 +1702,16 @@ bool restore_demo_scene(
         logger->log(stream.str());
     }
 
-    load_demo_scene(controller);
+    const bool no_spout_fallback = path.filename() == fs::path{"starter_basin.pscene"}
+        || path.filename() == fs::path{"tutorial_intro.pscene"};
+    if (no_spout_fallback)
+    {
+        load_starter_scene(controller);
+    }
+    else
+    {
+        load_demo_scene(controller);
+    }
     const auto profile = forced_solver_profile.value_or(fallback_solver_profile);
     simulation.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(profile));
     sync_viewport_to_simulation(viewport, simulation);
@@ -2028,12 +2075,13 @@ int main(int argc, char* argv[])
 {
     const RuntimeOptions options = parse_command_line(argc, argv);
     SDL_SetMainReady();
+    const fs::path starterScenePath{"scenes/starter_basin.pscene"};
     const fs::path demoScenePath{"scenes/demo_scene.pscene"};
     const fs::path tutorialScenePath{"scenes/tutorial_intro.pscene"};
     const fs::path saveDirectory = default_save_directory().value_or(fs::path{"physics-sim-saves"});
     const fs::path autosaveScenePath = saveDirectory / "autosave.pscene";
     const fs::path logFilePath = options.logFilePath.value_or(fs::path{"physics-sim.log"});
-    const fs::path startupScenePath = options.startupScenePath.value_or(demoScenePath);
+    const fs::path startupScenePath = options.startupScenePath.value_or(starterScenePath);
     const std::array<fs::path, 6> galleryScenePaths{
         demoScenePath,
         fs::path{"scenes/free_fall.pscene"},
@@ -2308,7 +2356,7 @@ int main(int argc, char* argv[])
             logger.log(feedback.detail);
             show_error(feedback.status_message.c_str(), feedback.detail, &logger);
             static_cast<void>(restore_demo_scene(
-                demoScenePath,
+                starterScenePath,
                 simulation,
                 viewport,
                 simulationState,
@@ -2318,9 +2366,9 @@ int main(int argc, char* argv[])
                 &logger,
                 userSettings.solver_profile,
                 options.initialSolverProfile));
-            currentScenePath = demoScenePath;
+            currentScenePath = starterScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
-            logger.log("tutorial scene fallback: loaded demo scene after tutorial content missing");
+            logger.log("tutorial scene fallback: loaded starter basin after tutorial content missing");
         }
         else if (!load_scene_from_file(
                      tutorialScenePath,
@@ -2336,7 +2384,7 @@ int main(int argc, char* argv[])
                      options.initialSolverProfile))
         {
             static_cast<void>(restore_demo_scene(
-                demoScenePath,
+                starterScenePath,
                 simulation,
                 viewport,
                 simulationState,
@@ -2346,9 +2394,9 @@ int main(int argc, char* argv[])
                 &logger,
                 userSettings.solver_profile,
                 options.initialSolverProfile));
-            currentScenePath = demoScenePath;
+            currentScenePath = starterScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
-            logger.log("tutorial scene fallback: loaded demo scene after tutorial load failure");
+            logger.log("tutorial scene fallback: loaded starter basin after tutorial load failure");
         }
     }
     else
@@ -2376,6 +2424,8 @@ int main(int argc, char* argv[])
     bool painting = false;
     std::optional<physics_sim::SceneTool> paintingTool{};
     std::size_t paintingSolidCount = 0;
+    bool pointerWaterActive = false;
+    std::array<physics_sim::WaterEmitter, 1> pointerWaterEmitters{};
     bool frameDumped = false;
     VisualMode visualMode = userSettings.visual_mode;
     bool showHelp = userSettings.help_overlay_visible;
@@ -2392,8 +2442,45 @@ int main(int argc, char* argv[])
         stepDriver.set_paused(true);
     }
 
+    const auto sync_pointer_water_emitter = [&]()
+    {
+        auto& emitter = pointerWaterEmitters[0];
+        emitter.kind = physics_sim::WaterEmitterKind::Directional;
+        emitter.position = viewport.window_to_world(mouseScreen);
+        emitter.direction = controller.emitter_direction();
+        emitter.speed = controller.emitter_speed();
+        emitter.emission_rate = controller.emission_rate();
+        emitter.enabled = pointerWaterActive;
+    };
+
+    const auto stop_pointer_water = [&]()
+    {
+        pointerWaterActive = false;
+        pointerWaterEmitters[0] = {};
+    };
+
+    const auto start_pointer_water = [&]()
+    {
+        pointerWaterEmitters[0] = {};
+        pointerWaterActive = true;
+        sync_pointer_water_emitter();
+    };
+
+    const auto set_current_tool = [&](physics_sim::SceneTool tool)
+    {
+        if (controller.tool() != tool)
+        {
+            stop_pointer_water();
+        }
+        controller.set_tool(tool);
+    };
+
     const auto update_shell_pause_state = [&]()
     {
+        if (sessionShellState.screen != physics_sim::SessionShellScreen::Playing)
+        {
+            stop_pointer_water();
+        }
         stepDriver.set_paused(sessionShellState.screen != physics_sim::SessionShellScreen::Playing);
     };
 
@@ -2792,6 +2879,7 @@ int main(int argc, char* argv[])
 
     const auto load_gallery_scene = [&](std::size_t index) -> bool
     {
+        stop_pointer_water();
         if (index >= galleryScenePaths.size())
         {
             return false;
@@ -2835,6 +2923,7 @@ int main(int argc, char* argv[])
 
     const auto load_autosave_or_demo = [&]() -> bool
     {
+        stop_pointer_water();
         physics_sim::PlayerFeedback feedback;
         if (!load_scene_from_file(
                 autosaveScenePath,
@@ -2893,6 +2982,7 @@ int main(int argc, char* argv[])
 
     const auto load_save_browser_entry = [&](std::size_t index) -> bool
     {
+        stop_pointer_water();
         refresh_save_browser_entries();
         if (index >= saveBrowserEntries.size())
         {
@@ -2958,6 +3048,7 @@ int main(int argc, char* argv[])
 
     const auto clear_current_scene = [&]()
     {
+        stop_pointer_water();
         controller.reset_scene();
         simulationState.reset();
         stepDriver.reset();
@@ -2997,6 +3088,7 @@ int main(int argc, char* argv[])
 
     const auto start_tutorial_session = [&]() -> bool
     {
+        stop_pointer_water();
         tutorialActive = true;
         tutorialProgress = {};
         sessionShellState.screen = physics_sim::SessionShellScreen::Playing;
@@ -3013,7 +3105,7 @@ int main(int argc, char* argv[])
             const auto package_feedback = physics_sim::describe_package_content_failure("tutorial scene missing");
             logger.log(package_feedback.detail);
             static_cast<void>(restore_demo_scene(
-                demoScenePath,
+                starterScenePath,
                 simulation,
                 viewport,
                 simulationState,
@@ -3024,7 +3116,7 @@ int main(int argc, char* argv[])
                 userSettings.solver_profile,
                 options.initialSolverProfile));
             sync_solver_profile_from_simulation();
-            currentScenePath = demoScenePath;
+            currentScenePath = starterScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             sync_scene_feedback_metrics();
             refresh_save_browser_entries();
@@ -3048,7 +3140,7 @@ int main(int argc, char* argv[])
         {
             logger.log(feedback.detail);
             static_cast<void>(restore_demo_scene(
-                demoScenePath,
+                starterScenePath,
                 simulation,
                 viewport,
                 simulationState,
@@ -3059,7 +3151,7 @@ int main(int argc, char* argv[])
                 userSettings.solver_profile,
                 options.initialSolverProfile));
             sync_solver_profile_from_simulation();
-            currentScenePath = demoScenePath;
+            currentScenePath = starterScenePath;
             currentGalleryIndex = gallery_index_for_path(currentScenePath);
             sync_scene_feedback_metrics();
             refresh_save_browser_entries();
@@ -3090,6 +3182,7 @@ int main(int argc, char* argv[])
 
     const auto perform_action = [&](physics_sim::Action action, physics_sim::AudioCue cue) -> std::string
     {
+        stop_pointer_water();
         std::string actionFeedback;
         apply_action(
             action,
@@ -3176,7 +3269,7 @@ int main(int argc, char* argv[])
                     return false;
                 }
 
-                controller.set_tool(*tool);
+                set_current_tool(*tool);
                 continue;
             }
 
@@ -3275,7 +3368,15 @@ int main(int argc, char* argv[])
     auto advance_simulation_step = [&](physics_sim::FixedStepDriver::duration step) -> bool
     {
         simulationState.advance(step);
-        simulation.step(step.count());
+        if (pointerWaterActive)
+        {
+            sync_pointer_water_emitter();
+            simulation.step(step.count(), pointerWaterEmitters);
+        }
+        else
+        {
+            simulation.step(step.count());
+        }
         ++replayTick;
         const bool replay_ok = process_replay_actions(replayTick);
         if (replay_ok)
@@ -3705,7 +3806,7 @@ int main(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_prev || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) != 0))
                 {
-                    controller.set_tool(physics_sim::next_scene_tool(controller.tool(), -1));
+                    set_current_tool(physics_sim::next_scene_tool(controller.tool(), -1));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -3713,7 +3814,7 @@ int main(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_next || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) == 0))
                 {
-                    controller.set_tool(physics_sim::next_scene_tool(controller.tool(), 1));
+                    set_current_tool(physics_sim::next_scene_tool(controller.tool(), 1));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -3853,48 +3954,53 @@ int main(int argc, char* argv[])
                     complete_tutorial_if_needed();
                     break;
                 }
+                case SDLK_0:
+                    set_current_tool(physics_sim::SceneTool::PointerWater);
+                    play_audio(physics_sim::AudioCue::UiSelect);
+                    set_status_message("TOOL POUR", StatusMessageKind::Info);
+                    break;
                 case SDLK_1:
-                    controller.set_tool(physics_sim::SceneTool::PaintWall);
+                    set_current_tool(physics_sim::SceneTool::PaintWall);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL WALL", StatusMessageKind::Info);
                     break;
                 case SDLK_2:
-                    controller.set_tool(physics_sim::SceneTool::EraseWall);
+                    set_current_tool(physics_sim::SceneTool::EraseWall);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL ERASE", StatusMessageKind::Info);
                     break;
                 case SDLK_3:
-                    controller.set_tool(physics_sim::SceneTool::DirectionalEmitter);
+                    set_current_tool(physics_sim::SceneTool::DirectionalEmitter);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL HOSE", StatusMessageKind::Info);
                     break;
                 case SDLK_4:
-                    controller.set_tool(physics_sim::SceneTool::OmniEmitter);
+                    set_current_tool(physics_sim::SceneTool::OmniEmitter);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL OMNI", StatusMessageKind::Info);
                     break;
                 case SDLK_5:
-                    controller.set_tool(physics_sim::SceneTool::Gate);
+                    set_current_tool(physics_sim::SceneTool::Gate);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL GATE", StatusMessageKind::Info);
                     break;
                 case SDLK_6:
-                    controller.set_tool(physics_sim::SceneTool::Sensor);
+                    set_current_tool(physics_sim::SceneTool::Sensor);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL SENSOR", StatusMessageKind::Info);
                     break;
                 case SDLK_7:
-                    controller.set_tool(physics_sim::SceneTool::Drain);
+                    set_current_tool(physics_sim::SceneTool::Drain);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL DRAIN", StatusMessageKind::Info);
                     break;
                 case SDLK_8:
-                    controller.set_tool(physics_sim::SceneTool::Pump);
+                    set_current_tool(physics_sim::SceneTool::Pump);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL PUMP", StatusMessageKind::Info);
                     break;
                 case SDLK_9:
-                    controller.set_tool(physics_sim::SceneTool::Valve);
+                    set_current_tool(physics_sim::SceneTool::Valve);
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message("TOOL VALVE", StatusMessageKind::Info);
                     break;
@@ -3923,7 +4029,13 @@ int main(int argc, char* argv[])
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     const physics_sim::Vec2 world = viewport.window_to_world(mouseScreen);
-                    if (controller.tool() == physics_sim::SceneTool::PaintWall || controller.tool() == physics_sim::SceneTool::EraseWall)
+                    if (controller.tool() == physics_sim::SceneTool::PointerWater)
+                    {
+                        start_pointer_water();
+                        complete_tutorial_if_needed();
+                        break;
+                    }
+                    else if (controller.tool() == physics_sim::SceneTool::PaintWall || controller.tool() == physics_sim::SceneTool::EraseWall)
                     {
                         paintingTool = controller.tool();
                         paintingSolidCount = 0;
@@ -4109,6 +4221,7 @@ int main(int argc, char* argv[])
 
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
+                    stop_pointer_water();
                     if (painting)
                     {
                         controller.end_stroke(viewport.window_to_world(mouseScreen));
@@ -4210,6 +4323,10 @@ int main(int argc, char* argv[])
                     userSettings.window_size.height = windowHeight;
                     viewport.set_window_size(windowWidth, windowHeight);
                     static_cast<void>(persist_settings_or_report());
+                }
+                else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                {
+                    stop_pointer_water();
                 }
                 complete_tutorial_if_needed();
                 break;

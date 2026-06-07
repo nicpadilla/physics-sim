@@ -66,7 +66,8 @@ int main()
     REQUIRE(contains_line(help_lines, "O toggle help"), "help overlay did not use the active help binding");
     REQUIRE(contains_line(help_lines, "P pause, T step"), "help overlay did not use the active pause/step bindings");
     REQUIRE(contains_line(help_lines, "G clear fluid, F retry current scene"), "help overlay did not use the active reset bindings");
-    REQUIRE(contains_line(help_lines, "1-9 tools, [/] cycle, C visual mode"), "help overlay did not use the active tool-cycle and visual-mode bindings");
+    REQUIRE(contains_line(help_lines, "0 pointer water, 1-9 tools, [/] cycle, C visual mode"), "help overlay did not use the active pointer-water/tool-cycle bindings");
+    REQUIRE(contains_line(help_lines, "Pointer water: hold LMB to pour"), "help overlay did not describe pointer-water hold behavior");
     REQUIRE(contains_line(help_lines, "J/L rotate selected or tool"), "help overlay did not use the active rotate bindings");
     REQUIRE(contains_line(help_lines, "U undo, R redo"), "help overlay did not use the active undo/redo bindings");
     REQUIRE(contains_line(help_lines, "-/= speed, ,/. emission"), "help overlay did not use the active speed and emission bindings");

@@ -4,6 +4,7 @@
 #include <physics_sim/grid_transfer.hpp>
 #include <physics_sim/math.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -466,6 +467,25 @@ int main()
         REQUIRE(!sim.particles().empty(), "emitter did not spawn particles");
         REQUIRE(sim.particles().front().velocity.y > 0.0f, "emitted particles did not move downward");
         REQUIRE(sim.metrics().total_emitted > 0, "emitter count did not increment");
+    }
+
+    {
+        physics_sim::WaterSimulation2D sim{24, 24, 1.0f};
+        physics_sim::WaterEmitter pointer_emitter;
+        pointer_emitter.kind = physics_sim::WaterEmitterKind::Directional;
+        pointer_emitter.position = Vec2{12.0f, 4.0f};
+        pointer_emitter.direction = Vec2{0.0f, 1.0f};
+        pointer_emitter.speed = 6.0f;
+        pointer_emitter.emission_rate = 120.0f;
+
+        std::array<physics_sim::WaterEmitter, 1> transient_emitters{pointer_emitter};
+        sim.step(0.5, transient_emitters);
+
+        REQUIRE(sim.emitters().empty(), "transient pointer water became a persistent emitter");
+        REQUIRE(!sim.particles().empty(), "transient pointer water did not spawn particles");
+        REQUIRE(sim.metrics().total_emitted > 0, "transient pointer water did not update emitted metrics");
+        REQUIRE(sim.metrics().total_emitted_mass > 0.0, "transient pointer water did not update emitted mass metrics");
+        REQUIRE(sim.particles().front().velocity.y > 0.0f, "transient pointer water did not use the downward stream direction");
     }
 
     {
