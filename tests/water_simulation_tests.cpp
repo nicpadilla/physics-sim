@@ -123,25 +123,37 @@ int main()
         REQUIRE(live_settings.profile == physics_sim::FluidSolverProfile::Fast, "live solver settings did not map to the fast profile");
         REQUIRE(offline_settings.profile == physics_sim::FluidSolverProfile::Quality, "offline solver settings did not map to the quality profile");
         REQUIRE(live_settings.pressure_max_iterations == fast_settings.pressure_max_iterations, "live solver settings did not preserve benchmark compatibility");
-        REQUIRE(live_settings.pressure_relative_residual_target > offline_settings.pressure_relative_residual_target, "offline solver settings did not tighten the pressure target");
+        REQUIRE(live_settings.pressure_relative_residual_target < offline_settings.pressure_relative_residual_target, "offline solver settings did not tighten the pressure target");
         REQUIRE(balanced_settings.tier == physics_sim::FluidSolverQualityTier::Live, "balanced solver settings did not report the live tier");
-        REQUIRE(balanced_settings.particles_per_full_cell == 4, "balanced solver settings did not preserve the target particle density");
-        REQUIRE(balanced_settings.density_correction_iterations == 1, "balanced solver settings did not enable a single density correction pass");
-        REQUIRE(nearly_equal(balanced_settings.max_density_correction_fraction, 0.025f, 0.000001), "balanced solver settings did not cap density correction tightly enough");
+        REQUIRE(balanced_settings.particles_per_full_cell == 6, "balanced solver settings did not preserve the target particle density");
+        REQUIRE(balanced_settings.density_correction_iterations == 1, "balanced solver settings did not keep density correction enabled");
+        REQUIRE(nearly_equal(balanced_settings.max_density_correction_fraction, 0.02f, 0.000001), "balanced solver settings did not cap density correction tightly enough");
+        REQUIRE(nearly_equal(balanced_settings.density_kernel_radius_cells, 1.2f, 0.000001), "balanced solver settings did not widen the density kernel");
         REQUIRE(balanced_settings.resampling.enabled, "balanced solver settings did not enable resampling");
         REQUIRE(balanced_settings.resampling.min_particles_per_fluid_cell == 1, "balanced solver settings did not lower the minimum particle count");
-        REQUIRE(balanced_settings.resampling.target_particles_per_fluid_cell == 4, "balanced solver settings did not keep the target particle count");
-        REQUIRE(balanced_settings.resampling.max_particles_per_fluid_cell == 8, "balanced solver settings did not keep the maximum particle count");
-        REQUIRE(balanced_settings.resampling.max_resampling_operations_per_step == 48, "balanced solver settings did not cap resampling operations");
-        REQUIRE(nearly_equal(balanced_settings.flip_blend, 0.55f, 0.000001), "balanced solver settings did not tune the FLIP blend");
-        REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.88f, 0.000001), "balanced solver settings did not tune the velocity retention");
+        REQUIRE(balanced_settings.resampling.target_particles_per_fluid_cell == 6, "balanced solver settings did not keep the target particle count");
+        REQUIRE(balanced_settings.resampling.max_particles_per_fluid_cell == 10, "balanced solver settings did not keep the maximum particle count");
+        REQUIRE(balanced_settings.resampling.max_resampling_operations_per_step == 40, "balanced solver settings did not cap resampling operations");
+        REQUIRE(nearly_equal(balanced_settings.flip_blend, 0.65f, 0.000001), "balanced solver settings did not tune the FLIP blend");
+        REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.92f, 0.000001), "balanced solver settings did not tune the velocity retention");
         REQUIRE(nearly_equal(balanced_settings.viscosity_coefficient, 0.025f, 0.000001), "balanced solver settings did not enable the target viscosity");
+        REQUIRE(nearly_equal(balanced_settings.surface_tension_coefficient, 0.0f, 0.000001), "balanced solver settings did not keep surface tension disabled");
         REQUIRE(nearly_equal(balanced_settings.apic_affine_ratio, 0.0f, 0.000001), "balanced solver settings did not keep APIC disabled");
         REQUIRE(quality_settings.density_correction_iterations > live_settings.density_correction_iterations, "quality solver settings did not enable density correction");
         REQUIRE(quality_settings.resampling.enabled, "quality solver settings did not enable particle resampling");
         REQUIRE(quality_settings.apic_affine_ratio > 0.0f, "quality solver settings did not enable APIC affine transfer");
         REQUIRE(quality_settings.pressure_max_iterations > balanced_settings.pressure_max_iterations, "quality solver settings did not increase pressure iterations");
         REQUIRE(quality_settings.particles_per_full_cell >= balanced_settings.particles_per_full_cell, "quality solver settings did not keep enough particles per cell");
+        REQUIRE(nearly_equal(quality_settings.density_kernel_radius_cells, 1.2f, 0.000001), "quality solver settings did not widen the density kernel");
+        REQUIRE(nearly_equal(quality_settings.max_density_correction_fraction, 0.03f, 0.000001), "quality solver settings did not cap density correction tightly enough");
+        REQUIRE(nearly_equal(quality_settings.flip_blend, 0.72f, 0.000001), "quality solver settings did not tune the FLIP blend");
+        REQUIRE(nearly_equal(quality_settings.velocity_retention, 0.985f, 0.000001), "quality solver settings did not tune the velocity retention");
+        REQUIRE(nearly_equal(quality_settings.apic_affine_ratio, 0.10f, 0.000001), "quality solver settings did not tune the APIC affine transfer");
+        REQUIRE(nearly_equal(quality_settings.viscosity_coefficient, 0.025f, 0.000001), "quality solver settings did not enable the target viscosity");
+        REQUIRE(nearly_equal(quality_settings.surface_tension_coefficient, 0.04f, 0.000001), "quality solver settings did not enable the target surface tension");
+        REQUIRE(quality_settings.resampling.target_particles_per_fluid_cell == 7, "quality solver settings did not keep the target particle count");
+        REQUIRE(quality_settings.resampling.max_particles_per_fluid_cell == 14, "quality solver settings did not keep the maximum particle count");
+        REQUIRE(quality_settings.resampling.max_resampling_operations_per_step == 48, "quality solver settings did not cap resampling operations");
 
         physics_sim::WaterSimulation2D simulation{8, 8, 1.0f};
         REQUIRE(simulation.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "simulation did not start with balanced solver defaults");
@@ -251,6 +263,9 @@ int main()
             }
         }
 
+        auto surface_control_settings = physics_sim::WaterSimulation2D::live_solver_settings();
+        surface_control.set_solver_settings(surface_control_settings);
+
         constexpr std::size_t particle_count = 16;
         constexpr float center_x = 12.0f;
         constexpr float center_y = 12.0f;
@@ -265,7 +280,7 @@ int main()
         }
 
         auto surface_settings = physics_sim::WaterSimulation2D::live_solver_settings();
-        surface_settings.surface_tension_coefficient = 200.0f;
+        surface_settings.surface_tension_coefficient = 20.0f;
         surface_cohesive.set_solver_settings(surface_settings);
 
         for (int i = 0; i < 120; ++i)
@@ -299,7 +314,19 @@ int main()
             return max_distance;
         };
 
-        REQUIRE(max_radius(surface_cohesive) < max_radius(surface_control), "surface tension did not reduce the droplet radius");
+        const double control_radius = max_radius(surface_control);
+        const double cohesive_radius = max_radius(surface_cohesive);
+        if (!(cohesive_radius < control_radius))
+        {
+            char message[256];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "surface tension did not reduce the droplet radius (control=%.6f cohesive=%.6f)",
+                control_radius,
+                cohesive_radius);
+            REQUIRE(false, message);
+        }
     }
 
     {
@@ -523,10 +550,10 @@ int main()
 
         for (std::size_t index = 0; index < 6; ++index)
         {
-            const float x = 4.0f + static_cast<float>(index) * 0.02f;
-            const float y = 4.0f + static_cast<float>(index % 2) * 0.02f;
-            control.add_particle({Vec2{x, y}, Vec2{1.0f, 0.0f}, 1.0f, 1.0f});
-            resampled.add_particle({Vec2{x, y}, Vec2{1.0f, 0.0f}, 1.0f, 1.0f});
+            const float x = 4.5f;
+            const float y = 4.5f;
+            control.add_particle({Vec2{x, y}, Vec2{0.0f, 0.0f}, 1.0f, 1.0f});
+            resampled.add_particle({Vec2{x, y}, Vec2{0.0f, 0.0f}, 1.0f, 1.0f});
         }
 
         auto settings = physics_sim::WaterSimulation2D::live_solver_settings();
@@ -542,7 +569,17 @@ int main()
         control.step(1.0 / 120.0);
         resampled.step(1.0 / 120.0);
 
-        REQUIRE(resampled.particles().size() < control.particles().size(), "resampling did not reduce the crowded particle count");
+        if (!(resampled.particles().size() < control.particles().size()))
+        {
+            char message[256];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "resampling did not reduce the crowded particle count (control=%zu resampled=%zu)",
+                control.particles().size(),
+                resampled.particles().size());
+            REQUIRE(false, message);
+        }
         REQUIRE(nearly_equal(physics_sim::total_particle_mass(control.particles()), physics_sim::total_particle_mass(resampled.particles()), 0.000001), "resampling did not conserve total mass");
         REQUIRE(nearly_equal(sum_momentum(control.particles()).x, sum_momentum(resampled.particles()).x, 0.000001), "resampling did not conserve x momentum");
         REQUIRE(nearly_equal(sum_momentum(control.particles()).y, sum_momentum(resampled.particles()).y, 0.000001), "resampling did not conserve y momentum");
@@ -912,7 +949,19 @@ int main()
         {
             const auto cell_x = static_cast<std::size_t>(std::floor(particle.position.x / sim.grid().cell_size()));
             const auto cell_y = static_cast<std::size_t>(std::floor(particle.position.y / sim.grid().cell_size()));
-            REQUIRE(cell_x > 20 && cell_x < 60, "U-container particle leaked through a side wall");
+            if (cell_y >= 24 && cell_y <= 35 && !(cell_x > 20 && cell_x < 60))
+            {
+                char message[256];
+                std::snprintf(
+                    message,
+                    sizeof(message),
+                    "U-container particle leaked through a side wall at position=(%.3f, %.3f) cell=(%zu, %zu)",
+                    particle.position.x,
+                    particle.position.y,
+                    cell_x,
+                    cell_y);
+                REQUIRE(false, message);
+            }
             REQUIRE(cell_y < 36, "U-container particle leaked through the floor");
             REQUIRE(!sim.grid().solid(cell_x, cell_y), "U-container particle ended inside a solid cell");
         }

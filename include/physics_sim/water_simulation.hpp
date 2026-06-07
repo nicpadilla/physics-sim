@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <string>
 #include <utility>
@@ -330,24 +331,24 @@ public:
 
         case FluidSolverProfile::Balanced:
             settings.tier = FluidSolverQualityTier::Live;
-            settings.pressure_max_iterations = 160;
-            settings.pressure_relative_residual_target = 5.0e-5f;
+            settings.pressure_max_iterations = 120;
+            settings.pressure_relative_residual_target = 1.0e-2f;
             settings.rest_density = 1.0f;
-            settings.particles_per_full_cell = 4;
-            settings.density_kernel_radius_cells = 1.0f;
+            settings.particles_per_full_cell = 6;
+            settings.density_kernel_radius_cells = 1.2f;
             settings.density_correction_iterations = 1;
-            settings.max_density_correction_fraction = 0.025f;
-            settings.flip_blend = 0.55f;
-            settings.velocity_retention = 0.88f;
+            settings.max_density_correction_fraction = 0.02f;
+            settings.flip_blend = 0.65f;
+            settings.velocity_retention = 0.92f;
             settings.apic_affine_ratio = 0.0f;
             settings.viscosity_coefficient = 0.025f;
             settings.surface_tension_coefficient = 0.0f;
-            settings.max_surface_velocity_delta_fraction = 0.12f;
+            settings.max_surface_velocity_delta_fraction = 0.10f;
             settings.resampling.enabled = true;
             settings.resampling.min_particles_per_fluid_cell = 1;
-            settings.resampling.target_particles_per_fluid_cell = 4;
-            settings.resampling.max_particles_per_fluid_cell = 8;
-            settings.resampling.max_resampling_operations_per_step = 48;
+            settings.resampling.target_particles_per_fluid_cell = 6;
+            settings.resampling.max_particles_per_fluid_cell = 10;
+            settings.resampling.max_resampling_operations_per_step = 40;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
             settings.density_metrics_interval_ticks = 60;
@@ -356,26 +357,26 @@ public:
         case FluidSolverProfile::Quality:
             settings.tier = FluidSolverQualityTier::Offline;
             settings.pressure_max_iterations = 260;
-            settings.pressure_relative_residual_target = 1.0e-5f;
+            settings.pressure_relative_residual_target = 5.0e-2f;
             settings.rest_density = 1.0f;
             settings.particles_per_full_cell = 6;
-            settings.density_kernel_radius_cells = 1.1f;
-            settings.density_correction_iterations = 2;
-            settings.max_density_correction_fraction = 0.06f;
-            settings.flip_blend = 0.88f;
-            settings.velocity_retention = 0.997f;
-            settings.apic_affine_ratio = 0.40f;
-            settings.viscosity_coefficient = 0.015f;
-            settings.surface_tension_coefficient = 0.0f;
-            settings.max_surface_velocity_delta_fraction = 0.10f;
+            settings.density_kernel_radius_cells = 1.2f;
+            settings.density_correction_iterations = 1;
+            settings.max_density_correction_fraction = 0.03f;
+            settings.flip_blend = 0.72f;
+            settings.velocity_retention = 0.985f;
+            settings.apic_affine_ratio = 0.10f;
+            settings.viscosity_coefficient = 0.025f;
+            settings.surface_tension_coefficient = 0.04f;
+            settings.max_surface_velocity_delta_fraction = 0.07f;
             settings.resampling.enabled = true;
             settings.resampling.min_particles_per_fluid_cell = 1;
-            settings.resampling.target_particles_per_fluid_cell = 6;
-            settings.resampling.max_particles_per_fluid_cell = 12;
-            settings.resampling.max_resampling_operations_per_step = 160;
+            settings.resampling.target_particles_per_fluid_cell = 7;
+            settings.resampling.max_particles_per_fluid_cell = 14;
+            settings.resampling.max_resampling_operations_per_step = 48;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
-            settings.density_metrics_interval_ticks = 30;
+            settings.density_metrics_interval_ticks = 120;
             break;
         }
 
@@ -743,7 +744,6 @@ public:
             remove_particles_in_drains();
             cull_out_of_domain_particles();
             refresh_cell_classification();
-            refresh_density_metrics();
         }
 
         metrics_.total_emitted = total_emitted_;
@@ -1313,6 +1313,8 @@ private:
         }
 
         constexpr float active_fraction_threshold = 1.0e-5f;
+        constexpr float halo_fraction_threshold = 0.15f;
+        const bool use_full_halo = solver_settings_.tier == FluidSolverQualityTier::Live;
         const auto activate_cell = [&](int x, int y)
         {
             if (x < 0 || y < 0 || static_cast<size_type>(x) >= grid_.width() || static_cast<size_type>(y) >= grid_.height())
@@ -1338,10 +1340,18 @@ private:
                     const int ix = static_cast<int>(x);
                     const int iy = static_cast<int>(y);
                     activate_cell(ix, iy);
-                    activate_cell(ix - 1, iy);
-                    activate_cell(ix + 1, iy);
-                    activate_cell(ix, iy - 1);
-                    activate_cell(ix, iy + 1);
+                    if (use_full_halo)
+                    {
+                        activate_cell(ix - 1, iy);
+                        activate_cell(ix + 1, iy);
+                        activate_cell(ix, iy - 1);
+                        activate_cell(ix, iy + 1);
+                    }
+                    else if (cell_volume_fractions_[idx] > halo_fraction_threshold)
+                    {
+                        activate_cell(ix - 1, iy);
+                        activate_cell(ix + 1, iy);
+                    }
                 }
             }
         }
@@ -1555,7 +1565,7 @@ private:
                     cohesion_force = (centroid - cell_center) * (solver_settings_.surface_tension_coefficient * 0.5f * inv_cell_size);
                 }
 
-                cell_forces[grid_.cell_index(x, y)] = (normal * (solver_settings_.surface_tension_coefficient * curvature)) + cohesion_force;
+                cell_forces[grid_.cell_index(x, y)] = (normal * (-solver_settings_.surface_tension_coefficient * curvature)) + cohesion_force;
             }
         }
 
@@ -2032,6 +2042,8 @@ private:
 
             particles_[index].velocity = particles_[index].velocity + correction_velocity;
         }
+
+        resolve_particles_out_of_solids();
     }
 
     void update_particle_affine_velocity(FluidParticle& particle) const noexcept
@@ -2177,18 +2189,119 @@ private:
 
             if (solid_cell_at(resolved_position, hit_x, hit_y))
             {
-                resolved_position.x = clampf(
-                    previous_position.x,
-                    epsilon,
-                    std::max(epsilon, domain_width() - epsilon));
-                resolved_position.y = clampf(
-                    previous_position.y,
-                    epsilon,
-                    std::max(epsilon, domain_height() - epsilon));
-                particle.velocity = {};
+                particle.position = resolved_position;
+                resolve_particle_out_of_solids(particle);
+                continue;
             }
 
             particle.position = resolved_position;
+        }
+    }
+
+    void resolve_particles_out_of_solids() noexcept
+    {
+        for (auto& particle : particles_)
+        {
+            resolve_particle_out_of_solids(particle);
+        }
+    }
+
+    void resolve_particle_out_of_solids(FluidParticle& particle) const noexcept
+    {
+        if (grid_.width() == 0 || grid_.height() == 0)
+        {
+            return;
+        }
+
+        const float cell_size = grid_.cell_size();
+        const float epsilon = cell_size * 0.001f;
+        particle.position.x = clampf(particle.position.x, epsilon, std::max(epsilon, domain_width() - epsilon));
+        particle.position.y = clampf(particle.position.y, epsilon, std::max(epsilon, domain_height() - epsilon));
+
+        const auto cell_for_position = [&](const Vec2& position, size_type& cell_x, size_type& cell_y) noexcept -> bool
+        {
+            if (position.x < 0.0f || position.y < 0.0f)
+            {
+                return false;
+            }
+
+            cell_x = static_cast<size_type>(std::floor(position.x / cell_size));
+            cell_y = static_cast<size_type>(std::floor(position.y / cell_size));
+            return grid_.contains(cell_x, cell_y);
+        };
+
+        size_type cell_x = 0;
+        size_type cell_y = 0;
+        if (!cell_for_position(particle.position, cell_x, cell_y) || !grid_.solid(cell_x, cell_y))
+        {
+            return;
+        }
+
+        const int origin_x = static_cast<int>(cell_x);
+        const int origin_y = static_cast<int>(cell_y);
+        const int search_radius = 4;
+        bool have_candidate = false;
+        Vec2 candidate_position{};
+        Vec2 candidate_delta{};
+        float candidate_distance_squared = std::numeric_limits<float>::max();
+
+        for (int offset_y = -search_radius; offset_y <= search_radius; ++offset_y)
+        {
+            const int neighbor_y = origin_y + offset_y;
+            if (neighbor_y < 0 || static_cast<size_type>(neighbor_y) >= grid_.height())
+            {
+                continue;
+            }
+
+            for (int offset_x = -search_radius; offset_x <= search_radius; ++offset_x)
+            {
+                const int neighbor_x = origin_x + offset_x;
+                if (neighbor_x < 0 || static_cast<size_type>(neighbor_x) >= grid_.width())
+                {
+                    continue;
+                }
+
+                const size_type candidate_cell_x = static_cast<size_type>(neighbor_x);
+                const size_type candidate_cell_y = static_cast<size_type>(neighbor_y);
+                if (grid_.solid(candidate_cell_x, candidate_cell_y))
+                {
+                    continue;
+                }
+
+                const float min_x = static_cast<float>(candidate_cell_x) * cell_size + epsilon;
+                const float min_y = static_cast<float>(candidate_cell_y) * cell_size + epsilon;
+                const float max_x = static_cast<float>(candidate_cell_x + 1) * cell_size - epsilon;
+                const float max_y = static_cast<float>(candidate_cell_y + 1) * cell_size - epsilon;
+                const Vec2 projected_position{
+                    clampf(particle.position.x, min_x, max_x),
+                    clampf(particle.position.y, min_y, max_y),
+                };
+                const Vec2 delta = projected_position - particle.position;
+                const float distance_squared = length_squared(delta);
+                if (!have_candidate || distance_squared < candidate_distance_squared)
+                {
+                    have_candidate = true;
+                    candidate_position = projected_position;
+                    candidate_delta = delta;
+                    candidate_distance_squared = distance_squared;
+                }
+            }
+        }
+
+        if (!have_candidate)
+        {
+            particle.velocity = {};
+            return;
+        }
+
+        particle.position = candidate_position;
+        if (std::abs(candidate_delta.x) >= std::abs(candidate_delta.y))
+        {
+            particle.velocity.x = 0.0f;
+        }
+        else
+        {
+            particle.velocity.y = 0.0f;
         }
     }
 

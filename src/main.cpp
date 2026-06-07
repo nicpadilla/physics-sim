@@ -711,7 +711,7 @@ void draw_fluid_surface(
         return;
     }
 
-    constexpr float visible_threshold = 0.01f;
+    constexpr float visible_threshold = 0.05f;
     const float cell_size = grid.cell_size();
     for (std::size_t y = 0; y < grid.height(); ++y)
     {

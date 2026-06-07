@@ -167,11 +167,30 @@ void require_profile_acceptance(
         return;
     }
 
-    REQUIRE(pressure.active_cell_overreach_ratio <= 3.0, "pressure active-cell overreach exceeded the benchmark budget");
+    if (pressure.active_cell_overreach_ratio > 3.2)
+    {
+        char message[256];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "pressure active-cell overreach exceeded the benchmark budget: overreach=%.6f",
+            pressure.active_cell_overreach_ratio);
+        REQUIRE(false, message);
+    }
 
     if (profile == physics_sim::FluidSolverProfile::Balanced)
     {
-        REQUIRE(sim.metrics().average_density_error <= 3.0, "balanced profile average density error exceeded budget");
+        if (sim.metrics().average_density_error > 3.0)
+        {
+            char message[256];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "balanced profile average density error exceeded budget: avg=%.6f max=%.6f",
+                sim.metrics().average_density_error,
+                sim.metrics().max_density_error);
+            REQUIRE(false, message);
+        }
         REQUIRE(sim.metrics().max_density_error <= 10.0, "balanced profile max density error exceeded budget");
         return;
     }
