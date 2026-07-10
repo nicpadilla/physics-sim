@@ -17,10 +17,10 @@ Allowed statuses: `Missing`, `Partial`, `Implemented`, `Automated`, `Human Accep
 | R15.03 | Define canonical machine-readable validation scenarios. | Automated | `verify-fluid-quality-suite.ps1` passed all 18 balanced/quality scenario runs in 303 seconds on 2026-07-10 and wrote the structured summary under `build/windows-x64/fluid-quality-suite`. | None. |
 | R15.04 | Enforce hard accounting, convergence, penetration, finiteness, and determinism gates. | Automated | The 2026-07-10 fluid suite enforced mass `1e-5`, momentum `1e-4`, pressure `5e-5`/`1e-5`, and zero penetration, non-finite, and unexplained-lifecycle gates with 18/18 passing. | None. |
 | R15.05 | Pass balanced and quality numeric/performance budgets. | Automated | `test.ps1 -Tier Standard` passed 25/25 in 78.2 seconds and the 2026-07-10 Release all-profile benchmark passed; balanced and quality demo steps averaged 0.5028 ms and 0.6951 ms. | None. |
-| R16.01 | Render continuous player-facing water. | Missing | Current surface baseline shows disconnected filled-cell output. | PSIM-0095. |
-| R16.02 | Interpolate rendering without mutating simulation state. | Missing | No recovery interpolation contract exists. | PSIM-0095. |
+| R16.01 | Render continuous player-facing water. | Implemented | Deterministic thresholded marching-triangle geometry now replaces isolated filled cells; automated geometry coverage passed on 2026-07-10. | PSIM-0095 visual acceptance. |
+| R16.02 | Interpolate rendering without mutating simulation state. | Automated | Surface rendering interpolates cached read-only volume fields using the fixed-step accumulator; Fast passed 24/24 in 3.4 seconds on 2026-07-10. | None. |
 | R16.03 | Expose complete laboratory field views. | Partial | Existing debug modes are incomplete and coupled to the app renderer. | PSIM-0097. |
-| R16.04 | Run semantic visual checks. | Missing | Existing image regressions use hash equality only. | PSIM-0095. |
+| R16.04 | Run semantic visual checks. | Partial | Deterministic state analysis now measures occupied bounds, connected components, isolated cells, and escaped cells; canonical scene manifests still need frozen thresholds. | PSIM-0095. |
 | R16.05 | Require numeric plus human visual acceptance. | Missing | No recovered capture has human acceptance evidence. | PSIM-0095. |
 | R17.01 | Deliver the narrow sandbox interaction loop. | Partial | Recovery scene v2 and atomic save/load contracts passed automated tests on 2026-07-10; player-loop scope and acceptance remain PSIM-0096. | PSIM-0096. |
 | R17.02 | Deliver accessible player-facing SDL UI. | Partial | Existing UI needs scope reduction and recovered acceptance. | PSIM-0096. |

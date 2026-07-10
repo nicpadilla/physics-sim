@@ -12,7 +12,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0092 | Done | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
-| PSIM-0095 | Open | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
+| PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | Open | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Open | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
@@ -339,7 +339,7 @@ Implementation notes:
 
 ### PSIM-0095: Reconstruct cohesive water and semantic visual gates
 
-Status: Open
+Status: In Progress
 
 Priority: P0
 
@@ -382,7 +382,10 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added deterministic thresholded marching-triangle surface reconstruction, read-only fixed-step interpolation, and SDL geometry rendering with a uniform connected fill.
+- Added semantic state analysis for occupied extents, connected components, isolated cells, and water outside an allowed region, with focused synthetic basin coverage.
+- A Release fixed-tick capture was generated at `build/windows-x64/release-surface-240.bmp` and inspected as implementation evidence. Human acceptance, canonical scene thresholds, contact sheets, and baseline replacement remain open; no golden was changed.
+- Verification on 2026-07-10: `build.ps1` passed; `test.ps1 -Tier Fast` passed 24/24 in 3.4 seconds; `check-tracking.ps1` passed. The legacy Debug 2400-tick visual command exceeds 120 seconds after solver recovery and remains a PSIM-0098/0095 optimization target.
 
 ## Epic 16: Product Experiences
 

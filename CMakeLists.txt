@@ -25,6 +25,7 @@ target_compile_features(physics_sim_content PUBLIC cxx_std_20)
 
 add_library(physics_sim_app STATIC
     src/app/application.cpp
+    src/app/surface_reconstruction.cpp
 )
 target_link_libraries(physics_sim_app PUBLIC physics_sim_content physics_sim_core SDL2::SDL2)
 target_compile_features(physics_sim_app PUBLIC cxx_std_20)
@@ -73,6 +74,16 @@ if(BUILD_TESTING)
         target_compile_definitions(physics_sim_simulation_api_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
     add_test(NAME physics_sim_simulation_api_tests COMMAND physics_sim_simulation_api_tests)
+    add_executable(physics_sim_surface_reconstruction_tests
+        tests/surface_reconstruction_tests.cpp
+    )
+    target_link_libraries(physics_sim_surface_reconstruction_tests PRIVATE physics_sim_app)
+    target_compile_features(physics_sim_surface_reconstruction_tests PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(physics_sim_surface_reconstruction_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_surface_reconstruction_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_surface_reconstruction_tests COMMAND physics_sim_surface_reconstruction_tests)
     add_test(NAME physics_sim_dependency_check
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-dependencies.ps1
     )
@@ -532,6 +543,7 @@ if(BUILD_TESTING)
 
     set_tests_properties(
         physics_sim_simulation_api_tests
+        physics_sim_surface_reconstruction_tests
         physics_sim_dependency_check
         physics_sim_tests
         physics_sim_wall_tests

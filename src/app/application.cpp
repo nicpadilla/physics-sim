@@ -43,6 +43,7 @@
 #include <physics_sim/ui_palette.hpp>
 #include <physics_sim/user_settings.hpp>
 #include <physics_sim/simulation_state.hpp>
+#include <physics_sim/surface_reconstruction.hpp>
 #include <physics_sim/visual_mode.hpp>
 #include <physics_sim/water_simulation.hpp>
 
@@ -705,7 +706,8 @@ void draw_fluid_surface(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
-    const physics_sim::UiPalette& palette)
+    const physics_sim::UiPalette& palette,
+    float interpolation_alpha)
 {
     const auto& grid = simulation.grid();
     if (grid.width() == 0 || grid.height() == 0)
@@ -713,58 +715,59 @@ void draw_fluid_surface(
         return;
     }
 
-    constexpr float visible_threshold = 0.05f;
-    const float cell_size = grid.cell_size();
+    constexpr float visible_threshold = 0.25f;
+    std::vector<float> fractions(grid.cell_count(), 0.0f);
+    std::vector<std::uint8_t> solids(grid.cell_count(), 0);
     for (std::size_t y = 0; y < grid.height(); ++y)
     {
         for (std::size_t x = 0; x < grid.width(); ++x)
         {
-            if (grid.solid(x, y))
-            {
-                continue;
-            }
-
-            const float volume_fraction = std::clamp(simulation.cell_volume_fraction(x, y), 0.0f, 1.0f);
-            if (volume_fraction <= visible_threshold)
-            {
-                continue;
-            }
-
-            const std::uint8_t alpha = static_cast<std::uint8_t>(std::min(235.0f, 96.0f + volume_fraction * 139.0f));
-            SDL_SetRenderDrawColor(renderer, palette.water.r, palette.water.g, palette.water.b, alpha);
-            const SDL_FRect rect = world_rect(
-                viewport,
-                {static_cast<float>(x) * cell_size, static_cast<float>(y) * cell_size},
-                {cell_size, cell_size});
-            SDL_RenderFillRectF(renderer, &rect);
-
-            const auto neighbor_fraction = [&](int nx, int ny) noexcept
-            {
-                if (nx < 0 || ny < 0 || static_cast<std::size_t>(nx) >= grid.width() || static_cast<std::size_t>(ny) >= grid.height())
-                {
-                    return 0.0f;
-                }
-                return simulation.cell_volume_fraction(static_cast<std::size_t>(nx), static_cast<std::size_t>(ny));
-            };
-
-            SDL_SetRenderDrawColor(renderer, 210, 246, 255, static_cast<std::uint8_t>(std::min(210.0f, 80.0f + volume_fraction * 130.0f)));
-            if (neighbor_fraction(static_cast<int>(x), static_cast<int>(y) - 1) <= visible_threshold)
-            {
-                SDL_RenderDrawLineF(renderer, rect.x, rect.y, rect.x + rect.w, rect.y);
-            }
-            if (neighbor_fraction(static_cast<int>(x) - 1, static_cast<int>(y)) <= visible_threshold)
-            {
-                SDL_RenderDrawLineF(renderer, rect.x, rect.y, rect.x, rect.y + rect.h);
-            }
-            if (neighbor_fraction(static_cast<int>(x) + 1, static_cast<int>(y)) <= visible_threshold)
-            {
-                SDL_RenderDrawLineF(renderer, rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + rect.h);
-            }
-            if (neighbor_fraction(static_cast<int>(x), static_cast<int>(y) + 1) <= visible_threshold)
-            {
-                SDL_RenderDrawLineF(renderer, rect.x, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h);
-            }
+            const std::size_t index = y * grid.width() + x;
+            solids[index] = grid.solid(x, y) ? 1 : 0;
+            fractions[index] = solids[index] == 0 ? simulation.cell_volume_fraction(x, y) : 0.0f;
         }
+    }
+
+    struct SurfaceHistory
+    {
+        std::size_t width = 0;
+        std::size_t height = 0;
+        std::vector<float> previous{};
+        std::vector<float> current{};
+    };
+    static SurfaceHistory history;
+    if (history.width != grid.width() || history.height != grid.height() || history.current.size() != fractions.size())
+    {
+        history = {grid.width(), grid.height(), fractions, fractions};
+    }
+    else if (history.current != fractions)
+    {
+        history.previous = std::move(history.current);
+        history.current = fractions;
+    }
+    interpolation_alpha = std::clamp(interpolation_alpha, 0.0f, 1.0f);
+    std::vector<float> interpolated(fractions.size(), 0.0f);
+    for (std::size_t index = 0; index < interpolated.size(); ++index)
+    {
+        interpolated[index] = history.previous[index] + (history.current[index] - history.previous[index]) * interpolation_alpha;
+    }
+
+    const auto surface = physics_sim::reconstruct_surface(
+        interpolated, solids, grid.width(), grid.height(), grid.cell_size(), visible_threshold);
+    std::vector<SDL_Vertex> vertices;
+    vertices.reserve(surface.size() * 3);
+    for (const auto& triangle : surface)
+    {
+        const SDL_Color color{palette.water.r, palette.water.g, palette.water.b, 220};
+        for (const auto& point : {triangle.a, triangle.b, triangle.c})
+        {
+            const physics_sim::Vec2 window = viewport.world_to_window({point.x, point.y});
+            vertices.push_back({{window.x, window.y}, color, {0.0f, 0.0f}});
+        }
+    }
+    if (!vertices.empty())
+    {
+        SDL_RenderGeometry(renderer, nullptr, vertices.data(), static_cast<int>(vertices.size()), nullptr, 0);
     }
 }
 
@@ -4412,7 +4415,10 @@ int physics_sim::app::run_application(int argc, char* argv[])
         draw_grid(renderer, viewport, simulation, palette);
         if (visualMode == VisualMode::Surface)
         {
-            draw_fluid_surface(renderer, viewport, simulation, palette);
+            const float interpolationAlpha = captureByTickCount
+                ? 1.0f
+                : static_cast<float>(stepDriver.accumulator().count() / stepDriver.fixed_step().count());
+            draw_fluid_surface(renderer, viewport, simulation, palette, interpolationAlpha);
         }
         else if (visualMode != VisualMode::Particles)
         {
