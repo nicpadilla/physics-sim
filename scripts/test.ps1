@@ -20,7 +20,7 @@ switch ($Tier)
 {
     'Fast'
     {
-        $arguments += @('-LE', 'solver|visual|benchmark|release')
+        $arguments += @('-LE', 'solver|stress|visual|benchmark|release')
         $budgetSeconds = 30
     }
     'Standard'

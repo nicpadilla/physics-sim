@@ -556,6 +556,9 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_lab_smoke
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild
     )
+    add_test(NAME physics_sim_lab_canonical
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild -Canonical
+    )
     add_test(NAME physics_sim_package
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
     )
@@ -597,6 +600,7 @@ if(BUILD_TESTING)
     set_tests_properties(physics_sim_fluid_quality_full PROPERTIES LABELS "solver;stress")
     set_tests_properties(physics_sim_solver_benchmark PROPERTIES LABELS "benchmark")
     set_tests_properties(physics_sim_smoke physics_sim_lab_smoke PROPERTIES LABELS "smoke")
+    set_tests_properties(physics_sim_lab_canonical PROPERTIES LABELS "integration;stress")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")
     set_tests_properties(
         physics_sim_demo_regression

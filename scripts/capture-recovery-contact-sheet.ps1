@@ -1,6 +1,6 @@
 param(
-    [ValidateRange(10, 6000)]
-    [int]$Tick = 60,
+    [ValidateRange(0, 6000)]
+    [int]$Tick = 0,
     [switch]$SkipBuild
 )
 
@@ -15,19 +15,20 @@ if (Test-Path -LiteralPath $outputRoot) { Remove-Item -LiteralPath $outputRoot -
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
 $scenarios = @(
-    [ordered]@{ Index = 1; Name = 'U-container' },
-    [ordered]@{ Index = 2; Name = 'Still pool' },
-    [ordered]@{ Index = 3; Name = 'Hydrostatic column' },
-    [ordered]@{ Index = 4; Name = 'Dam break' },
-    [ordered]@{ Index = 5; Name = 'Wall and corner impact' },
-    [ordered]@{ Index = 6; Name = 'Narrow channel' },
-    [ordered]@{ Index = 8; Name = 'Long run' }
+    [ordered]@{ Index = 1; Name = 'U-container'; CaptureTick = 2400 },
+    [ordered]@{ Index = 2; Name = 'Still pool'; CaptureTick = 1200 },
+    [ordered]@{ Index = 3; Name = 'Hydrostatic column'; CaptureTick = 1200 },
+    [ordered]@{ Index = 4; Name = 'Dam break'; CaptureTick = 480 },
+    [ordered]@{ Index = 5; Name = 'Wall and corner impact'; CaptureTick = 360 },
+    [ordered]@{ Index = 6; Name = 'Narrow channel'; CaptureTick = 480 },
+    [ordered]@{ Index = 8; Name = 'Long run'; CaptureTick = 6000 }
 )
 $captures = @()
 foreach ($scenario in $scenarios)
 {
     $bundle = Join-Path $outputRoot ("scenario-{0:D2}" -f $scenario.Index)
-    $arguments = @('--mode', 'lab', '--scenario', $scenario.Index, '--field', 'surface', '--capture-tick', $Tick,
+    $captureTick = if ($Tick -gt 0) { $Tick } else { $scenario.CaptureTick }
+    $arguments = @('--mode', 'lab', '--scenario', $scenario.Index, '--field', 'surface', '--capture-tick', $captureTick,
         '--capture-bundle', $bundle, '--auto-exit-ms', '30000')
     $process = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
     if (-not $process.WaitForExit(60000))
@@ -89,7 +90,7 @@ finally
 
 $review = [ordered]@{
     generated_at = (Get-Date).ToString('o')
-    tick = $Tick
+    tick_selection = if ($Tick -gt 0) { "override:$Tick" } else { 'scenario-specific accepted checkpoints' }
     numeric_evidence = 'build/windows-x64/fluid-quality-suite/summary.json'
     contact_sheet = (Join-Path $outputRoot 'recovery-contact-sheet.bmp')
     review_status = 'Pending named human review'

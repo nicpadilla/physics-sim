@@ -123,13 +123,13 @@ void add_basin(Simulation &simulation, const SimulationConfig &config, float emi
     }
     if (emitter)
     {
-        simulation.apply(AddEmitterCommand{
-            SimulationEmitterKind::Directional,
-            {static_cast<float>(config.grid_width) * config.cell_size * 0.5f, static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
-            {0.0f, 1.0f},
-            1.0f,
-            emission_rate,
-            true});
+        simulation.apply(AddEmitterCommand{SimulationEmitterKind::Directional,
+                                           {static_cast<float>(config.grid_width) * config.cell_size * 0.5f,
+                                            canonical_small ? static_cast<float>(config.grid_height) * config.cell_size * 0.18f : 10.0f * config.cell_size},
+                                           {0.0f, 1.0f},
+                                           1.0f,
+                                           emission_rate,
+                                           true});
     }
 }
 
@@ -142,12 +142,36 @@ std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile pro
         config.grid_height = 24;
         config.cell_size = 1.0f;
     }
+    else if (scenario == 4)
+    {
+        config.grid_width = 24;
+        config.grid_height = 12;
+        config.cell_size = 1.0f;
+    }
+    else if (scenario == 6)
+    {
+        config.grid_width = 32;
+        config.grid_height = 24;
+        config.cell_size = 1.0f;
+    }
+    else if (scenario == 7)
+    {
+        config.grid_width = 8;
+        config.grid_height = 8;
+        config.cell_size = 1.0f;
+    }
+    else if (scenario == 8)
+    {
+        config.grid_width = 12;
+        config.grid_height = 12;
+        config.cell_size = 1.0f;
+    }
     config.solver_profile = profile;
     config.gravity_acceleration = gravity;
     config.fixed_timestep = timestep;
     auto simulation = std::make_unique<Simulation>(config);
     add_border(*simulation, config);
-    if (scenario == 1 || scenario == 8 || scenario == 9)
+    if (scenario == 1 || scenario == 9)
     {
         add_basin(*simulation, config, emission_rate, true);
     }
@@ -178,9 +202,16 @@ std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile pro
     }
     else if (scenario == 4)
     {
-        for (std::size_t y = 12; y < 36; ++y)
+        for (std::size_t y = 1; y <= 10; ++y)
         {
-            for (std::size_t x = 8; x < 27; ++x)
+            if (y < 4 || y > 6)
+            {
+                simulation->apply(SetSolidCellCommand{12, y, true});
+            }
+        }
+        for (std::size_t y = 1; y <= 9; ++y)
+        {
+            for (std::size_t x = 2; x <= 11; ++x)
             {
                 seed_cell(*simulation, config, x, y);
             }
@@ -198,19 +229,27 @@ std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile pro
     }
     else if (scenario == 6)
     {
-        for (std::size_t x = 1; x < config.grid_width - 1; ++x)
+        for (std::size_t y = 1; y <= 22; ++y)
         {
-            simulation->apply(SetSolidCellCommand{x, 18, x < 10 || x > 70});
-            simulation->apply(SetSolidCellCommand{x, 27, true});
+            if (y != 10 && y != 11)
+            {
+                simulation->apply(SetSolidCellCommand{14, y, true});
+                simulation->apply(SetSolidCellCommand{17, y, true});
+            }
         }
-        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {96.0f, 360.0f}, {1.0f, 0.0f}, 6.0f, emission_rate, true});
+        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {4.5f, 5.5f}, {0.0f, 1.0f}, 4.0f, 28.0f, true});
     }
     else if (scenario == 7)
     {
         for (int index = 0; index < 80; ++index)
         {
-            simulation->apply(SeedParticleCommand{{640.0f + static_cast<float>(index % 5), 360.0f + static_cast<float>(index / 5)}, {}});
+            simulation->apply(SeedParticleCommand{{4.0f + static_cast<float>(index % 5) * 0.02f, 4.0f + static_cast<float>(index / 5) * 0.02f}, {}});
         }
+    }
+    else if (scenario == 8)
+    {
+        simulation->apply(AddEmitterCommand{
+            SimulationEmitterKind::Directional, {6.0f, 2.0f}, {0.0f, 1.0f}, 6.0f, profile == FluidSolverProfile::Quality ? 6.0f : 3.0f, true});
     }
     return simulation;
 }
@@ -313,7 +352,7 @@ bool write_capture_bundle(const std::filesystem::path &directory, int scenario_i
     const SimulationMetrics metrics = simulation.metrics();
     const SimulationConfig &config = simulation.config();
     const SimulationSnapshot snapshot = simulation.snapshot();
-    const bool basin = scenario_index == 1 || scenario_index == 8 || scenario_index == 9;
+    const bool basin = scenario_index == 1 || scenario_index == 9;
     const SurfaceSemantics semantics =
         analyze_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, 0.25f, basin ? config.grid_width / 4 : 0,
                         basin ? config.grid_width * 3 / 4 : config.grid_width - 1, 0, basin ? config.grid_height * 4 / 5 : config.grid_height - 1);
@@ -475,7 +514,7 @@ int run_lab_application(int argc, char *argv[])
             const std::uint64_t steps = options.capture_bundle ? std::max<std::uint64_t>(1, options.capture_tick - simulation->metrics().tick) : 1;
             for (std::uint64_t step = 0; step < steps; ++step)
             {
-                if ((scenario == 1 || scenario == 8 || scenario == 9) && simulation->metrics().tick == 1200)
+                if ((scenario == 1 || scenario == 9) && simulation->metrics().tick == 1200)
                 {
                     simulation->apply(ClearEmittersCommand{});
                     balanced_comparison->apply(ClearEmittersCommand{});

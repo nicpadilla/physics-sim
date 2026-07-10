@@ -11,7 +11,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0091 | Done | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
 | PSIM-0092 | Done | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
-| PSIM-0094 | In Progress | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
+| PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Done | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
@@ -288,7 +288,7 @@ Implementation notes:
 
 ### PSIM-0094: Correct solver behavior against recovery gates
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -335,6 +335,8 @@ Implementation notes:
 - The recovery scenarios pass mass, momentum, pressure, penetration, finiteness, lifecycle, U-container retention, still-pool settling, density, and long-run gates for both balanced and quality profiles. Numeric acceptance is separate from the still-open PSIM-0095 visual/human gate.
 - The 2026-07-10 contact-sheet review exposed that the prior U-container test emitted for only 1 second and ended after 6 seconds. The issue was reopened and the canonical test was corrected to the required 10-second emission plus 10-second settling interval with an explicit 99% remaining-mass containment gate; current visual settling remains under investigation.
 - Corrected balanced and quality runs passed the 2400-tick containment, mass, pressure, determinism, and zero-penetration gates on 2026-07-10 (31.7 and 33.2 seconds including repeated executions). The long canonical suite is now a full-tier stress test so Standard retains representative solver coverage without violating its 90-second budget.
+- Root-cause correction on 2026-07-10 removed the artificial pressure-cell air halo, applied the complete projected PIC/FLIP transfer instead of discarding 90% of it, and limited density-correction velocity injection. The corrected U scenario now also freezes pool height and settled kinetic-energy thresholds; balanced/quality ended at 27,961/12,844 energy with zero penetration and full containment.
+- Aligned the Quality particle/resampling discretization and corrected the long-run density kernel calibration. `verify-fluid-quality-suite.ps1` passed the complete balanced/quality matrix in 111.1 seconds; `test.ps1 -Tier Standard` passed 27/27 in 24.9 seconds.
 - Verification on 2026-07-10: `test.ps1 -Tier Standard` passed 25/25 in 78.2 seconds; `verify-fluid-quality-suite.ps1` passed 18/18 in about 303 seconds; `measure-water-solver.ps1 -Profile All` passed in Release with balanced and quality demo averages of 0.5028 ms and 0.6951 ms; `check-tracking.ps1` passed after tracking reconciliation.
 
 ## Epic 15: Water Presentation
@@ -390,6 +392,7 @@ Implementation notes:
 - Verification on 2026-07-10: `build.ps1` passed; `test.ps1 -Tier Fast` passed 24/24 in 3.4 seconds; `check-tracking.ps1` passed. The legacy Debug 2400-tick visual command exceeds 120 seconds after solver recovery and remains a PSIM-0098/0095 optimization target.
 - Extracted a platform-independent `physics_sim_presentation` target so sandbox and lab use the exact same continuous reconstruction. Lab capture metadata now records component, isolated-cell, and escaped-region counts; smoke enforces the U-container and still-pool semantic gates.
 - Added `capture-recovery-contact-sheet.ps1`, which produces fixed-tick continuous-surface scenario captures plus a review manifest without modifying goldens. The current manifest remains `Pending named human review`; visual tuning and acceptance are intentionally not self-certified.
+- Replaced the misleading universal tick-60 sheet with scenario-specific accepted checkpoints (including U at 2400, still pool at 1200, and long run at 6000). The regenerated candidate passes semantic gates, but its review manifest remains pending and legacy goldens remain untouched.
 
 ## Epic 16: Product Experiences
 
@@ -494,6 +497,7 @@ Implementation notes:
 - Added pinned Dear ImGui 1.92.8 through the vcpkg manifest and confined it to `physics_sim_lab`; core/content remain platform-independent and the SDL sandbox target has no ImGui dependency.
 - Added `--mode lab` composition dispatch, SDL2-hosted ImGui rendering, all 10 canonical scenarios, run/pause/step/replay controls, gravity/timestep/emission controls, metrics, plots, complete particle/velocity/pressure/divergence/density/volume/solid views, matched balanced/quality comparison, and run identity/fork status.
 - Added command-based particle seeding for deterministic initial states. Capture bundles record scenario, tick, digest, fixed timestep, gravity, profile, metrics JSON, and image.
+- Reconciled Lab's duplicated scenario configurations with the validated canonical grids, emitters, obstacles, and checkpoints. Canonical Lab capture now exercises all 10 scenarios at their acceptance ticks; U-container, narrow-channel, and 6000-tick long-run semantic/energy gates prevent the previously observed floating or fragmented results.
 - Verification on 2026-07-10: `build.ps1` passed with `/W4 /WX`; `run-lab-smoke.ps1 -SkipBuild` launched and captured all 10 scenarios; simulation API tests and dependency validation passed.
 
 ## Epic 17: Verification And Release
@@ -546,6 +550,7 @@ Implementation notes:
 - Added Fast, Standard, and Full tiers, parallel label selection, Release prebuild for Full packaging, and CTest labels for unit, integration, solver, visual, benchmark, smoke, and release coverage.
 - Fast passed 25/25 in 8.6 seconds and Standard passed 27/27 in 25.9 seconds on 2026-07-10 after the canonical 2400-tick suite moved to the explicit `stress` label.
 - Full completed in 157.7 seconds on 2026-07-10: 30/33 tests passed, including the complete canonical solver suite, benchmark, package, smoke, and all non-visual coverage. The three expected legacy image-hash comparisons failed and preserved captures; their baselines remain unchanged pending PSIM-0095 named human acceptance.
+- After solver and canonical Lab reconciliation, Fast passed 25/25 in 4.1 seconds and Full completed 31/34 in 71.8 seconds on 2026-07-10. The only failures remain the three intentionally stale visual hashes; Full now includes the 10-scenario acceptance-tick Lab matrix as a stress test.
 - Fluid-quality, lab, and legacy visual failures now retain structured JSON/image/log artifacts; successful visual captures are cleaned only after their hashes match. The 2026-07-10 forced mismatch check preserved both the BMP and result JSON with baseline/capture hashes and artifact paths. This issue remains open until accepted recovered baselines make Full green.
 
 ### PSIM-0099: Add CI, hygiene, and prerelease packaging
