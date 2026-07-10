@@ -35,6 +35,10 @@ switch ($Tier)
 }
 
 Write-Host "[tests] tier=$Tier budget_seconds=$budgetSeconds"
+if ($Tier -eq 'Full')
+{
+    & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Release
+}
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 & $ctest @arguments
 $exitCode = $LASTEXITCODE

@@ -1,3 +1,8 @@
+param(
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Debug'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $bundledCMake = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
@@ -18,4 +23,5 @@ if (-not $cmake) {
 }
 
 & $cmake --preset windows-x64
-& $cmake --build --preset windows-x64-debug
+$preset = if ($Configuration -eq 'Release') { 'windows-x64-release' } else { 'windows-x64-debug' }
+& $cmake --build --preset $preset

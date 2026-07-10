@@ -13,9 +13,8 @@ namespace physics_sim
 {
 class Simulation::Impl
 {
-public:
-    explicit Impl(SimulationConfig requested)
-        : config{sanitize(requested)}, water{config.grid_width, config.grid_height, config.cell_size}
+  public:
+    explicit Impl(SimulationConfig requested) : config{sanitize(requested)}, water{config.grid_width, config.grid_height, config.cell_size}
     {
         apply_config();
     }
@@ -53,16 +52,15 @@ public:
     bool single_step_pending = false;
 };
 
-Simulation::Simulation(const SimulationConfig& config)
-    : impl_{std::make_unique<Impl>(config)}
+Simulation::Simulation(const SimulationConfig &config) : impl_{std::make_unique<Impl>(config)}
 {
 }
 
 Simulation::~Simulation() = default;
-Simulation::Simulation(Simulation&&) noexcept = default;
-Simulation& Simulation::operator=(Simulation&&) noexcept = default;
+Simulation::Simulation(Simulation &&) noexcept = default;
+Simulation &Simulation::operator=(Simulation &&) noexcept = default;
 
-const SimulationConfig& Simulation::config() const noexcept
+const SimulationConfig &Simulation::config() const noexcept
 {
     return impl_->config;
 }
@@ -72,10 +70,10 @@ bool Simulation::paused() const noexcept
     return impl_->paused;
 }
 
-void Simulation::apply(const SimulationCommand& command)
+void Simulation::apply(const SimulationCommand &command)
 {
     std::visit(
-        [this](const auto& value)
+        [this](const auto &value)
         {
             using Command = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<Command, ClearFluidCommand>)
@@ -164,7 +162,7 @@ SimulationSnapshot Simulation::snapshot() const
 
 SimulationMetrics Simulation::metrics() const noexcept
 {
-    const auto& source = impl_->water.metrics();
+    const auto &source = impl_->water.metrics();
     SimulationMetrics result;
     result.tick = impl_->tick;
     result.active_particles = source.active_particles;
@@ -200,16 +198,13 @@ std::string Simulation::state_digest() const
             hash *= 1099511628211ULL;
         }
     };
-    const auto mix_float = [&mix](float value)
-    {
-        mix(std::bit_cast<std::uint32_t>(value));
-    };
+    const auto mix_float = [&mix](float value) { mix(std::bit_cast<std::uint32_t>(value)); };
 
     mix(state.tick);
     mix(state.grid_width);
     mix(state.grid_height);
     mix_float(state.cell_size);
-    for (const auto& particle : state.particles)
+    for (const auto &particle : state.particles)
     {
         mix_float(particle.position.x);
         mix_float(particle.position.y);

@@ -16,7 +16,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | In Progress | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
-| PSIM-0099 | Open | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
+| PSIM-0099 | In Progress | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Open | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Open | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
 
@@ -537,11 +537,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added Fast, Standard, and Full tiers, parallel label selection, Release prebuild for Full packaging, and CTest labels for unit, integration, solver, visual, benchmark, smoke, and release coverage.
+- Fast passed 25/25 in 3.3 seconds and Standard passed 25/25 in 78.2 seconds on 2026-07-10. Full is intentionally still open because recovered visual/replay baselines have not passed numeric-plus-human acceptance.
+- Fluid-quality and lab failures now retain structured JSON/image/log artifacts. Legacy visual/replay scripts still require uniform result JSON and success-only cleanup before this issue can close.
 
 ### PSIM-0099: Add CI, hygiene, and prerelease packaging
 
-Status: Open
+Status: In Progress
 
 Priority: P1
 
@@ -586,7 +588,10 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added Windows GitHub Actions for PR Fast, default-branch Standard, nightly/manual/tag Full, vcpkg caching, release packaging, and failure-evidence upload. Execution remains blocked on the external user-owned remote prerequisite.
+- Enabled `/W4 /WX` for project targets and added non-rewriting clang-format, focused core clang-tidy, dependency direction, tracked secret, and absolute-path validation. `check-hygiene.ps1` passed on 2026-07-10.
+- Rebuilt Release packaging as `0.2.0-alpha.1` with only the recovery basin/tutorial content, SDL runtime, ImGui/SDL licenses, version/commit manifest, per-file and ZIP SHA-256, verification evidence, and sandbox/lab smoke from the package directory.
+- Verification on 2026-07-10: Release build and packaged sandbox/lab smoke passed in 83.6 seconds; archive SHA-256 was `46c5bfcaf2cc6da28bad48b88cf8cb73d8c5f655f931e1933e8ad7116de95fc6`. Final Full/CI evidence and remote protection remain open.
 
 ## Epic 18: Selective Restoration
 

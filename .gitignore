@@ -7,4 +7,4 @@ vcpkg_installed/
 *.VC.VC.opendb
 *.log
 .vs/
-
+dist/

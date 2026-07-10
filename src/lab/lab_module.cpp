@@ -8,8 +8,8 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cfloat>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -32,7 +32,7 @@ struct LabOptions
     std::optional<std::filesystem::path> capture_bundle{};
 };
 
-LabOptions parse_options(int argc, char* argv[])
+LabOptions parse_options(int argc, char *argv[])
 {
     LabOptions options;
     for (int index = 1; index < argc; ++index)
@@ -50,7 +50,7 @@ LabOptions parse_options(int argc, char* argv[])
     return options;
 }
 
-void add_basin(Simulation& simulation, const SimulationConfig& config, float emission_rate)
+void add_basin(Simulation &simulation, const SimulationConfig &config, float emission_rate)
 {
     const std::size_t left = config.grid_width / 4;
     const std::size_t right = config.grid_width * 3 / 4;
@@ -64,14 +64,13 @@ void add_basin(Simulation& simulation, const SimulationConfig& config, float emi
     {
         simulation.apply(SetSolidCellCommand{x, floor, true});
     }
-    simulation.apply(AddEmitterCommand{
-        SimulationEmitterKind::Directional,
-        {static_cast<float>(config.grid_width) * config.cell_size * 0.5f,
-         static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
-        {0.0f, 1.0f},
-        5.0f,
-        emission_rate,
-        true});
+    simulation.apply(
+        AddEmitterCommand{SimulationEmitterKind::Directional,
+                          {static_cast<float>(config.grid_width) * config.cell_size * 0.5f, static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
+                          {0.0f, 1.0f},
+                          5.0f,
+                          emission_rate,
+                          true});
 }
 
 std::unique_ptr<Simulation> make_simulation(FluidSolverProfile profile, float gravity, double timestep, float emission_rate)
@@ -85,13 +84,13 @@ std::unique_ptr<Simulation> make_simulation(FluidSolverProfile profile, float gr
     return simulation;
 }
 
-SDL_Texture* create_font_texture(SDL_Renderer* renderer)
+SDL_Texture *create_font_texture(SDL_Renderer *renderer)
 {
-    unsigned char* pixels = nullptr;
+    unsigned char *pixels = nullptr;
     int width = 0;
     int height = 0;
     ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, width, height);
+    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, width, height);
     if (texture == nullptr)
     {
         return nullptr;
@@ -102,14 +101,14 @@ SDL_Texture* create_font_texture(SDL_Renderer* renderer)
     return texture;
 }
 
-void render_imgui(SDL_Renderer* renderer, ImDrawData* draw_data)
+void render_imgui(SDL_Renderer *renderer, ImDrawData *draw_data)
 {
     const ImVec2 display_position = draw_data->DisplayPos;
     const ImVec2 scale = draw_data->FramebufferScale;
     for (int list_index = 0; list_index < draw_data->CmdListsCount; ++list_index)
     {
-        const ImDrawList* list = draw_data->CmdLists[list_index];
-        for (const ImDrawCmd& command : list->CmdBuffer)
+        const ImDrawList *list = draw_data->CmdLists[list_index];
+        for (const ImDrawCmd &command : list->CmdBuffer)
         {
             if (command.UserCallback != nullptr)
             {
@@ -117,10 +116,8 @@ void render_imgui(SDL_Renderer* renderer, ImDrawData* draw_data)
                 continue;
             }
             SDL_Rect clip{
-                static_cast<int>((command.ClipRect.x - display_position.x) * scale.x),
-                static_cast<int>((command.ClipRect.y - display_position.y) * scale.y),
-                static_cast<int>((command.ClipRect.z - command.ClipRect.x) * scale.x),
-                static_cast<int>((command.ClipRect.w - command.ClipRect.y) * scale.y)};
+                static_cast<int>((command.ClipRect.x - display_position.x) * scale.x), static_cast<int>((command.ClipRect.y - display_position.y) * scale.y),
+                static_cast<int>((command.ClipRect.z - command.ClipRect.x) * scale.x), static_cast<int>((command.ClipRect.w - command.ClipRect.y) * scale.y)};
             SDL_RenderSetClipRect(renderer, &clip);
 
             std::vector<SDL_Vertex> vertices(command.ElemCount);
@@ -128,26 +125,24 @@ void render_imgui(SDL_Renderer* renderer, ImDrawData* draw_data)
             for (unsigned int element = 0; element < command.ElemCount; ++element)
             {
                 const ImDrawIdx source_index = list->IdxBuffer[command.IdxOffset + element];
-                const ImDrawVert& source = list->VtxBuffer[command.VtxOffset + source_index];
+                const ImDrawVert &source = list->VtxBuffer[command.VtxOffset + source_index];
                 const ImU32 color = source.col;
-                vertices[element] = {
-                    {(source.pos.x - display_position.x) * scale.x, (source.pos.y - display_position.y) * scale.y},
-                    {static_cast<std::uint8_t>(color & 0xff), static_cast<std::uint8_t>((color >> 8) & 0xff),
-                     static_cast<std::uint8_t>((color >> 16) & 0xff), static_cast<std::uint8_t>((color >> 24) & 0xff)},
-                    {source.uv.x, source.uv.y}};
+                vertices[element] = {{(source.pos.x - display_position.x) * scale.x, (source.pos.y - display_position.y) * scale.y},
+                                     {static_cast<std::uint8_t>(color & 0xff), static_cast<std::uint8_t>((color >> 8) & 0xff),
+                                      static_cast<std::uint8_t>((color >> 16) & 0xff), static_cast<std::uint8_t>((color >> 24) & 0xff)},
+                                     {source.uv.x, source.uv.y}};
                 indices[element] = static_cast<int>(element);
             }
-            SDL_Texture* texture = reinterpret_cast<SDL_Texture*>(static_cast<std::uintptr_t>(command.GetTexID()));
-            SDL_RenderGeometry(renderer, texture, vertices.data(), static_cast<int>(vertices.size()),
-                indices.data(), static_cast<int>(indices.size()));
+            SDL_Texture *texture = reinterpret_cast<SDL_Texture *>(static_cast<std::uintptr_t>(command.GetTexID()));
+            SDL_RenderGeometry(renderer, texture, vertices.data(), static_cast<int>(vertices.size()), indices.data(), static_cast<int>(indices.size()));
         }
     }
     SDL_RenderSetClipRect(renderer, nullptr);
 }
 
-void process_event(const SDL_Event& event, bool& running)
+void process_event(const SDL_Event &event, bool &running)
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = nullptr;
     switch (event.type)
     {
@@ -175,7 +170,7 @@ void process_event(const SDL_Event& event, bool& running)
     }
 }
 
-bool write_capture_bundle(const std::filesystem::path& directory, const Simulation& simulation, SDL_Renderer* renderer, int width, int height)
+bool write_capture_bundle(const std::filesystem::path &directory, const Simulation &simulation, SDL_Renderer *renderer, int width, int height)
 {
     std::error_code error;
     std::filesystem::create_directories(directory, error);
@@ -185,37 +180,34 @@ bool write_capture_bundle(const std::filesystem::path& directory, const Simulati
     }
     const SimulationMetrics metrics = simulation.metrics();
     std::ofstream json{directory / "metrics.json", std::ios::trunc};
-    json << "{\n  \"tick\": " << metrics.tick
-         << ",\n  \"state_digest\": \"" << simulation.state_digest()
-         << "\",\n  \"active_particles\": " << metrics.active_particles
-         << ",\n  \"active_cells\": " << metrics.active_cells
-         << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual
-         << ",\n  \"average_density_error\": " << metrics.average_density_error
+    json << "{\n  \"tick\": " << metrics.tick << ",\n  \"state_digest\": \"" << simulation.state_digest()
+         << "\",\n  \"active_particles\": " << metrics.active_particles << ",\n  \"active_cells\": " << metrics.active_cells
+         << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual << ",\n  \"average_density_error\": " << metrics.average_density_error
          << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << "\n}\n";
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
     if (surface == nullptr)
     {
         return false;
     }
     const bool ok = SDL_RenderReadPixels(renderer, nullptr, surface->format->format, surface->pixels, surface->pitch) == 0 &&
-        SDL_SaveBMP(surface, (directory / "frame.bmp").string().c_str()) == 0;
+                    SDL_SaveBMP(surface, (directory / "frame.bmp").string().c_str()) == 0;
     SDL_FreeSurface(surface);
     return ok && json.good();
 }
 
 } // namespace
 
-int run_lab_application(int argc, char* argv[])
+int run_lab_application(int argc, char *argv[])
 {
     const LabOptions options = parse_options(argc, argv);
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
     {
         return 1;
     }
-    SDL_Window* window = SDL_CreateWindow("Physics Sim Lab", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        1280, 800, SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Renderer* renderer = window == nullptr ? nullptr : SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Window *window =
+        SDL_CreateWindow("Physics Sim Lab", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 800, SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Renderer *renderer = window == nullptr ? nullptr : SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == nullptr && window != nullptr)
     {
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
@@ -229,9 +221,9 @@ int run_lab_application(int argc, char* argv[])
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    SDL_Texture* font_texture = create_font_texture(renderer);
+    SDL_Texture *font_texture = create_font_texture(renderer);
     if (font_texture == nullptr)
     {
         ImGui::DestroyContext();
@@ -322,8 +314,8 @@ int run_lab_application(int argc, char* argv[])
             identity_diverged = true;
         }
         ImGui::Text("Run identity: %s", simulation->state_digest().c_str());
-        ImGui::TextColored(identity_diverged ? ImVec4{1.0f, 0.55f, 0.25f, 1.0f} : ImVec4{0.35f, 0.9f, 0.5f, 1.0f},
-            "%s", identity_diverged ? "Forked from initial configuration" : "Matches initial configuration");
+        ImGui::TextColored(identity_diverged ? ImVec4{1.0f, 0.55f, 0.25f, 1.0f} : ImVec4{0.35f, 0.9f, 0.5f, 1.0f}, "%s",
+                           identity_diverged ? "Forked from initial configuration" : "Matches initial configuration");
         ImGui::End();
 
         if (!paused)
@@ -348,9 +340,9 @@ int run_lab_application(int argc, char* argv[])
         ImGui::Text("Density error avg %.5f max %.5f", metrics.average_density_error, metrics.max_density_error);
         ImGui::Text("Kinetic energy %.3f", metrics.kinetic_energy);
         ImGui::PlotLines("Particle history", particle_history.data(), static_cast<int>(particle_history.size()),
-            static_cast<int>(history_cursor % particle_history.size()), nullptr, 0.0f, FLT_MAX, {0.0f, 80.0f});
+                         static_cast<int>(history_cursor % particle_history.size()), nullptr, 0.0f, FLT_MAX, {0.0f, 80.0f});
         ImGui::PlotLines("Pressure residual", residual_history.data(), static_cast<int>(residual_history.size()),
-            static_cast<int>(history_cursor % residual_history.size()), nullptr, 0.0f, 0.001f, {0.0f, 80.0f});
+                         static_cast<int>(history_cursor % residual_history.size()), nullptr, 0.0f, 0.001f, {0.0f, 80.0f});
         ImGui::SeparatorText("Views");
         ImGui::TextUnformatted("Particles  Velocity  Pressure  Divergence  Density  Volume fraction  Solids");
         const SimulationMetrics balanced_metrics = balanced_comparison->metrics();
@@ -365,10 +357,10 @@ int run_lab_application(int argc, char* argv[])
         ImGui::SetNextWindowSize({650.0f, 770.0f}, ImGuiCond_Always);
         ImGui::Begin("Field View");
         static int field_view = 0;
-        ImGui::Combo("Field", &field_view, "Particles\0Volume fraction\0Solids\0" );
+        ImGui::Combo("Field", &field_view, "Particles\0Volume fraction\0Solids\0");
         const ImVec2 canvas_position = ImGui::GetCursorScreenPos();
         const ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        ImDrawList *draw_list = ImGui::GetWindowDrawList();
         draw_list->AddRectFilled(canvas_position, {canvas_position.x + canvas_size.x, canvas_position.y + canvas_size.y}, IM_COL32(8, 14, 24, 255));
         const SimulationSnapshot snapshot = simulation->snapshot();
         const float scale_x = canvas_size.x / (static_cast<float>(snapshot.grid_width) * snapshot.cell_size);
@@ -376,7 +368,7 @@ int run_lab_application(int argc, char* argv[])
         const float view_scale = std::max(0.01f, std::min(scale_x, scale_y));
         if (field_view == 0)
         {
-            for (const FluidParticle& particle : snapshot.particles)
+            for (const FluidParticle &particle : snapshot.particles)
             {
                 const ImVec2 point{canvas_position.x + particle.position.x * view_scale, canvas_position.y + particle.position.y * view_scale};
                 draw_list->AddCircleFilled(point, std::max(1.0f, snapshot.cell_size * view_scale * 0.18f), IM_COL32(45, 184, 225, 220));
@@ -395,9 +387,8 @@ int run_lab_application(int argc, char* argv[])
                     {
                         continue;
                     }
-                    const ImU32 color = field_view == 2
-                        ? IM_COL32(90, 100, 120, 255)
-                        : IM_COL32(45, 184, 225, static_cast<int>(std::clamp(60.0f + fraction * 195.0f, 60.0f, 255.0f)));
+                    const ImU32 color = field_view == 2 ? IM_COL32(90, 100, 120, 255)
+                                                        : IM_COL32(45, 184, 225, static_cast<int>(std::clamp(60.0f + fraction * 195.0f, 60.0f, 255.0f)));
                     const ImVec2 minimum{canvas_position.x + x * snapshot.cell_size * view_scale, canvas_position.y + y * snapshot.cell_size * view_scale};
                     const ImVec2 maximum{minimum.x + snapshot.cell_size * view_scale, minimum.y + snapshot.cell_size * view_scale};
                     draw_list->AddRectFilled(minimum, maximum, color);

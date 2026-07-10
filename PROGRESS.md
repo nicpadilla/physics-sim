@@ -28,12 +28,12 @@ Allowed statuses: `Missing`, `Partial`, `Implemented`, `Automated`, `Human Accep
 | R17.04 | Deliver Dear ImGui laboratory mode. | Implemented | `--mode lab` launches an SDL2-hosted Dear ImGui client with run controls, parameters, metrics, plots, field views, profile comparison, and capture bundles; scenario/replay breadth remains. | PSIM-0097. |
 | R17.05 | Make lab forks and digest divergence explicit. | Automated | Lab displays the deterministic state digest, marks parameter forks, resets on determinism-affecting changes, and `run-lab-smoke.ps1` validated a tick/digest/image bundle on 2026-07-10. | None. |
 | R17.06 | Keep deferred breadth out of the first recovery release UI. | Automated | Recovery menus omit gallery breadth, tool cycling is restricted to pour/draw/erase, and shortcuts 3-9 plus gallery paging are rejected; Fast passed on 2026-07-10. | None. |
-| R18.01 | Meet fast, standard, and full verification time budgets. | Missing | Current default test run takes about four minutes. | PSIM-0098. |
-| R18.02 | Label CTest coverage by purpose and cost. | Missing | Tests are currently unlabeled. | PSIM-0098. |
-| R18.03 | Retain structured failure artifacts. | Missing | Several regression scripts delete captures and emit unstructured logs. | PSIM-0098. |
-| R18.04 | Run Windows CI with scheduled and release verification. | Missing | No remote or CI workflow is configured. | PSIM-0099. |
-| R18.05 | Enforce static analysis and hygiene. | Partial | `/W4` and absolute-path checks exist; remaining gates are absent. | PSIM-0099. |
-| R18.06 | Produce and verify the recovery prerelease package. | Missing | No current package exists. | PSIM-0099. |
+| R18.01 | Meet fast, standard, and full verification time budgets. | Partial | Fast passed 25/25 in 3.3 seconds and Standard passed 25/25 in 78.2 seconds on 2026-07-10; Full awaits recovered visual baselines. | PSIM-0098. |
+| R18.02 | Label CTest coverage by purpose and cost. | Automated | CTest unit, integration, solver, visual, benchmark, smoke, and release labels drive selectable Fast/Standard/Full tiers; Fast selection passed on 2026-07-10. | None. |
+| R18.03 | Retain structured failure artifacts. | Partial | Fluid and lab capture failures retain JSON/image/log evidence with scenario identity; legacy demo/replay scripts still need uniform structured output. | PSIM-0098. |
+| R18.04 | Run Windows CI with scheduled and release verification. | Implemented | Windows GitHub Actions defines PR Fast, default-branch Standard, nightly/manual/tag Full, package, caching, and evidence upload; no user-owned remote exists to execute it. | External remote plus PSIM-0099. |
+| R18.05 | Enforce static analysis and hygiene. | Automated | `/W4 /WX` covers project targets and `check-hygiene.ps1` passed format, clang-tidy core, dependency, secret, and absolute-path checks on 2026-07-10. | None. |
+| R18.06 | Produce and verify the recovery prerelease package. | Automated | `package-release.ps1` built and smoke-tested sandbox/lab from the Release package, emitted manifests/licenses/checksums, and created `0.2.0-alpha.1` ZIP SHA-256 `46c5bfc...95fc6` on 2026-07-10. | Regenerate at final commit under PSIM-0099. |
 | R19.01 | Decide every deferred feature deliberately. | Missing | Feature restoration audit has not occurred. | PSIM-0100. |
 | R19.02 | Require full evidence for restored features. | Missing | No recovery feature has passed the new gate. | PSIM-0100. |
 | R19.03 | Protect the vertical slice from restored-feature regressions. | Missing | Vertical slice is not yet accepted. | PSIM-0100. |

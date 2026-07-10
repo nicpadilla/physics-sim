@@ -40,11 +40,14 @@ Set-Content -LiteralPath $log -Value "[verification-bundle] starting"
 
 $steps = @(
     @{ Name = 'tracking validation'; Script = (Join-Path $PSScriptRoot 'check-tracking.ps1') },
+    @{ Name = 'repository hygiene'; Script = (Join-Path $PSScriptRoot 'check-hygiene.ps1') },
     @{ Name = 'build'; Script = (Join-Path $PSScriptRoot 'build.ps1') },
     @{ Name = 'tests'; Script = (Join-Path $PSScriptRoot 'test.ps1'); Arguments = @('-Tier', 'Full') },
     @{ Name = 'smoke test'; Script = (Join-Path $PSScriptRoot 'run-smoke.ps1') },
     @{ Name = 'replay regression suite'; Script = (Join-Path $PSScriptRoot 'verify-replay-suite.ps1') },
-    @{ Name = 'fluid-quality regression suite'; Script = (Join-Path $PSScriptRoot 'verify-fluid-quality-suite.ps1') }
+    @{ Name = 'fluid-quality regression suite'; Script = (Join-Path $PSScriptRoot 'verify-fluid-quality-suite.ps1') },
+    @{ Name = 'solver benchmark'; Script = (Join-Path $PSScriptRoot 'measure-water-solver.ps1'); Arguments = @('-Profile', 'All') },
+    @{ Name = 'release package'; Script = (Join-Path $PSScriptRoot 'package-release.ps1'); Arguments = @('-SkipBuild') }
 )
 
 foreach ($step in $steps)
