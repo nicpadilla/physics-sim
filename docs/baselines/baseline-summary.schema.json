@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "physics-sim-recovery-baseline-summary-v1",
+  "title": "Physics Sim recovery baseline summary",
+  "type": "object",
+  "required": ["schema_version", "environment", "results", "legacy_goldens", "completed_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "environment": {
+      "type": "object",
+      "required": ["captured_at", "commit", "branch", "processor", "operating_system", "cmake", "configuration", "build_directory"]
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "command", "status", "exit_code", "duration_seconds", "profile", "scenario", "log", "message"],
+        "properties": {
+          "status": { "enum": ["passed", "failed"] },
+          "duration_seconds": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "legacy_goldens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "bytes"]
+      }
+    },
+    "completed_at": { "type": "string" }
+  }
+}

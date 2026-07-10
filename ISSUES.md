@@ -7,7 +7,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | ID | Status | Priority | Epic | Linked roadmap IDs | Title |
 | --- | --- | --- | --- | --- | --- |
 | PSIM-0089 | Done | P0 | Recovery Foundation | R14.01, R14.02, R14.03, R14.04 | Reset recovery governance and architecture decisions |
-| PSIM-0090 | Open | P0 | Recovery Foundation | R14.05 | Capture trusted pre-refactor baseline |
+| PSIM-0090 | Done | P0 | Recovery Foundation | R14.05 | Capture trusted pre-refactor baseline |
 | PSIM-0091 | Open | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
 | PSIM-0092 | Open | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Open | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
@@ -77,7 +77,7 @@ Implementation notes:
 
 ### PSIM-0090: Capture trusted pre-refactor baseline
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -118,7 +118,12 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added `scripts/capture-recovery-baseline.ps1` with environment identity, timed step execution, per-step logs, structured JSON, legacy golden hashes, optional published report, and strict `-FailOnStepFailure` mode.
+- Added the baseline summary JSON schema and published the dated report/review sheet in `docs/baselines/recovery-baseline-2026-07-10.md` without duplicating the large legacy BMPs preserved by the pre-recovery tag.
+- The clean capture completed in 570.5 seconds on 2026-07-10. Tracking, build, 26/26 aggregate CTest, smoke, all-profile benchmark, three demo hashes, and package creation passed.
+- The baseline correctly retained two product failures: directional replay hash mismatch (`0A939310...70D83` versus `DE40E02A...3F5B2`) and quality long-run average density error `1.311553` above the `1.0` limit.
+- Classified numerical, determinism, rendering, interaction, performance, test-quality, documentation, and release debt. No golden or threshold was changed.
+- Verification: `.\scripts\capture-recovery-baseline.ps1` completed with exit code 0 in 570.5 seconds and `.\scripts\check-tracking.ps1` passed on 2026-07-10. The two recorded product failures are baseline findings assigned to later recovery issues, not capture-script failures.
 
 ## Epic 13: Recovery Architecture
 

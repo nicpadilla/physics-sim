@@ -10,7 +10,7 @@ Allowed statuses: `Missing`, `Partial`, `Implemented`, `Automated`, `Human Accep
 | R14.02 | Use evidence-aware recovery tracking statuses. | Automated | `.\scripts\check-tracking.ps1` passed in 0.6 seconds on 2026-07-10 with the recovery status contract. | None. |
 | R14.03 | Keep recovery issues implementation-ready and summary/detail consistent. | Automated | `.\scripts\check-tracking.ps1` passed in 0.6 seconds on 2026-07-10 for 13 recovery issues and exact summary/detail validation. | None. |
 | R14.04 | Record recovery architecture and workflow ADRs. | Automated | ADRs 0007-0011 are accepted and `.\scripts\check-tracking.ps1` plus `.\scripts\test.ps1` (26/26 in 170.7 seconds) passed on 2026-07-10. | None. |
-| R14.05 | Capture a trusted baseline report. | Missing | Current ad hoc runs are not yet archived as a recovery baseline. | PSIM-0090. |
+| R14.05 | Capture a trusted baseline report. | Automated | `.\scripts\capture-recovery-baseline.ps1` completed in 570.5 seconds on 2026-07-10 and published environment, command, timing, hash, visual-review, and classified-failure evidence. | None. |
 | R14.06 | Decompose the application into compiled module targets. | Missing | Current core remains an INTERFACE target and `main.cpp` remains monolithic. | PSIM-0091. |
 | R15.01 | Expose stable simulation client interfaces. | Missing | Existing clients access solver-specific types directly. | PSIM-0091. |
 | R15.02 | Cover core physics invariants with focused tests. | Partial | Existing tests cover several behaviors but are not reconciled against the recovery contract. | PSIM-0093. |
