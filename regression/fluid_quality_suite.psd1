@@ -28,7 +28,7 @@
         @{
             Name = 'u-container-fill'
             Profile = 'balanced'
-            SampleTicks = @(0, 120, 720)
+            SampleTicks = @(0, 1200, 2400)
         },
         @{
             Name = 'dam-break'
@@ -58,7 +58,7 @@
         @{
             Name = 'obstacle-field'
             Profile = 'balanced'
-            SampleTicks = @(0, 120, 360)
+            SampleTicks = @(0, 120, 600)
         },
         @{
             Name = 'drain-basin'

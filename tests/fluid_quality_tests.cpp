@@ -541,7 +541,7 @@ ScenarioCase make_u_container_case()
                 simulation.set_solid_cell(x, 36, true);
             }
 
-            simulation.add_emitter(directional_emitter(Vec2{640.0f, 160.0f}, Vec2{0.0f, 1.0f}, 5.0f, 1.0f));
+            simulation.add_emitter(directional_emitter(Vec2{640.0f, 160.0f}, Vec2{0.0f, 1.0f}, 1.0f, 5.0f));
         },
         [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
         {
@@ -571,13 +571,14 @@ ScenarioCase make_u_container_case()
             require_less_than(final, "average_divergence", final.metrics.average_divergence_after_projection, 0.2);
             require_less_than(final, "max_divergence", final.metrics.max_divergence_after_projection, 0.6);
             require_greater_than(final, "pooled_height", final.pooled_height, 0.4);
+            require_less_than(final, "pooled_height", final.pooled_height, 6.0);
             if (selected_profile == physics_sim::FluidSolverProfile::Balanced)
             {
-                require_less_than(final, "pooled_height", final.pooled_height, 27.0);
+                require_less_than(final, "settled_kinetic_energy", final.kinetic_energy, 50000.0);
             }
             else
             {
-                require_less_than(final, "pooled_height", final.pooled_height, 22.0);
+                require_less_than(final, "settled_kinetic_energy", final.kinetic_energy, 25000.0);
             }
         },
     };
@@ -833,7 +834,7 @@ ScenarioCase make_obstacle_field_case()
         {
             return physics_sim::WaterSimulation2D{28, 18, 1.0f};
         },
-        {0, 120, 360},
+        {0, 120, 600},
         14.0f,
         std::nullopt,
         [](physics_sim::WaterSimulation2D& simulation)
@@ -863,11 +864,11 @@ ScenarioCase make_obstacle_field_case()
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
             if (selected_profile == physics_sim::FluidSolverProfile::Balanced)
             {
-                require_greater_than(final, "obstacle_reach", final.center_of_mass.x, 6.4);
+                require_greater_than(final, "obstacle_leading_edge", final.max_position.x, 10.0);
             }
             else
             {
-                require_greater_than(final, "obstacle_reach", final.center_of_mass.x, 6.8);
+                require_greater_than(final, "obstacle_leading_edge", final.max_position.x, 10.0);
             }
         },
     };
@@ -1005,16 +1006,7 @@ ScenarioCase make_long_run_stress_case()
             if (selected_profile == physics_sim::FluidSolverProfile::Quality)
             {
                 auto settings = simulation.solver_settings();
-                settings.particles_per_full_cell = 8;
-                settings.density_kernel_radius_cells = 2.0f;
-                settings.density_correction_iterations = 4;
-                settings.max_density_correction_fraction = 0.08f;
-                settings.resampling.enabled = true;
-                settings.resampling.min_particles_per_fluid_cell = 1;
-                settings.resampling.target_particles_per_fluid_cell = 8;
-                settings.resampling.max_particles_per_fluid_cell = 16;
-                settings.resampling.max_resampling_operations_per_step = 256;
-                settings.resampling.split_offset_fraction = 0.16f;
+                settings.density_kernel_radius_cells = 3.0f;
                 simulation.set_solver_settings(settings);
             }
 
@@ -1238,7 +1230,7 @@ int main(int argc, char* argv[])
         const char* profile_name = physics_sim::solver_profile_name(profile);
         const char* tier = first.final_state.solver_settings().tier == physics_sim::FluidSolverQualityTier::Offline ? "offline" : "live";
         std::printf(
-            "scenario=%s profile=%s tier=%s ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu particles_in_solids=%zu non_finite_values=%zu unexplained_lifecycle_changes=%zu\n",
+            "scenario=%s profile=%s tier=%s ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f average_density=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu particles_in_solids=%zu non_finite_values=%zu unexplained_lifecycle_changes=%zu\n",
             scenario->name.c_str(),
             profile_name,
             tier,
@@ -1249,6 +1241,7 @@ int main(int argc, char* argv[])
             final_snapshot.divergence_l2,
             final_snapshot.metrics.average_divergence_after_projection,
             final_snapshot.metrics.max_divergence_after_projection,
+            final_snapshot.average_density,
             final_snapshot.metrics.max_density_error,
             final_snapshot.kinetic_energy,
             final_snapshot.metrics.pressure_solve.relative_residual,

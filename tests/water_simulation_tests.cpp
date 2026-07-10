@@ -128,6 +128,7 @@ int main()
         REQUIRE(balanced_settings.particles_per_full_cell == 4, "balanced solver settings did not preserve the target particle density");
         REQUIRE(balanced_settings.density_correction_iterations == 1, "balanced solver settings did not keep density correction enabled");
         REQUIRE(nearly_equal(balanced_settings.max_density_correction_fraction, 0.025f, 0.000001), "balanced solver settings did not cap density correction tightly enough");
+        REQUIRE(nearly_equal(balanced_settings.density_correction_velocity_ratio, 0.10f, 0.000001), "balanced solver settings did not limit correction-driven energy injection");
         REQUIRE(nearly_equal(balanced_settings.density_kernel_radius_cells, 1.2f, 0.000001), "balanced solver settings did not preserve the calibrated density kernel");
         REQUIRE(balanced_settings.resampling.enabled, "balanced solver settings did not enable resampling");
         REQUIRE(balanced_settings.resampling.min_particles_per_fluid_cell == 1, "balanced solver settings did not lower the minimum particle count");
@@ -135,7 +136,7 @@ int main()
         REQUIRE(balanced_settings.resampling.max_particles_per_fluid_cell == 8, "balanced solver settings did not keep the maximum particle count");
         REQUIRE(balanced_settings.resampling.max_resampling_operations_per_step == 48, "balanced solver settings did not cap resampling operations");
         REQUIRE(nearly_equal(balanced_settings.flip_blend, 0.55f, 0.000001), "balanced solver settings did not tune the FLIP blend");
-        REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.90f, 0.000001), "balanced solver settings did not tune the velocity retention");
+        REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.0f, 0.000001), "balanced solver settings did not apply the complete projected transfer");
         REQUIRE(nearly_equal(balanced_settings.viscosity_coefficient, 0.035f, 0.000001), "balanced solver settings did not enable the target viscosity");
         REQUIRE(nearly_equal(balanced_settings.surface_tension_coefficient, 0.0f, 0.000001), "balanced solver settings did not keep surface tension disabled");
         REQUIRE(nearly_equal(balanced_settings.apic_affine_ratio, 0.0f, 0.000001), "balanced solver settings did not keep APIC disabled");
@@ -146,12 +147,13 @@ int main()
         REQUIRE(quality_settings.particles_per_full_cell >= balanced_settings.particles_per_full_cell, "quality solver settings did not keep enough particles per cell");
         REQUIRE(nearly_equal(quality_settings.density_kernel_radius_cells, 1.2f, 0.000001), "quality solver settings did not preserve the calibrated density kernel");
         REQUIRE(nearly_equal(quality_settings.max_density_correction_fraction, 0.025f, 0.000001), "quality solver settings did not cap density correction tightly enough");
+        REQUIRE(nearly_equal(quality_settings.density_correction_velocity_ratio, 0.10f, 0.000001), "quality solver settings did not limit correction-driven energy injection");
         REQUIRE(nearly_equal(quality_settings.flip_blend, 0.55f, 0.000001), "quality solver settings did not tune the FLIP blend");
-        REQUIRE(nearly_equal(quality_settings.velocity_retention, 0.90f, 0.000001), "quality solver settings did not tune the velocity retention");
+        REQUIRE(nearly_equal(quality_settings.velocity_retention, 0.0f, 0.000001), "quality solver settings did not apply the complete projected transfer");
         REQUIRE(nearly_equal(quality_settings.viscosity_coefficient, 0.035f, 0.000001), "quality solver settings did not enable the target viscosity");
         REQUIRE(nearly_equal(quality_settings.surface_tension_coefficient, 0.0f, 0.000001), "quality solver settings did not keep unstable surface tension disabled");
-        REQUIRE(quality_settings.resampling.target_particles_per_fluid_cell == 4, "quality solver settings did not keep the target particle count");
-        REQUIRE(quality_settings.resampling.max_particles_per_fluid_cell == 8, "quality solver settings did not keep the maximum particle count");
+        REQUIRE(quality_settings.resampling.target_particles_per_fluid_cell == 4, "quality solver settings did not match its full-cell particle count");
+        REQUIRE(quality_settings.resampling.max_particles_per_fluid_cell == 8, "quality solver settings did not keep a consistent resampling ceiling");
         REQUIRE(quality_settings.resampling.max_resampling_operations_per_step == 96, "quality solver settings did not cap resampling operations");
 
         physics_sim::WaterSimulation2D simulation{8, 8, 1.0f};

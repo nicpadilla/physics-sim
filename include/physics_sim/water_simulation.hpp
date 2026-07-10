@@ -119,6 +119,7 @@ struct FluidSolverSettings
     float density_kernel_radius_cells = 1.0f;
     int density_correction_iterations = 0;
     float max_density_correction_fraction = 0.2f;
+    float density_correction_velocity_ratio = 1.0f;
     float flip_blend = 0.95f;
     float velocity_retention = 0.99f;
     float apic_affine_ratio = 0.0f;
@@ -339,8 +340,9 @@ public:
             settings.density_kernel_radius_cells = 1.2f;
             settings.density_correction_iterations = 1;
             settings.max_density_correction_fraction = 0.025f;
+            settings.density_correction_velocity_ratio = 0.10f;
             settings.flip_blend = 0.55f;
-            settings.velocity_retention = 0.90f;
+            settings.velocity_retention = 0.0f;
             settings.apic_affine_ratio = 0.0f;
             settings.viscosity_coefficient = 0.035f;
             settings.surface_tension_coefficient = 0.0f;
@@ -360,12 +362,13 @@ public:
             settings.pressure_max_iterations = 260;
             settings.pressure_relative_residual_target = 1.0e-5f;
             settings.rest_density = 1.0f;
-            settings.particles_per_full_cell = 6;
+            settings.particles_per_full_cell = 4;
             settings.density_kernel_radius_cells = 1.2f;
             settings.density_correction_iterations = 1;
             settings.max_density_correction_fraction = 0.025f;
+            settings.density_correction_velocity_ratio = 0.10f;
             settings.flip_blend = 0.55f;
-            settings.velocity_retention = 0.90f;
+            settings.velocity_retention = 0.0f;
             settings.apic_affine_ratio = 0.0f;
             settings.viscosity_coefficient = 0.035f;
             settings.surface_tension_coefficient = 0.0f;
@@ -1314,7 +1317,7 @@ private:
         }
 
         constexpr float active_fraction_threshold = 1.0e-5f;
-        constexpr bool use_full_halo = true;
+        constexpr bool use_full_halo = false;
         const auto activate_cell = [&](int x, int y)
         {
             if (x < 0 || y < 0 || static_cast<size_type>(x) >= grid_.width() || static_cast<size_type>(y) >= grid_.height())
@@ -2047,7 +2050,8 @@ private:
                 correction_velocity = correction_velocity * (max_velocity_delta / correction_length);
             }
 
-            particles_[index].velocity = particles_[index].velocity + correction_velocity;
+            particles_[index].velocity = particles_[index].velocity
+                + correction_velocity * solver_settings_.density_correction_velocity_ratio;
         }
 
         resolve_particles_out_of_solids();
@@ -2693,6 +2697,7 @@ private:
         settings.density_kernel_radius_cells = std::max(0.25f, settings.density_kernel_radius_cells);
         settings.density_correction_iterations = std::max(0, settings.density_correction_iterations);
         settings.max_density_correction_fraction = std::max(0.0f, settings.max_density_correction_fraction);
+        settings.density_correction_velocity_ratio = std::clamp(settings.density_correction_velocity_ratio, 0.0f, 1.0f);
         settings.flip_blend = std::clamp(settings.flip_blend, 0.0f, 1.0f);
         settings.velocity_retention = std::clamp(settings.velocity_retention, 0.0f, 1.0f);
         settings.apic_affine_ratio = std::clamp(settings.apic_affine_ratio, 0.0f, 1.0f);
