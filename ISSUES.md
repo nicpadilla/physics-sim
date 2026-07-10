@@ -13,7 +13,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
-| PSIM-0096 | Open | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
+| PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | In Progress | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | Open | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
@@ -391,7 +391,7 @@ Implementation notes:
 
 ### PSIM-0096: Deliver narrow sandbox vertical slice
 
-Status: Open
+Status: In Progress
 
 Priority: P0
 
@@ -485,7 +485,10 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Reduced the release-facing sandbox to pour, draw wall, erase wall, pause/step/reset, undo/redo, save/load, and sandbox/lab navigation. Tab cycling is constrained to those three tools; keys 3-9 and gallery paging now report that the feature is deferred.
+- Replaced the broad main/pause navigation with recovery menus and added in-process sandbox/lab switching through the thin executable composition loop. Dear ImGui remains absent from the sandbox target.
+- Rebuilt first-run guidance as a six-step interactive pour/draw/erase/pause/reset/save loop and removed device, objective, and gallery instructions from player help.
+- Verification on 2026-07-10: `build.ps1`, sandbox smoke, lab smoke, dependency validation, tracking validation, and `test.ps1 -Tier Fast` (25/25 in 3.3 seconds) passed. The full manual acceptance matrix and named usability review remain open.
 
 ## Epic 17: Verification And Release
 

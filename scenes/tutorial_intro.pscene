@@ -7,7 +7,7 @@ tag tutorial
 tag onboarding
 tag guided
 note Use this scene on first launch or with --tutorial-mode.
-note The tutorial prompts teach camera movement, pause and resume, wall painting and erasing, fixture placement, device use, reset and retry, save and load, and gallery browsing.
+note The recovery tutorial teaches pouring, wall painting and erasing, pause and resume, reset, save, and load.
 note The thumbnail lives next to the scene file.
 grid 80 45 16
 wall 20 24

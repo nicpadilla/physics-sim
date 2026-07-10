@@ -23,6 +23,7 @@ enum class SessionShellCommandKind
     None,
     StartPlaying,
     StartTutorial,
+    SwitchToLab,
     Quit,
     Resume,
     RetryCurrentScene,
@@ -65,7 +66,7 @@ struct SessionShellState
     case SessionShellScreen::Playing:
         return 0;
     case SessionShellScreen::MainMenu:
-        return 6;
+        return 5;
     case SessionShellScreen::SceneBrowser:
         return gallery_scene_count + 1;
     case SessionShellScreen::SaveBrowser:
@@ -75,7 +76,7 @@ struct SessionShellState
     case SessionShellScreen::About:
         return 1;
     case SessionShellScreen::PauseMenu:
-        return 8;
+        return 7;
     }
 
     return 0;
@@ -113,12 +114,10 @@ struct SessionShellState
     case 1:
         return "Tutorial";
     case 2:
-        return "Scene Browser";
+        return "Laboratory";
     case 3:
         return "Settings";
     case 4:
-        return "About";
-    case 5:
         return "Quit";
     default:
         return "";
@@ -132,18 +131,16 @@ struct SessionShellState
     case 0:
         return "Resume";
     case 1:
-        return "Retry Current Scene";
-    case 2:
         return "Reset Fluid";
-    case 3:
-        return "Clear Scene";
-    case 4:
+    case 2:
         return "Save Scene";
-    case 5:
+    case 3:
         return "Load Save";
-    case 6:
+    case 4:
         return "Settings";
-    case 7:
+    case 5:
+        return "Laboratory";
+    case 6:
         return "Return to Menu";
     default:
         return "";
@@ -221,15 +218,11 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
             state.selection = 0;
             return {SessionShellCommandKind::StartTutorial, std::nullopt};
         case 2:
-            open_submenu(SessionShellScreen::SceneBrowser);
-            return {SessionShellCommandKind::OpenSceneBrowser, std::nullopt};
+            return {SessionShellCommandKind::SwitchToLab, std::nullopt};
         case 3:
             open_submenu(SessionShellScreen::Settings);
             return {SessionShellCommandKind::OpenSettings, std::nullopt};
         case 4:
-            open_submenu(SessionShellScreen::About);
-            return {SessionShellCommandKind::OpenAbout, std::nullopt};
-        case 5:
             return {SessionShellCommandKind::Quit, std::nullopt};
         default:
             return {};
@@ -284,20 +277,18 @@ inline void session_shell_wrap_selection(SessionShellState& state, std::size_t i
             state.selection = 0;
             return {SessionShellCommandKind::Resume, std::nullopt};
         case 1:
-            return {SessionShellCommandKind::RetryCurrentScene, std::nullopt};
-        case 2:
             return {SessionShellCommandKind::ResetFluid, std::nullopt};
-        case 3:
-            return {SessionShellCommandKind::ClearScene, std::nullopt};
-        case 4:
+        case 2:
             return {SessionShellCommandKind::SaveScene, std::nullopt};
-        case 5:
+        case 3:
             open_submenu(SessionShellScreen::SaveBrowser);
             return {SessionShellCommandKind::OpenSaveBrowser, std::nullopt};
-        case 6:
+        case 4:
             open_submenu(SessionShellScreen::Settings);
             return {SessionShellCommandKind::OpenSettings, std::nullopt};
-        case 7:
+        case 5:
+            return {SessionShellCommandKind::SwitchToLab, std::nullopt};
+        case 6:
             state.screen = SessionShellScreen::MainMenu;
             state.selection = 0;
             return {SessionShellCommandKind::ReturnToMainMenu, std::nullopt};

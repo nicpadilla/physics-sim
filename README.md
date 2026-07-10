@@ -69,19 +69,17 @@ Create a legacy package (not a recovered release):
 .\scripts\package-release.ps1
 ```
 
-## Current Legacy Controls
-
-These controls describe the executable before the sandbox-scope recovery:
+## Sandbox Controls
 
 - Hold left mouse in pointer-water mode to pour.
 - `0`: pointer water; `1`: draw wall; `2`: erase wall.
 - `Space`: pause/resume; `S`: single step while paused; `R`: clear fluid.
 - `Ctrl+Z` / `Ctrl+Y`: undo/redo.
 - `F5`: save; `F9`: load autosave; `F10`: retry current scene.
-- Middle-drag: pan; mouse wheel: zoom; `H`: legacy help; `V`: visual mode.
+- Middle-drag: pan; mouse wheel: zoom; `H`: help; `V`: visual mode; `L`: laboratory.
 - `Esc`: pause/menu navigation.
 
-Legacy secondary tool shortcuts `3` through `9`, gallery navigation, objectives, and session-shell behavior remain present until PSIM-0096 removes them from the recovered release UI.
+Secondary tool shortcuts `3` through `9` and gallery navigation are disabled in the recovery sandbox. Their underlying source remains available for later feature-by-feature restoration.
 
 ## Evidence And Tracking
 

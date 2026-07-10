@@ -7,21 +7,23 @@ namespace physics_sim
 {
 enum class TutorialStep
 {
-    CameraPan,
-    CameraZoom,
-    PauseResume,
+    PourWater,
     PaintWall,
     EraseWall,
-    PlaceFixture,
-    UseDevice,
+    PauseResume,
     ResetOrRetry,
     SaveLoad,
-    GalleryBrowse,
     Complete,
+    CameraPan,
+    CameraZoom,
+    PlaceFixture,
+    UseDevice,
+    GalleryBrowse,
 };
 
 struct TutorialProgress
 {
+    bool water_poured = false;
     bool camera_panned = false;
     bool camera_zoomed = false;
     bool pause_opened = false;
@@ -37,24 +39,14 @@ struct TutorialProgress
 
 [[nodiscard]] inline constexpr std::size_t tutorial_step_count() noexcept
 {
-    return 10;
+    return 6;
 }
 
 [[nodiscard]] inline constexpr TutorialStep tutorial_current_step(const TutorialProgress& progress) noexcept
 {
-    if (!progress.camera_panned)
+    if (!progress.water_poured)
     {
-        return TutorialStep::CameraPan;
-    }
-
-    if (!progress.camera_zoomed)
-    {
-        return TutorialStep::CameraZoom;
-    }
-
-    if (!(progress.pause_opened && progress.pause_resumed))
-    {
-        return TutorialStep::PauseResume;
+        return TutorialStep::PourWater;
     }
 
     if (!progress.wall_painted)
@@ -67,14 +59,9 @@ struct TutorialProgress
         return TutorialStep::EraseWall;
     }
 
-    if (!progress.fixture_placed)
+    if (!(progress.pause_opened && progress.pause_resumed))
     {
-        return TutorialStep::PlaceFixture;
-    }
-
-    if (!progress.device_used)
-    {
-        return TutorialStep::UseDevice;
+        return TutorialStep::PauseResume;
     }
 
     if (!progress.reset_or_retry)
@@ -85,11 +72,6 @@ struct TutorialProgress
     if (!progress.save_or_load)
     {
         return TutorialStep::SaveLoad;
-    }
-
-    if (!progress.gallery_browsed)
-    {
-        return TutorialStep::GalleryBrowse;
     }
 
     return TutorialStep::Complete;
@@ -104,6 +86,8 @@ struct TutorialProgress
 {
     switch (step)
     {
+    case TutorialStep::PourWater:
+        return "POUR WATER";
     case TutorialStep::CameraPan:
         return "PAN CAMERA";
     case TutorialStep::CameraZoom:
@@ -135,6 +119,8 @@ struct TutorialProgress
 {
     switch (step)
     {
+    case TutorialStep::PourWater:
+        return "Hold the left mouse button to pour.";
     case TutorialStep::CameraPan:
         return "Pan the camera.";
     case TutorialStep::CameraZoom:
@@ -165,6 +151,11 @@ struct TutorialProgress
 inline constexpr void tutorial_mark_camera_panned(TutorialProgress& progress) noexcept
 {
     progress.camera_panned = true;
+}
+
+inline constexpr void tutorial_mark_water_poured(TutorialProgress& progress) noexcept
+{
+    progress.water_poured = true;
 }
 
 inline constexpr void tutorial_mark_camera_zoomed(TutorialProgress& progress) noexcept

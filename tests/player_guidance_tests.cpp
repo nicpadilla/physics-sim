@@ -66,15 +66,16 @@ int main()
     REQUIRE(contains_line(help_lines, "O toggle help"), "help overlay did not use the active help binding");
     REQUIRE(contains_line(help_lines, "P pause, T step"), "help overlay did not use the active pause/step bindings");
     REQUIRE(contains_line(help_lines, "G clear fluid, F retry current scene"), "help overlay did not use the active reset bindings");
-    REQUIRE(contains_line(help_lines, "0 pointer water, 1-9 tools, [/] cycle, C visual mode"), "help overlay did not use the active pointer-water/tool-cycle bindings");
+    REQUIRE(contains_line(help_lines, "0 pour, 1 draw wall, 2 erase wall"), "help overlay did not describe the recovery tools");
+    REQUIRE(contains_line(help_lines, "[/] cycle sandbox tools"), "help overlay did not use the active tool-cycle bindings");
     REQUIRE(contains_line(help_lines, "Pointer water: hold LMB to pour"), "help overlay did not describe pointer-water hold behavior");
-    REQUIRE(contains_line(help_lines, "J/L rotate selected or tool"), "help overlay did not use the active rotate bindings");
     REQUIRE(contains_line(help_lines, "U undo, R redo"), "help overlay did not use the active undo/redo bindings");
-    REQUIRE(contains_line(help_lines, "-/= speed, ,/. emission"), "help overlay did not use the active speed and emission bindings");
+    REQUIRE(!contains_line(help_lines, "Gate tool places a door"), "help overlay exposed a deferred device");
 
     physics_sim::TutorialProgress progress;
     const auto tutorial_lines = physics_sim::build_tutorial_overlay_lines(progress, bindings);
     REQUIRE(contains_line(tutorial_lines, "P ALSO PAUSES OR RESUMES"), "tutorial overlay did not use the active pause binding");
+    REQUIRE(contains_line(tutorial_lines, "> Pour water"), "tutorial overlay did not start with pouring");
 
     std::cout << "player guidance tests passed" << std::endl;
     return 0;

@@ -30,6 +30,7 @@
 #include <physics_sim/fixed_timestep.hpp>
 #include <physics_sim/input_bindings.hpp>
 #include <physics_sim/math.hpp>
+#include <physics_sim/mode_switch.hpp>
 #include <physics_sim/player_guidance.hpp>
 #include <physics_sim/player_feedback.hpp>
 #include <physics_sim/replay_script.hpp>
@@ -536,6 +537,18 @@ const char* tool_name(physics_sim::SceneTool tool) noexcept
     }
 
     return "unknown";
+}
+
+physics_sim::SceneTool next_sandbox_tool(physics_sim::SceneTool current, int direction) noexcept
+{
+    constexpr std::array tools{
+        physics_sim::SceneTool::PointerWater,
+        physics_sim::SceneTool::PaintWall,
+        physics_sim::SceneTool::EraseWall};
+    auto iterator = std::find(tools.begin(), tools.end(), current);
+    const int current_index = iterator == tools.end() ? 0 : static_cast<int>(std::distance(tools.begin(), iterator));
+    const int step = direction < 0 ? -1 : 1;
+    return tools[static_cast<std::size_t>((current_index + step + static_cast<int>(tools.size())) % static_cast<int>(tools.size()))];
 }
 
 [[nodiscard]] std::string scene_label(const fs::path& path, const physics_sim::SceneMetadata& metadata)
@@ -2320,6 +2333,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
     sync_audio_settings();
 
     bool running = true;
+    int applicationExitCode = 0;
     int windowWidth = userSettings.window_size.width;
     int windowHeight = userSettings.window_size.height;
     physics_sim::Vec2 mouseScreen{windowWidth * 0.5f, windowHeight * 0.5f};
@@ -3455,6 +3469,10 @@ int physics_sim::app::run_application(int argc, char* argv[])
             play_audio(physics_sim::AudioCue::UiConfirm);
             static_cast<void>(start_tutorial_session());
             break;
+        case physics_sim::SessionShellCommandKind::SwitchToLab:
+            applicationExitCode = physics_sim::switch_to_lab_exit_code;
+            running = false;
+            return true;
         case physics_sim::SessionShellCommandKind::Resume:
             play_audio(physics_sim::AudioCue::UiConfirm);
             if (tutorialActive)
@@ -3842,7 +3860,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_prev || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) != 0))
                 {
-                    set_current_tool(physics_sim::next_scene_tool(controller.tool(), -1));
+                    set_current_tool(next_sandbox_tool(controller.tool(), -1));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -3850,7 +3868,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_next || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) == 0))
                 {
-                    set_current_tool(physics_sim::next_scene_tool(controller.tool(), 1));
+                    set_current_tool(next_sandbox_tool(controller.tool(), 1));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -3964,6 +3982,21 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     break;
                 }
 
+                if (event.key.keysym.sym == SDLK_l)
+                {
+                    applicationExitCode = physics_sim::switch_to_lab_exit_code;
+                    running = false;
+                    break;
+                }
+
+                if (event.key.keysym.sym == SDLK_PAGEUP || event.key.keysym.sym == SDLK_PAGEDOWN ||
+                    (event.key.keysym.sym >= SDLK_3 && event.key.keysym.sym <= SDLK_9))
+                {
+                    set_status_message("DEFERRED IN RECOVERY SANDBOX", StatusMessageKind::Warning);
+                    play_audio(physics_sim::AudioCue::InvalidAction);
+                    break;
+                }
+
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_PAGEUP:
@@ -4068,6 +4101,10 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     if (controller.tool() == physics_sim::SceneTool::PointerWater)
                     {
                         start_pointer_water();
+                        if (tutorialActive)
+                        {
+                            physics_sim::tutorial_mark_water_poured(tutorialProgress);
+                        }
                         complete_tutorial_if_needed();
                         break;
                     }
@@ -4515,5 +4552,5 @@ int physics_sim::app::run_application(int argc, char* argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return applicationExitCode;
 }

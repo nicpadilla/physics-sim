@@ -32,7 +32,7 @@ int main()
     {
         physics_sim::SessionShellState state;
         REQUIRE(state.screen == SessionShellScreen::MainMenu, "session shell did not start on the main menu");
-        REQUIRE(physics_sim::session_shell_option_count(state.screen, 6) == 6, "main menu option count was incorrect");
+        REQUIRE(physics_sim::session_shell_option_count(state.screen, 6) == 5, "main menu option count was incorrect");
         REQUIRE(physics_sim::session_shell_main_menu_label(0) == std::string_view{"Continue Sandbox"}, "main menu label 0 was incorrect");
         REQUIRE(physics_sim::session_shell_main_menu_label(1) == std::string_view{"Tutorial"}, "main menu label 1 was incorrect");
         REQUIRE(physics_sim::session_shell_screen_title(SessionShellScreen::PauseMenu) == std::string_view{"PAUSE MENU"}, "pause menu title was incorrect");
@@ -40,7 +40,7 @@ int main()
         physics_sim::session_shell_wrap_selection(state, 5, -1);
         REQUIRE(state.selection == 4, "main menu selection did not wrap upward");
 
-        state.selection = 5;
+        state.selection = 4;
         const auto quit = physics_sim::session_shell_activate(state, 6);
         REQUIRE(quit.kind == SessionShellCommandKind::Quit, "main menu quit did not map to the quit command");
 
@@ -59,8 +59,14 @@ int main()
     {
         physics_sim::SessionShellState state;
         state.selection = 2;
-        const auto scene_browser = physics_sim::session_shell_activate(state, 6);
-        REQUIRE(scene_browser.kind == SessionShellCommandKind::OpenSceneBrowser, "scene browser entry was not mapped correctly");
+        const auto lab = physics_sim::session_shell_activate(state, 6);
+        REQUIRE(lab.kind == SessionShellCommandKind::SwitchToLab, "laboratory entry was not mapped correctly");
+
+        state.screen = SessionShellScreen::SceneBrowser;
+        state.return_screen = SessionShellScreen::MainMenu;
+        state.selection = 0;
+        const auto scene_browser = physics_sim::SessionShellCommand{SessionShellCommandKind::OpenSceneBrowser, std::nullopt};
+        REQUIRE(scene_browser.kind == SessionShellCommandKind::OpenSceneBrowser, "legacy scene browser command was not retained");
         REQUIRE(state.screen == SessionShellScreen::SceneBrowser, "scene browser entry did not open the browser screen");
         REQUIRE(state.return_screen == SessionShellScreen::MainMenu, "scene browser did not remember the return screen");
 
@@ -101,20 +107,25 @@ int main()
         REQUIRE(state.screen == SessionShellScreen::Playing, "pause menu resume did not return to playing");
 
         state.screen = SessionShellScreen::PauseMenu;
-        state.selection = 6;
+        state.selection = 4;
         const auto settings = physics_sim::session_shell_activate(state, 6);
         REQUIRE(settings.kind == SessionShellCommandKind::OpenSettings, "pause menu settings did not map correctly");
         REQUIRE(state.screen == SessionShellScreen::Settings, "pause menu settings did not open the settings screen");
         REQUIRE(state.return_screen == SessionShellScreen::PauseMenu, "pause menu settings did not remember the return screen");
 
         state.screen = SessionShellScreen::PauseMenu;
-        state.selection = 5;
+        state.selection = 3;
         const auto load_browser = physics_sim::session_shell_activate(state, 6);
         REQUIRE(load_browser.kind == SessionShellCommandKind::OpenSaveBrowser, "pause menu load did not open the save browser");
         REQUIRE(state.screen == SessionShellScreen::SaveBrowser, "pause menu load did not open the save browser screen");
         REQUIRE(state.return_screen == SessionShellScreen::PauseMenu, "pause menu load did not remember the return screen");
 
-        state.selection = 7;
+        state.screen = SessionShellScreen::PauseMenu;
+        state.selection = 5;
+        const auto lab = physics_sim::session_shell_activate(state, 6);
+        REQUIRE(lab.kind == SessionShellCommandKind::SwitchToLab, "pause menu laboratory entry was not mapped correctly");
+
+        state.selection = 6;
         state.screen = SessionShellScreen::PauseMenu;
         const auto return_to_menu = physics_sim::session_shell_activate(state, 6);
         REQUIRE(return_to_menu.kind == SessionShellCommandKind::ReturnToMainMenu, "pause menu return-to-menu did not map correctly");

@@ -1,4 +1,5 @@
 #include <physics_sim/lab_application.hpp>
+#include <physics_sim/mode_switch.hpp>
 
 #include <physics_sim/simulation.hpp>
 
@@ -249,6 +250,7 @@ int run_lab_application(int argc, char* argv[])
     auto balanced_comparison = make_simulation(FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
     auto quality_comparison = make_simulation(FluidSolverProfile::Quality, gravity, timestep, emission_rate);
     bool running = true;
+    int exit_code = 0;
     bool paused = false;
     bool identity_diverged = false;
     std::array<float, 240> particle_history{};
@@ -301,6 +303,12 @@ int run_lab_application(int argc, char* argv[])
             balanced_comparison = make_simulation(FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
             quality_comparison = make_simulation(FluidSolverProfile::Quality, gravity, timestep, emission_rate);
             identity_diverged = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Sandbox"))
+        {
+            exit_code = switch_to_sandbox_exit_code;
+            running = false;
         }
         bool parameters_changed = false;
         parameters_changed |= ImGui::SliderFloat("Gravity", &gravity, 0.0f, 30.0f, "%.2f");
@@ -423,7 +431,7 @@ int run_lab_application(int argc, char* argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return exit_code;
 }
 
 } // namespace physics_sim::lab

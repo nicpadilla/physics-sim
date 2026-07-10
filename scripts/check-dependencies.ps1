@@ -33,7 +33,7 @@ Assert-NoIncludes 'src\content' @('(?i)#include\s*[<"]SDL', '(?i)#include\s*[<"]
 Assert-NoIncludes 'src\app' @('(?i)#include\s*[<"]imgui')
 
 $mainText = Get-Content -LiteralPath (Join-Path $repoRoot 'src\main.cpp') -Raw
-$allowedMainIncludes = @('physics_sim/application.hpp', 'physics_sim/lab_application.hpp', 'cstdlib', 'string_view', 'Windows.h')
+$allowedMainIncludes = @('physics_sim/application.hpp', 'physics_sim/lab_application.hpp', 'physics_sim/mode_switch.hpp', 'cstdlib', 'string_view', 'Windows.h')
 $mainIncludes = [regex]::Matches($mainText, '(?m)^#include\s*[<"]([^>"]+)[>"]') | ForEach-Object { $_.Groups[1].Value }
 foreach ($include in $mainIncludes)
 {

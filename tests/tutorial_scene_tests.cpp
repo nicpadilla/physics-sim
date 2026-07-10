@@ -41,7 +41,8 @@ int main()
     REQUIRE(metadata.description == "First-run guided scene for learning the sandbox loop.", "tutorial scene description mismatch");
     REQUIRE(!metadata.notes.empty(), "tutorial scene is missing notes");
     REQUIRE(metadata.notes.front() == "Use this scene on first launch or with --tutorial-mode.", "tutorial scene note mismatch");
-    REQUIRE(metadata.notes[1].find("gallery browsing") != std::string::npos, "tutorial scene note did not describe the tutorial loop");
+    REQUIRE(metadata.notes[1].find("pouring") != std::string::npos, "tutorial scene note did not describe the recovery loop");
+    REQUIRE(metadata.notes[1].find("gallery") == std::string::npos, "tutorial scene note exposed deferred gallery breadth");
     REQUIRE(simulation.emitters().empty(), "tutorial scene should not contain a persistent water emitter");
     REQUIRE(fs::exists(thumbnail_path), "tutorial scene is missing its thumbnail sidecar");
 
