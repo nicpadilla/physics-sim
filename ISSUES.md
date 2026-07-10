@@ -386,6 +386,8 @@ Implementation notes:
 - Added semantic state analysis for occupied extents, connected components, isolated cells, and water outside an allowed region, with focused synthetic basin coverage.
 - A Release fixed-tick capture was generated at `build/windows-x64/release-surface-240.bmp` and inspected as implementation evidence. Human acceptance, canonical scene thresholds, contact sheets, and baseline replacement remain open; no golden was changed.
 - Verification on 2026-07-10: `build.ps1` passed; `test.ps1 -Tier Fast` passed 24/24 in 3.4 seconds; `check-tracking.ps1` passed. The legacy Debug 2400-tick visual command exceeds 120 seconds after solver recovery and remains a PSIM-0098/0095 optimization target.
+- Extracted a platform-independent `physics_sim_presentation` target so sandbox and lab use the exact same continuous reconstruction. Lab capture metadata now records component, isolated-cell, and escaped-region counts; smoke enforces the U-container and still-pool semantic gates.
+- Added `capture-recovery-contact-sheet.ps1`, which produces fixed-tick continuous-surface scenario captures plus a review manifest without modifying goldens. The current manifest remains `Pending named human review`; visual tuning and acceptance are intentionally not self-certified.
 
 ## Epic 16: Product Experiences
 

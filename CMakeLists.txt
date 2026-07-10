@@ -24,17 +24,22 @@ add_library(physics_sim_content STATIC
 target_link_libraries(physics_sim_content PUBLIC physics_sim_core)
 target_compile_features(physics_sim_content PUBLIC cxx_std_20)
 
-add_library(physics_sim_app STATIC
-    src/app/application.cpp
+add_library(physics_sim_presentation STATIC
     src/app/surface_reconstruction.cpp
 )
-target_link_libraries(physics_sim_app PUBLIC physics_sim_content physics_sim_core SDL2::SDL2)
+target_include_directories(physics_sim_presentation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(physics_sim_presentation PUBLIC cxx_std_20)
+
+add_library(physics_sim_app STATIC
+    src/app/application.cpp
+)
+target_link_libraries(physics_sim_app PUBLIC physics_sim_content physics_sim_core physics_sim_presentation SDL2::SDL2)
 target_compile_features(physics_sim_app PUBLIC cxx_std_20)
 
 add_library(physics_sim_lab STATIC
     src/lab/lab_module.cpp
 )
-target_link_libraries(physics_sim_lab PUBLIC physics_sim_content physics_sim_core SDL2::SDL2 imgui::imgui)
+target_link_libraries(physics_sim_lab PUBLIC physics_sim_content physics_sim_core physics_sim_presentation SDL2::SDL2 imgui::imgui)
 target_compile_features(physics_sim_lab PUBLIC cxx_std_20)
 
 add_executable(physics_sim WIN32
@@ -53,6 +58,7 @@ if(MSVC)
     target_compile_options(physics_sim PRIVATE /W4 /WX /permissive- /utf-8)
     target_compile_options(physics_sim_core PRIVATE /W4 /WX /permissive- /utf-8)
     target_compile_options(physics_sim_content PRIVATE /W4 /WX /permissive- /utf-8)
+    target_compile_options(physics_sim_presentation PRIVATE /W4 /WX /permissive- /utf-8)
     target_compile_options(physics_sim_app PRIVATE /W4 /WX /permissive- /utf-8)
     target_compile_options(physics_sim_lab PRIVATE /W4 /WX /permissive- /utf-8)
     target_compile_definitions(physics_sim PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

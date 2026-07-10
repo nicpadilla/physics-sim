@@ -359,6 +359,7 @@ foreach ($relativePath in @(
     'scripts\test.ps1',
     'scripts\run-smoke.ps1',
     'scripts\measure-water-solver.ps1',
+    'scripts\capture-recovery-contact-sheet.ps1',
     'scripts\check-hygiene.ps1',
     'scripts\verify-all.ps1',
     'scripts\package-release.ps1',

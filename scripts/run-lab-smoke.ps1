@@ -32,6 +32,14 @@ for ($scenario = 0; $scenario -lt 10; $scenario++)
     {
         throw "[lab-smoke] scenario=$scenario invalid metrics: $metricsPath"
     }
+    if ($scenario -eq 1 -and $metrics.surface_cells_outside_allowed_region -ne 0)
+    {
+        throw "[lab-smoke] U-container surface escaped its allowed region: $metricsPath"
+    }
+    if ($scenario -eq 2 -and $metrics.surface_components -ne 1)
+    {
+        throw "[lab-smoke] still-pool surface was not one component: $metricsPath"
+    }
     $results += [ordered]@{
         scenario_index = $scenario
         scenario = $metrics.scenario

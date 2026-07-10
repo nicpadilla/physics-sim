@@ -2,6 +2,7 @@
 #include <physics_sim/mode_switch.hpp>
 
 #include <physics_sim/simulation.hpp>
+#include <physics_sim/surface_reconstruction.hpp>
 
 #include <SDL.h>
 #include <imgui.h>
@@ -32,6 +33,8 @@ struct LabOptions
     std::optional<std::chrono::milliseconds> auto_exit{};
     std::optional<std::filesystem::path> capture_bundle{};
     int scenario = 1;
+    std::uint64_t capture_tick = 10;
+    int field_view = 1;
 };
 
 LabOptions parse_options(int argc, char *argv[])
@@ -51,6 +54,15 @@ LabOptions parse_options(int argc, char *argv[])
         else if (argument == "--scenario" && index + 1 < argc)
         {
             options.scenario = std::clamp(std::atoi(argv[++index]), 0, 9);
+        }
+        else if (argument == "--capture-tick" && index + 1 < argc)
+        {
+            options.capture_tick = static_cast<std::uint64_t>(std::max(1, std::atoi(argv[++index])));
+        }
+        else if (argument == "--field" && index + 1 < argc)
+        {
+            const std::string_view field = argv[++index];
+            options.field_view = field == "particles" ? 0 : (field == "surface" ? 1 : 6);
         }
     }
     return options;
@@ -86,17 +98,28 @@ void seed_cell(Simulation &simulation, const SimulationConfig &config, std::size
 
 void add_basin(Simulation &simulation, const SimulationConfig &config, float emission_rate, bool emitter)
 {
-    const std::size_t left = config.grid_width / 4;
-    const std::size_t right = config.grid_width * 3 / 4;
-    const std::size_t floor = config.grid_height * 4 / 5;
-    for (std::size_t y = config.grid_height / 3; y <= floor; ++y)
+    const bool canonical_small = config.grid_width == 16 && config.grid_height == 24;
+    const std::size_t left = canonical_small ? 5 : config.grid_width / 4;
+    const std::size_t right = canonical_small ? 10 : config.grid_width * 3 / 4;
+    const std::size_t floor = canonical_small ? 20 : config.grid_height * 4 / 5;
+    const std::size_t wall_top = 0;
+    for (std::size_t y = wall_top; y <= floor; ++y)
     {
         simulation.apply(SetSolidCellCommand{left, y, true});
         simulation.apply(SetSolidCellCommand{right, y, true});
+        if (canonical_small)
+        {
+            simulation.apply(SetSolidCellCommand{left - 1, y, true});
+            simulation.apply(SetSolidCellCommand{right + 1, y, true});
+        }
     }
-    for (std::size_t x = left; x <= right; ++x)
+    for (std::size_t x = canonical_small ? left - 1 : left; x <= (canonical_small ? right + 1 : right); ++x)
     {
         simulation.apply(SetSolidCellCommand{x, floor, true});
+        if (canonical_small && floor + 1 < config.grid_height)
+        {
+            simulation.apply(SetSolidCellCommand{x, floor + 1, true});
+        }
     }
     if (emitter)
     {
@@ -104,7 +127,7 @@ void add_basin(Simulation &simulation, const SimulationConfig &config, float emi
             SimulationEmitterKind::Directional,
             {static_cast<float>(config.grid_width) * config.cell_size * 0.5f, static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
             {0.0f, 1.0f},
-            5.0f,
+            1.0f,
             emission_rate,
             true});
     }
@@ -113,6 +136,12 @@ void add_basin(Simulation &simulation, const SimulationConfig &config, float emi
 std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile profile, float gravity, double timestep, float emission_rate)
 {
     SimulationConfig config;
+    if (scenario >= 2 && scenario <= 3)
+    {
+        config.grid_width = 16;
+        config.grid_height = 24;
+        config.cell_size = 1.0f;
+    }
     config.solver_profile = profile;
     config.gravity_acceleration = gravity;
     config.fixed_timestep = timestep;
@@ -128,11 +157,20 @@ std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile pro
     }
     else if (scenario == 2 || scenario == 3)
     {
-        const std::size_t left = scenario == 2 ? 25 : 35;
-        const std::size_t right = scenario == 2 ? 54 : 44;
-        for (std::size_t y = 20; y < 35; ++y)
+        const std::size_t left = scenario == 2 ? 5 : 6;
+        const std::size_t right = scenario == 2 ? 10 : 9;
+        for (std::size_t y = 4; y <= 20; ++y)
         {
-            for (std::size_t x = left; x <= right; ++x)
+            simulation->apply(SetSolidCellCommand{left, y, true});
+            simulation->apply(SetSolidCellCommand{right, y, true});
+        }
+        for (std::size_t x = left; x <= right; ++x)
+        {
+            simulation->apply(SetSolidCellCommand{x, 20, true});
+        }
+        for (std::size_t y = 5; y < 20; ++y)
+        {
+            for (std::size_t x = left + 1; x < right; ++x)
             {
                 seed_cell(*simulation, config, x, y);
             }
@@ -263,8 +301,8 @@ void process_event(const SDL_Event &event, bool &running)
     }
 }
 
-bool write_capture_bundle(const std::filesystem::path &directory, const char *scenario, const Simulation &simulation, SDL_Renderer *renderer, int width,
-                          int height)
+bool write_capture_bundle(const std::filesystem::path &directory, int scenario_index, const char *scenario, const Simulation &simulation,
+                          SDL_Renderer *renderer, int width, int height)
 {
     std::error_code error;
     std::filesystem::create_directories(directory, error);
@@ -274,10 +312,17 @@ bool write_capture_bundle(const std::filesystem::path &directory, const char *sc
     }
     const SimulationMetrics metrics = simulation.metrics();
     const SimulationConfig &config = simulation.config();
+    const SimulationSnapshot snapshot = simulation.snapshot();
+    const bool basin = scenario_index == 1 || scenario_index == 8 || scenario_index == 9;
+    const SurfaceSemantics semantics =
+        analyze_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, 0.25f, basin ? config.grid_width / 4 : 0,
+                        basin ? config.grid_width * 3 / 4 : config.grid_width - 1, 0, basin ? config.grid_height * 4 / 5 : config.grid_height - 1);
     std::ofstream json{directory / "metrics.json", std::ios::trunc};
     json << "{\n  \"scenario\": \"" << scenario << "\",\n  \"tick\": " << metrics.tick << ",\n  \"state_digest\": \"" << simulation.state_digest()
          << "\",\n  \"fixed_timestep\": " << config.fixed_timestep << ",\n  \"gravity\": " << config.gravity_acceleration << ",\n  \"solver_profile\": \""
-         << (config.solver_profile == FluidSolverProfile::Quality ? "quality" : "balanced") << "\",\n  \"active_particles\": " << metrics.active_particles
+         << (config.solver_profile == FluidSolverProfile::Quality ? "quality" : "balanced")
+         << "\",\n  \"surface_components\": " << semantics.connected_components << ",\n  \"isolated_surface_cells\": " << semantics.isolated_cells
+         << ",\n  \"surface_cells_outside_allowed_region\": " << semantics.outside_allowed_cells << ",\n  \"active_particles\": " << metrics.active_particles
          << ",\n  \"active_cells\": " << metrics.active_cells << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual
          << ",\n  \"average_density_error\": " << metrics.average_density_error << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << "\n}\n";
 
@@ -334,7 +379,7 @@ int run_lab_application(int argc, char *argv[])
     int scenario = options.scenario;
     float gravity = 9.8f;
     float timestep = 1.0f / 120.0f;
-    float emission_rate = 90.0f;
+    float emission_rate = scenario == 1 ? 5.0f : 90.0f;
     auto simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
     auto balanced_comparison = make_simulation(scenario, FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
     auto quality_comparison = make_simulation(scenario, FluidSolverProfile::Quality, gravity, timestep, emission_rate);
@@ -345,6 +390,7 @@ int run_lab_application(int argc, char *argv[])
     std::array<float, 240> particle_history{};
     std::array<float, 240> residual_history{};
     std::size_t history_cursor = 0;
+    int field_view = options.field_view;
     const auto start = Clock::now();
     auto previous = start;
     while (running)
@@ -426,9 +472,19 @@ int run_lab_application(int argc, char *argv[])
 
         if (!paused)
         {
-            simulation->step();
-            balanced_comparison->step();
-            quality_comparison->step();
+            const std::uint64_t steps = options.capture_bundle ? std::max<std::uint64_t>(1, options.capture_tick - simulation->metrics().tick) : 1;
+            for (std::uint64_t step = 0; step < steps; ++step)
+            {
+                if ((scenario == 1 || scenario == 8 || scenario == 9) && simulation->metrics().tick == 1200)
+                {
+                    simulation->apply(ClearEmittersCommand{});
+                    balanced_comparison->apply(ClearEmittersCommand{});
+                    quality_comparison->apply(ClearEmittersCommand{});
+                }
+                simulation->step();
+                balanced_comparison->step();
+                quality_comparison->step();
+            }
         }
         const SimulationMetrics metrics = simulation->metrics();
         particle_history[history_cursor % particle_history.size()] = static_cast<float>(metrics.active_particles);
@@ -462,8 +518,7 @@ int run_lab_application(int argc, char *argv[])
         ImGui::SetNextWindowPos({610.0f, 10.0f}, ImGuiCond_Always);
         ImGui::SetNextWindowSize({650.0f, 770.0f}, ImGuiCond_Always);
         ImGui::Begin("Field View");
-        static int field_view = 0;
-        ImGui::Combo("Field", &field_view, "Particles\0Velocity\0Pressure\0Divergence\0Density\0Volume fraction\0Solids\0");
+        ImGui::Combo("Field", &field_view, "Particles\0Surface\0Velocity\0Pressure\0Divergence\0Density\0Volume fraction\0Solids\0");
         const ImVec2 canvas_position = ImGui::GetCursorScreenPos();
         const ImVec2 canvas_size = ImGui::GetContentRegionAvail();
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -482,6 +537,17 @@ int run_lab_application(int argc, char *argv[])
         }
         else if (field_view == 1)
         {
+            const auto surface =
+                reconstruct_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, 0.25f);
+            for (const SurfaceTriangle &triangle : surface)
+            {
+                const auto point = [&](const SurfacePoint &source)
+                { return ImVec2{canvas_position.x + source.x * view_scale, canvas_position.y + source.y * view_scale}; };
+                draw_list->AddTriangleFilled(point(triangle.a), point(triangle.b), point(triangle.c), IM_COL32(45, 184, 225, 220));
+            }
+        }
+        else if (field_view == 2)
+        {
             for (std::size_t y = 0; y < snapshot.grid_height; y += 2)
             {
                 for (std::size_t x = 0; x < snapshot.grid_width; x += 2)
@@ -499,19 +565,19 @@ int run_lab_application(int argc, char *argv[])
         {
             float maximum = 1.0e-6f;
             const std::vector<float> *values = nullptr;
-            if (field_view == 2)
+            if (field_view == 3)
             {
                 values = &snapshot.pressures;
             }
-            else if (field_view == 3)
+            else if (field_view == 4)
             {
                 values = &snapshot.divergences;
             }
-            else if (field_view == 4)
+            else if (field_view == 5)
             {
                 values = &snapshot.densities;
             }
-            else if (field_view == 5)
+            else if (field_view == 6)
             {
                 values = &snapshot.volume_fractions;
             }
@@ -529,11 +595,11 @@ int run_lab_application(int argc, char *argv[])
                     const std::size_t index = y * snapshot.grid_width + x;
                     const bool solid = snapshot.solid_cells[index] != 0;
                     const float value = values == nullptr ? 0.0f : std::abs((*values)[index]) / maximum;
-                    if ((field_view >= 2 && field_view <= 5 && value <= 0.01f) || (field_view == 6 && !solid))
+                    if ((field_view >= 3 && field_view <= 6 && value <= 0.01f) || (field_view == 7 && !solid))
                     {
                         continue;
                     }
-                    const ImU32 color = field_view == 6
+                    const ImU32 color = field_view == 7
                                             ? IM_COL32(90, 100, 120, 255)
                                             : IM_COL32(static_cast<int>(40.0f + value * 210.0f), static_cast<int>(80.0f + (1.0f - value) * 140.0f), 225, 220);
                     const ImVec2 minimum{canvas_position.x + x * snapshot.cell_size * view_scale, canvas_position.y + y * snapshot.cell_size * view_scale};
@@ -551,10 +617,10 @@ int run_lab_application(int argc, char *argv[])
         render_imgui(renderer, ImGui::GetDrawData());
         SDL_RenderPresent(renderer);
 
-        if (options.capture_bundle && metrics.tick >= 10)
+        if (options.capture_bundle && metrics.tick >= options.capture_tick)
         {
-            static_cast<void>(
-                write_capture_bundle(*options.capture_bundle, scenario_names[static_cast<std::size_t>(scenario)], *simulation, renderer, width, height));
+            static_cast<void>(write_capture_bundle(*options.capture_bundle, scenario, scenario_names[static_cast<std::size_t>(scenario)], *simulation, renderer,
+                                                   width, height));
             running = false;
         }
         if (options.auto_exit && std::chrono::duration_cast<std::chrono::milliseconds>(now - start) >= *options.auto_exit)

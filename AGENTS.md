@@ -29,6 +29,7 @@ Important commands:
 - Solver benchmark: `.\scripts\measure-water-solver.ps1`
 - Release package: `.\scripts\package-release.ps1`
 - Demo regression: `.\scripts\verify-demo-scene.ps1`
+- Recovery contact sheet: `.\scripts\capture-recovery-contact-sheet.ps1 -Tick 2400`
 - Tracking check: `.\scripts\check-tracking.ps1`
 - Dependency boundary check: `.\scripts\check-dependencies.ps1`
 - Install Git hooks: `.\scripts\install-git-hooks.ps1`

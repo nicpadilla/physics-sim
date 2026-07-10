@@ -61,6 +61,7 @@ Additional current checks:
 .\scripts\measure-water-solver.ps1 -Profile All
 .\scripts\check-tracking.ps1
 .\scripts\check-dependencies.ps1
+.\scripts\capture-recovery-contact-sheet.ps1 -Tick 2400
 ```
 
 Create a legacy package (not a recovered release):
