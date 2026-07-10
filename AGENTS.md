@@ -38,7 +38,8 @@ Important commands:
 - Link every implementation change to an existing `PSIM-*` issue in `ISSUES.md`, or create a new issue before implementation.
 - A direct user instruction may bypass issue creation only for docs/process-only audits. Keep that scope out of product/runtime code and report the explicit bypass in the final response.
 - Update `PROGRESS.md` only for roadmap IDs directly affected by the change.
-- Do not mark a progress item `Verified` without a named command, test, scene, regression check, or documented manual check.
+- Do not mark a progress item `Automated` without current command, date, duration, result, and scenario/profile evidence where applicable.
+- Do not mark a progress item `Human Accepted` without a named, dated review and artifact path; a matching golden hash proves determinism only.
 - Do not mark an issue `Done` without implementation notes and verification results.
 - Keep `ROADMAP.md` stable unless the product goals or completion criteria are intentionally changing.
 - Follow the canonical issue template and implementation handoff checklist in `docs\TRACKING.md` when opening, working, or closing `PSIM-*` issues.

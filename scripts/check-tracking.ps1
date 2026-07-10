@@ -91,7 +91,7 @@ if ($expectedIds.Count -eq 0)
 }
 
 $progressText = Get-Content -LiteralPath $progressPath -Raw
-$allowedProgressStatuses = @('Missing', 'Partial', 'Done', 'Verified', 'Blocked')
+$allowedProgressStatuses = @('Missing', 'Partial', 'Implemented', 'Automated', 'Human Accepted', 'Blocked')
 $progressIds = [regex]::Matches($progressText, '\|\s+(R\d+\.\d{2})\s+\|') | ForEach-Object { $_.Groups[1].Value }
 
 $duplicates = $progressIds | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }
@@ -169,6 +169,29 @@ for ($i = 0; $i -lt $epicMatches.Count; ++$i)
     {
         Fail "Epic has no issues: $($epic.Value)"
     }
+}
+
+$issueEpicById = @{}
+foreach ($issueHeadingMatch in $issueHeadingMatches)
+{
+    $containingEpic = $null
+    foreach ($epicMatch in $epicMatches)
+    {
+        if ($epicMatch.Index -lt $issueHeadingMatch.Index)
+        {
+            $containingEpic = $epicMatch.Groups[1].Value.Trim()
+        }
+        else
+        {
+            break
+        }
+    }
+
+    if (-not $containingEpic)
+    {
+        Fail "$($issueHeadingMatch.Groups[1].Value) is not inside an epic."
+    }
+    $issueEpicById[$issueHeadingMatch.Groups[1].Value] = $containingEpic
 }
 
 $requiredFields = @(
@@ -259,6 +282,70 @@ for ($i = 0; $i -lt $issueHeadingMatches.Count; ++$i)
         {
             Fail "$issueId is $issueStatus but still has placeholder implementation notes."
         }
+    }
+}
+
+$summaryMatches = [regex]::Matches(
+    $issuesText,
+    '(?m)^\|\s+(PSIM-\d{4})\s+\|\s+(Open|In Progress|Blocked|Done|Deferred)\s+\|\s+(P[0-2])\s+\|\s+([^|]+?)\s+\|\s+([^|]+?)\s+\|\s+(.+?)\s+\|$'
+)
+if ($summaryMatches.Count -eq 0)
+{
+    Fail 'The Open Queue has no issue summary rows.'
+}
+
+$summaryIds = $summaryMatches | ForEach-Object { $_.Groups[1].Value }
+$duplicateSummaryIds = $summaryIds | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }
+if ($duplicateSummaryIds)
+{
+    Fail "Duplicate Open Queue issue IDs: $($duplicateSummaryIds -join ', ')"
+}
+
+foreach ($issueHeadingMatch in $issueHeadingMatches)
+{
+    $issueId = $issueHeadingMatch.Groups[1].Value
+    if ($summaryIds -notcontains $issueId)
+    {
+        Fail "$issueId has no Open Queue summary row."
+    }
+}
+
+foreach ($summaryMatch in $summaryMatches)
+{
+    $issueId = $summaryMatch.Groups[1].Value
+    if ($issueHeadingIds -notcontains $issueId)
+    {
+        Fail "Open Queue references unknown issue $issueId"
+    }
+
+    $headingMatch = $issueHeadingMatches | Where-Object { $_.Groups[1].Value -eq $issueId } | Select-Object -First 1
+    $start = $headingMatch.Index
+    $nextHeading = $issueHeadingMatches | Where-Object { $_.Index -gt $start } | Select-Object -First 1
+    $end = if ($nextHeading) { $nextHeading.Index } else { $issuesText.Length }
+    $section = $issuesText.Substring($start, $end - $start)
+    $detailStatus = [regex]::Match($section, '(?m)^Status:\s*(.+)$').Groups[1].Value.Trim()
+    $detailPriority = [regex]::Match($section, '(?m)^Priority:\s*(.+)$').Groups[1].Value.Trim()
+    $summaryStatus = $summaryMatch.Groups[2].Value.Trim()
+    $summaryPriority = $summaryMatch.Groups[3].Value.Trim()
+    $summaryEpic = $summaryMatch.Groups[4].Value.Trim()
+    $summaryTitle = $summaryMatch.Groups[6].Value.Trim()
+    $detailTitle = $headingMatch.Groups[2].Value.Trim()
+
+    if ($summaryStatus -ne $detailStatus)
+    {
+        Fail "$issueId summary status '$summaryStatus' differs from detail status '$detailStatus'."
+    }
+    if ($summaryPriority -ne $detailPriority)
+    {
+        Fail "$issueId summary priority '$summaryPriority' differs from detail priority '$detailPriority'."
+    }
+    if ($summaryEpic -ne $issueEpicById[$issueId])
+    {
+        Fail "$issueId summary epic '$summaryEpic' differs from detail epic '$($issueEpicById[$issueId])'."
+    }
+    if ($summaryTitle -ne $detailTitle)
+    {
+        Fail "$issueId summary title '$summaryTitle' differs from detail title '$detailTitle'."
     }
 }
 

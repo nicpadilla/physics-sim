@@ -1,185 +1,87 @@
 # Physics Sim
 
-Windows C++ 2D physics simulator scaffold focused on water first.
+Physics Sim is a Windows C++20/SDL2 deterministic 2D water-sandbox project under active recovery.
 
-## What is here now
+The current executable builds, runs, and has broad legacy editor/game functionality, but it is **not a finished release**. The recovery is narrowing the player experience to a polished basin sandbox while creating a separate Dear ImGui laboratory client over the same validated simulation core. See `ROADMAP.md` and `PROGRESS.md` for current evidence rather than relying on the historical all-green tracker.
 
-- CMake + MSVC build setup
-- SDL2 window bootstrap
-- A small shared math header for future simulation code
-- A running app that opens a window, renders water, draws walls, and shows cursor feedback
-- Mouse-driven wall painting, erasing, emitter placement, zoom, and pan
-- A no-spout starter basin with pointer-held water emission
-- A repeatable demo scene with a directional hose feeding a U-shaped container
-- Scene save/load support through a plain-text scene format
-- Curated scene gallery with metadata notes and browser shortcuts
-- A small automated math test target
-- Scene format policy notes in [docs/scene-format.md](docs/scene-format.md)
-- Scene metadata and thumbnail policy notes in [docs/scene-metadata.md](docs/scene-metadata.md)
-- Diagnostics notes in [docs/diagnostics.md](docs/diagnostics.md)
-- User settings notes in [docs/user-settings.md](docs/user-settings.md)
-- Water lifecycle notes in [docs/water-lifecycle.md](docs/water-lifecycle.md)
-- Future fluid-realism notes in [docs/fluid-realism-roadmap.md](docs/fluid-realism-roadmap.md)
-- Physics accuracy contract in [docs/physics-accuracy-contract.md](docs/physics-accuracy-contract.md)
-- Boundary interaction notes in [docs/boundary-interaction.md](docs/boundary-interaction.md)
-- Future finished-game polish notes in [docs/finished-game-polish-roadmap.md](docs/finished-game-polish-roadmap.md)
-- Visual style note in [docs/visual-style.md](docs/visual-style.md)
-- Replay regression notes in [docs/replay-regression.md](docs/replay-regression.md)
-- Architecture decision records in [docs/adr/README.md](docs/adr/README.md)
+## Recovery Product
 
-## Build
+- **Sandbox:** pour water, draw/erase walls, pause/step/resume, reset, undo/redo, and save/load.
+- **Lab:** canonical scenarios, profiles, metrics, plots, field views, replay, capture, and comparison.
 
-The repository is configured for the Visual Studio 2022 Build Tools already installed on this machine.
-Use the PowerShell wrappers under `scripts/` if `cmake` is not already on PATH.
+Lab mode and the recovered command/data contracts are not implemented yet. The active recovery queue begins at PSIM-0089 in `ISSUES.md`. Pre-recovery sources and evidence are preserved by tag `pre-recovery-2026-07-10`.
 
-Configure:
+## Current Limitations
+
+- The committed surface regression is deterministic but does not meet the recovered visual acceptance bar.
+- Runtime behavior remains concentrated in `src/main.cpp` and algorithmic headers pending the compiled-module refactor.
+- The current test command includes long solver and visual cases and takes several minutes.
+- Scene, replay, save, settings, and golden formats will intentionally break during recovery.
+- Secondary devices, objectives, progression, gallery breadth, and decorative polish will not be exposed in the first recovered release.
+- No Git remote, CI run, or current distributable establishes release readiness yet.
+
+## Requirements
+
+- Windows
+- Visual Studio 2022 Build Tools with MSVC and the Windows SDK
+- PowerShell
+- CMake 3.25 or newer (the wrappers can use the Visual Studio bundled CMake)
+- vcpkg dependencies declared in `vcpkg.json`
+
+## Configure, Build, Test, Run
 
 ```powershell
 .\scripts\configure.ps1
-```
-
-Build:
-
-```powershell
 .\scripts\build.ps1
-```
-
-Run:
-
-```powershell
+.\scripts\test.ps1
+.\scripts\run-smoke.ps1
 .\build\windows-x64\Debug\physics-sim.exe
 ```
 
-Controls:
+The current `scripts/test.ps1` runs all 26 legacy CTest targets. PSIM-0098 will add `-Tier Fast`, `-Tier Standard`, and `-Tier Full`; do not use those parameters until that issue lands.
 
-- `Space` toggles pause and resume.
-- `S` steps one fixed simulation tick while paused.
-- `R` clears fluid only.
-- `F10` retries the current scene.
-- `Delete` removes the selected fixture or device, or clears the scene if nothing is selected.
-- `F5` saves the current scene into the per-user save directory under `SDL_GetPrefPath("Nic", "physics-sim")/saves/` and refreshes the autosave snapshot there.
-- `F9` loads the autosave from that per-user save directory if it exists, otherwise the demo scene.
-- The pause menu's `Load Save` entry opens the save browser for autosave plus named saves in the same per-user save directory.
-- Important actions flash a short `MSG` line in the debug overlay.
-- `PgUp` and `PgDn` browse the curated scene gallery.
-- `Tab` cycles through pointer water, wall, emitter, gate, sensor, drain, pump, and valve tools.
-- `0` selects pointer water.
-- `1` selects wall paint mode.
-- `2` selects wall erase mode.
-- `3` selects the directional hose fixture.
-- `4` selects the omni emitter fixture.
-- `5` selects the gate tool.
-- `6` selects the sensor tool.
-- `7` selects the drain tool.
-- `8` selects the pump tool.
-- `9` selects the valve tool.
-- `V` cycles the visual/debug mode.
-- `H` toggles the in-app help overlay.
-- `Esc` opens the pause menu while playing, backs out of menu screens, and returns to the sandbox from the main menu.
-- `Enter` and mouse clicks activate menu items.
-- The app opens to the tutorial on a fresh launch, then returns to the sandbox shell on later launches unless `--skip-session-shell` is passed.
-- Normal sandbox startup uses `scenes/starter_basin.pscene`, a no-spout U-shaped basin; explicit demo and gallery scenes keep their authored hose fixtures.
-- Use `--tutorial-mode` to replay the guided first-run tutorial directly.
-- Use `--reduced-motion` to seed reduced-motion mode for local verification.
-- `--skip-session-shell` bypasses the menu shell and tutorial for smoke, replay, and capture flows.
-- `Ctrl+Z` undoes the last wall or fixture edit.
-- `Ctrl+Y` redoes the last undone edit.
-- Hold left mouse with pointer water active to emit water from the cursor; releasing the mouse or changing tools stops the transient source.
-- Left-drag draws or erases walls, depending on the active tool.
-- Left-click on empty space places the selected emitter, gate, or sensor tool.
-- Left-click on an existing emitter, gate, or sensor selects it instead of placing a new one.
-- Right-click clears the current fixture selection.
-- `W`, `A`, `S`, `D` or the arrow keys change the hose direction.
-- `Ctrl+W`, `Ctrl+A`, `Ctrl+S`, and `Ctrl+D`, or the arrow keys with `Ctrl`, move the selected fixture by one grid cell.
-- `Q` and `E` rotate the hose direction or the selected fixture.
-- `[` and `]` adjust emitter speed in grid cells per second.
-- `-` and `=` adjust emitter emission rate.
-- `T` toggles the selected emitter, gate, sensor, or valve state.
-- The drain tool removes water in a 3x3 region.
-- The pump tool pushes water in the current direction.
-- The valve tool places open or closed flow regulators.
-- Middle-drag pans the camera.
-- Mouse wheel zooms in and out.
-- `Space` also resumes from the pause menu.
-
-Automated smoke test:
-
-```powershell
-.\scripts\run-smoke.ps1
-```
-
-Solver performance budget:
-
-```powershell
-.\scripts\measure-water-solver.ps1
-```
-
-This runs the repeatable solver benchmark and prints the measured timing and particle count.
-
-One-command verification bundle:
+Current full local bundle:
 
 ```powershell
 .\scripts\verify-all.ps1
 ```
 
-This runs tracking validation, build, tests, smoke, and the replay regression suite.
+Additional current checks:
 
-Release package:
+```powershell
+.\scripts\verify-fluid-quality-suite.ps1
+.\scripts\verify-replay-suite.ps1
+.\scripts\measure-water-solver.ps1 -Profile All
+.\scripts\check-tracking.ps1
+```
+
+Create a legacy package (not a recovered release):
 
 ```powershell
 .\scripts\package-release.ps1
 ```
 
-This creates a runnable folder in `dist\physics-sim-release` and writes a contents manifest.
+## Current Legacy Controls
 
-Diagnostics:
+These controls describe the executable before the sandbox-scope recovery:
 
-- `physics-sim.log` is the default log file in the current working directory.
-- Use `--log-file <path>` to override the log location.
-- Use `--scene-path <path>` to load a specific startup scene and capture scene-load failures in the log.
-- Use `--replay-file <path>` to load a deterministic replay script and surface replay parse failures through the player-facing error dialog.
-- Use `--tutorial-mode` to replay the guided first-run tutorial directly.
-- Use `--skip-session-shell` to bypass the menu shell and tutorial for smoke, replay, and capture flows.
-- Startup window, renderer, replay, scene, settings, audio, and package-content failures use player-facing messages plus log details instead of raw SDL text alone.
+- Hold left mouse in pointer-water mode to pour.
+- `0`: pointer water; `1`: draw wall; `2`: erase wall.
+- `Space`: pause/resume; `S`: single step while paused; `R`: clear fluid.
+- `Ctrl+Z` / `Ctrl+Y`: undo/redo.
+- `F5`: save; `F9`: load autosave; `F10`: retry current scene.
+- Middle-drag: pan; mouse wheel: zoom; `H`: legacy help; `V`: visual mode.
+- `Esc`: pause/menu navigation.
 
-Settings:
+Legacy secondary tool shortcuts `3` through `9`, gallery navigation, objectives, and session-shell behavior remain present until PSIM-0096 removes them from the recovered release UI.
 
-- Use `--settings-file <path>` to override the user-settings file location.
-- Settings persist window size, fullscreen, help overlay visibility, visual mode, reduced motion, high contrast, audio mute/volume, and remappable controls.
-- `--window-size <width>x<height>`, `--show-help`, `--visual-mode <mixed|density|particles>`, and `--reduced-motion` are handy for seeding a local persistence check.
-- See [docs/scene-gallery.md](docs/scene-gallery.md) for the curated scene list and gallery workflow.
-- The gallery includes an objective scene in [scenes/objective_fill.pscene](scenes/objective_fill.pscene) that uses a sensor target.
+## Evidence And Tracking
 
-Tests:
+- `ROADMAP.md`: recovery product contract.
+- `PROGRESS.md`: current implementation, automation, and human-acceptance status.
+- `ISSUES.md`: implementation-ready recovery queue.
+- `docs/TRACKING.md`: lifecycle and evidence rules.
+- `docs/adr/README.md`: architecture decisions.
+- `docs/history/pre-recovery-snapshot.md`: immutable legacy snapshot reference.
 
-```powershell
-.\scripts\test.ps1
-```
-
-Golden-scene regression check:
-
-```powershell
-.\scripts\verify-demo-scene.ps1
-```
-
-The regression check launches the demo scene, captures a deterministic frame, and compares it against `regression\demo_scene_golden.bmp`.
-
-Later density regression check:
-
-```powershell
-.\scripts\verify-demo-scene-density.ps1
-```
-
-This captures a later density-view frame and compares it against `regression\demo_scene_density_golden.bmp`.
-
-Replay regression suite:
-
-```powershell
-.\scripts\verify-replay-suite.ps1
-```
-
-This runs deterministic replay cases defined in `regression\replay_suite.psd1`.
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the stage goals and completion markers.
+A matching image hash proves reproducibility only. Recovered visual acceptance requires semantic checks plus a named, dated human review.

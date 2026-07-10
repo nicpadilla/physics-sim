@@ -26,14 +26,17 @@ Allowed `PROGRESS.md` statuses:
 
 - `Missing`: Required behavior does not exist.
 - `Partial`: Some behavior exists, but the requirement is not fully satisfied.
-- `Done`: Behavior appears implemented in code or docs, but verification evidence is incomplete.
-- `Verified`: Requirement is backed by a named command, test, scene, regression check, or documented manual check.
+- `Implemented`: Behavior exists, but current automated evidence is incomplete.
+- `Automated`: Current automated evidence passes with command, date, duration, and scenario/profile where applicable.
+- `Human Accepted`: A named, dated visual or usability review passed in addition to required automation.
 - `Blocked`: Work cannot proceed until a concrete dependency is resolved.
 
 Rules:
 
-- Do not mark a progress item `Verified` without evidence in the row.
-- Prefer `Done` over `Verified` when the only evidence is code inspection.
+- Do not mark a progress item `Automated` without current command evidence in the row.
+- Do not mark a progress item `Human Accepted` without reviewer, date, artifact, and review scope.
+- Prefer `Implemented` when the only evidence is code inspection.
+- A matching golden-image hash proves determinism only; it cannot establish visual or usability acceptance.
 - Link incomplete requirements to one or more `PSIM-*` issues in the next-task column.
 - If a roadmap marker changes, update `PROGRESS.md` in the same change.
 
@@ -150,7 +153,7 @@ Use this checklist when starting or closing an issue:
 3. Move the issue to `In Progress` before editing code or docs.
 4. Add or update tests, scenes, or manual checks that prove the change.
 5. Run the smallest named verification command set that covers the issue.
-6. Update `PROGRESS.md` with `Verified` only when evidence is recorded in the row.
+6. Update `PROGRESS.md` with `Automated` or `Human Accepted` only when the required evidence is recorded in the row.
 7. Update `ISSUES.md` implementation notes and verification results.
 8. Re-run `.\scripts\check-tracking.ps1` before closing the issue.
 9. Mark the issue `Done` only after the tracking files and evidence agree.
@@ -235,11 +238,14 @@ Use the strongest applicable evidence:
 - Visual regression: `.\scripts\verify-demo-scene.ps1` or a named regression command.
 - Manual evidence: a dated, reproducible manual check with exact actions and expected outcome.
 
+Every recovery verification entry records the command or review, date, result, duration, and relevant profile/scenario. Visual and usability reviews also record the reviewer and artifact path. Evidence from the pre-recovery snapshot is historical context, not current acceptance.
+
 Regression baselines:
 
 - Only update baseline images when an issue explicitly requires the change.
 - Record the command used to create the baseline.
 - Record why the visual change is expected.
+- Record semantic checks and a named human review before treating a visual baseline as accepted.
 
 ## Agent Workflow
 
