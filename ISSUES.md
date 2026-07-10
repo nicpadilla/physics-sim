@@ -17,7 +17,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0097 | In Progress | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | In Progress | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
-| PSIM-0100 | Open | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
+| PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Open | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
 
 ## Epic 12: Recovery Foundation
@@ -597,7 +597,7 @@ Implementation notes:
 
 ### PSIM-0100: Audit and gate deferred features
 
-Status: Open
+Status: Done
 
 Priority: P2
 
@@ -639,7 +639,9 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Recorded explicit redesign, defer, or removal decisions for emitters, gallery, devices, objectives, tutorial expansion, decorative polish, and broader saves/progression in `docs/deferred-feature-disposition.md`.
+- The package contains only the starter basin and narrow tutorial; sandbox menus/cycling/shortcuts cannot reach legacy devices or gallery breadth. No deferred feature was restored, so no speculative restoration issue was opened.
+- Verification on 2026-07-10: `test.ps1 -Tier Standard` passed 27/27 in 64.1 seconds, sandbox and lab smoke passed, package-directory smoke passed, and `check-tracking.ps1` passed. Named vertical-slice human acceptance remains correctly owned by PSIM-0095/0096 rather than this disposition audit.
 
 ## Epic 19: Recovery Acceptance
 
