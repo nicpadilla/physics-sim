@@ -16,7 +16,7 @@ Lab mode and the recovered command/data contracts are not implemented yet. The a
 - The committed surface regression is deterministic but does not meet the recovered visual acceptance bar.
 - The executable entry point is now thin, but the legacy SDL application remains concentrated in `src/app/application.cpp` and solver orchestration remains in a large header pending staged extraction.
 - The current test command includes long solver and visual cases and takes several minutes.
-- Scene, replay, save, settings, and golden formats will intentionally break during recovery.
+- Recovery scene v2, replay v2, and recovered-settings v1 intentionally reject pre-recovery formats; goldens remain legacy evidence until visual recovery.
 - Secondary devices, objectives, progression, gallery breadth, and decorative polish will not be exposed in the first recovered release.
 - No Git remote, CI run, or current distributable establishes release readiness yet.
 

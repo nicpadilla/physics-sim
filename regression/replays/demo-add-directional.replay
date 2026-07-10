@@ -1,4 +1,7 @@
-physics-sim-replay 1
+physics-sim-replay 2
+scene-digest 0E70DEFE66E332D7
+fixed-timestep 0.008333333333333333
+solver-profile balanced
 tick 0 tool directional
 tick 0 speed 8
 tick 0 rate 192

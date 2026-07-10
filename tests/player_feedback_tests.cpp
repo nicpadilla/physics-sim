@@ -44,7 +44,7 @@ int main()
     const fs::path unsupported_scene = temp_directory / "unsupported.pscene";
     {
         std::ofstream file(unsupported_scene, std::ios::trunc);
-        file << "physics-sim-scene 3\n";
+        file << "physics-sim-scene 1\n";
         file << "grid 2 2 1\n";
     }
     const auto unsupported_feedback = physics_sim::describe_scene_load_failure(unsupported_scene);

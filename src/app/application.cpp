@@ -2417,6 +2417,37 @@ int physics_sim::app::run_application(int argc, char* argv[])
         currentGalleryIndex = gallery_index_for_path(currentScenePath);
     }
 
+    if (replayScript.has_value())
+    {
+        const auto sceneDigest = physics_sim::stable_replay_file_digest(currentScenePath);
+        const bool identityMatches = sceneDigest.has_value()
+            && physics_sim::replay_identity_matches(
+                *replayScript,
+                *sceneDigest,
+                stepDriver.fixed_step().count(),
+                simulation.solver_settings().profile);
+        if (!identityMatches)
+        {
+            std::ostringstream detail;
+            detail << "replay identity mismatch: scene="
+                   << (sceneDigest.has_value() ? *sceneDigest : std::string{"unavailable"})
+                   << " expected_scene=" << replayScript->scene_digest
+                   << " timestep=" << stepDriver.fixed_step().count()
+                   << " expected_timestep=" << replayScript->fixed_timestep
+                   << " profile=" << solver_profile_name(simulation.solver_settings().profile)
+                   << " expected_profile=" << solver_profile_name(replayScript->solver_profile);
+            logger.log(detail.str());
+            if (!options.skipSessionShell && !options.autoExitAfter.has_value() && !options.dumpFramePath.has_value())
+            {
+                show_error("REPLAY IDENTITY MISMATCH", detail.str(), &logger);
+            }
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+    }
+
     sync_solver_profile_from_simulation();
     refresh_save_browser_entries();
 

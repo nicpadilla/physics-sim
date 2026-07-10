@@ -1,4 +1,5 @@
-physics-sim-scene 1
+physics-sim-scene 2
+solver-profile balanced
 title Guided Tutorial
 description First-run guided scene for learning the sandbox loop.
 author Nic

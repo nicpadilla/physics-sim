@@ -1,12 +1,15 @@
 #pragma once
 
 #include <physics_sim/action.hpp>
+#include <physics_sim/solver_profile.hpp>
 
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -16,7 +19,7 @@
 
 namespace physics_sim
 {
-inline constexpr int ReplayScriptVersion = 1;
+inline constexpr int ReplayScriptVersion = 2;
 
 struct ReplayEvent
 {
@@ -27,8 +30,54 @@ struct ReplayEvent
 
 struct ReplayScript
 {
+    std::string scene_digest{};
+    double fixed_timestep = 0.0;
+    FluidSolverProfile solver_profile = FluidSolverProfile::Balanced;
+    std::optional<std::string> expected_final_digest{};
     std::vector<ReplayEvent> events{};
 };
+
+[[nodiscard]] inline bool replay_identity_matches(
+    const ReplayScript& script,
+    std::string_view scene_digest,
+    double fixed_timestep,
+    FluidSolverProfile profile,
+    double epsilon = 1.0e-12) noexcept
+{
+    return script.scene_digest == scene_digest
+        && std::abs(script.fixed_timestep - fixed_timestep) <= epsilon
+        && script.solver_profile == profile;
+}
+
+[[nodiscard]] inline std::string stable_replay_source_digest(std::string_view source)
+{
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const unsigned char value : source)
+    {
+        if (value == '\r')
+        {
+            continue;
+        }
+        hash ^= value;
+        hash *= 1099511628211ULL;
+    }
+
+    std::ostringstream stream;
+    stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
+    return stream.str();
+}
+
+[[nodiscard]] inline std::optional<std::string> stable_replay_file_digest(const std::filesystem::path& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open())
+    {
+        return std::nullopt;
+    }
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return stable_replay_source_digest(buffer.str());
+}
 
 [[nodiscard]] inline const char* action_name(Action action) noexcept
 {
@@ -79,6 +128,9 @@ struct ReplayScript
     ReplayScript script;
 
     bool saw_header = false;
+    bool saw_scene_digest = false;
+    bool saw_fixed_timestep = false;
+    bool saw_solver_profile = false;
 
     auto trim = [](std::string& line)
     {
@@ -113,6 +165,54 @@ struct ReplayScript
             }
 
             saw_header = true;
+            continue;
+        }
+
+        if (keyword == "scene-digest")
+        {
+            if (!(line_stream >> script.scene_digest) || script.scene_digest.size() != 16)
+            {
+                return std::nullopt;
+            }
+            saw_scene_digest = true;
+            continue;
+        }
+
+        if (keyword == "fixed-timestep")
+        {
+            if (!(line_stream >> script.fixed_timestep) || script.fixed_timestep <= 0.0)
+            {
+                return std::nullopt;
+            }
+            saw_fixed_timestep = true;
+            continue;
+        }
+
+        if (keyword == "solver-profile")
+        {
+            std::string profile;
+            if (!(line_stream >> profile))
+            {
+                return std::nullopt;
+            }
+            const auto parsed = parse_solver_profile_token(profile);
+            if (!parsed.has_value())
+            {
+                return std::nullopt;
+            }
+            script.solver_profile = *parsed;
+            saw_solver_profile = true;
+            continue;
+        }
+
+        if (keyword == "expected-final-digest")
+        {
+            std::string digest;
+            if (!(line_stream >> digest) || digest.size() != 16)
+            {
+                return std::nullopt;
+            }
+            script.expected_final_digest = std::move(digest);
             continue;
         }
 
@@ -179,7 +279,7 @@ struct ReplayScript
         return std::nullopt;
     }
 
-    if (!saw_header || script.events.empty())
+    if (!saw_header || !saw_scene_digest || !saw_fixed_timestep || !saw_solver_profile || script.events.empty())
     {
         return std::nullopt;
     }

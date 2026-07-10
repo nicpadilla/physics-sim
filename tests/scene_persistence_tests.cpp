@@ -159,16 +159,10 @@ int main()
     REQUIRE(restored.solver_settings().profile == physics_sim::FluidSolverProfile::Quality, "apply_scene lost solver profile");
 
     {
-        const auto supported = physics_sim::parse_scene_text(
+        const auto unsupported = physics_sim::parse_scene_text(
             "physics-sim-scene 1\n"
             "grid 2 2 1\n");
-        REQUIRE(supported.has_value(), "parse_scene_text rejected supported version 1");
-        REQUIRE(!supported->solver_profile.has_value(), "version 1 scene unexpectedly carried a solver profile");
-
-        physics_sim::WaterSimulation2D version_one_target;
-        version_one_target.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Fast));
-        physics_sim::apply_scene(*supported, version_one_target);
-        REQUIRE(version_one_target.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "version 1 scene did not fall back to balanced");
+        REQUIRE(!unsupported.has_value(), "parse_scene_text accepted intentionally unsupported version 1");
     }
 
     {
@@ -193,6 +187,23 @@ int main()
             "physics-sim-scene 3\n"
             "grid 2 2 1\n");
         REQUIRE(!unsupported.has_value(), "parse_scene_text accepted unsupported version 3");
+    }
+
+    {
+        const fs::path atomic_path = fs::temp_directory_path() / "physics-sim-atomic-scene.pscene";
+        fs::remove(atomic_path);
+        fs::remove(fs::path{atomic_path.string() + ".bak"});
+        REQUIRE(physics_sim::save_scene(atomic_path, snapshot), "initial atomic scene save failed");
+        auto changed = snapshot;
+        changed.metadata.title = "Atomic replacement";
+        REQUIRE(physics_sim::save_scene(atomic_path, changed), "atomic scene replacement failed");
+        REQUIRE(fs::exists(fs::path{atomic_path.string() + ".bak"}), "atomic replacement did not retain a backup");
+        const auto replacement = physics_sim::load_scene(atomic_path);
+        const auto backup = physics_sim::load_scene(fs::path{atomic_path.string() + ".bak"});
+        REQUIRE(replacement.has_value() && replacement->metadata.title == "Atomic replacement", "atomic replacement did not publish the new scene");
+        REQUIRE(backup.has_value() && backup->metadata.title.empty(), "atomic replacement backup did not preserve the previous scene");
+        fs::remove(atomic_path);
+        fs::remove(fs::path{atomic_path.string() + ".bak"});
     }
 
     {

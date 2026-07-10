@@ -22,7 +22,7 @@ Replay-load failure check:
 
 ```powershell
 $invalidReplay = "build\windows-x64\physics-sim-invalid.replay"
-Set-Content -LiteralPath $invalidReplay -Value "physics-sim-replay 1`ntick 0 nope"
+Set-Content -LiteralPath $invalidReplay -Value "physics-sim-replay 2`nscene-digest 0123456789ABCDEF`nfixed-timestep 0.008333333333333333`nsolver-profile balanced`ntick 0 nope"
 .\build\windows-x64\Debug\physics-sim.exe --log-file build\windows-x64\physics-sim-diagnostics.log --replay-file $invalidReplay --auto-exit-ms 1500
 ```
 

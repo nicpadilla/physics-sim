@@ -73,7 +73,7 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 3\n"
+            "physics-sim-recovery-settings 1\n"
             "window 1280 720\n"
             "help_overlay 0\n"
             "visual_mode surface\n"
@@ -105,7 +105,7 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 4\n"
+            "physics-sim-recovery-settings 2\n"
             "window 1280 720\n"
             "help_overlay 0\n"
             "visual_mode mixed\n");
@@ -114,7 +114,7 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 1\n"
+            "physics-sim-recovery-settings 1\n"
             "window 0 720\n"
             "help_overlay 0\n"
             "visual_mode mixed\n");
@@ -123,7 +123,7 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 1\n"
+            "physics-sim-recovery-settings 1\n"
             "window 1280 720\n"
             "help_overlay maybe\n"
             "visual_mode mixed\n");
@@ -132,11 +132,20 @@ int main()
 
     {
         const auto parsed = physics_sim::parse_user_settings_text(
-            "physics-sim-settings 1\n"
+            "physics-sim-recovery-settings 1\n"
             "window 1280 720\n"
             "help_overlay 0\n"
             "visual_mode mystery\n");
         REQUIRE(!parsed.has_value(), "parse_user_settings_text accepted invalid visual mode token");
+    }
+
+    {
+        const auto legacy = physics_sim::parse_user_settings_text(
+            "physics-sim-settings 3\n"
+            "window 1280 720\n"
+            "help_overlay 0\n"
+            "visual_mode surface\n");
+        REQUIRE(!legacy.has_value(), "parse_user_settings_text accepted pre-recovery settings");
     }
 
     {

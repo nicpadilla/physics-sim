@@ -1,37 +1,29 @@
-# Scene Format Policy
+# Recovery Scene Format
 
-The current on-disk scene format version is `2`.
+Recovery scenes use text format version 2 and begin with:
 
-Version 1 stores:
+```text
+physics-sim-scene 2
+solver-profile balanced
+grid 80 45 16
+```
 
-- grid width, height, and cell size
-- optional descriptive metadata fields for title, description, author, tags, and notes
-- solid wall cells
-- water emitters with kind, position, direction, speed, emission rate, and enabled state
-- gates and valves with open/closed state
-- sensors with enabled, active, objective, and label fields
-- drains with rectangular footprints and enabled state
-- pumps with rectangular footprints, enabled state, direction, and strength
+Version 1 and unknown versions are intentionally rejected. There is no migration path in the recovery executable; legacy content remains available through the pre-recovery Git tag.
 
-Version 2 adds:
+Required records:
 
-- optional `solver-profile <fast|balanced|quality>` scene-level solver profile
+- exactly one `physics-sim-scene 2` header;
+- one `solver-profile fast|balanced|quality` record;
+- one positive `grid <width> <height> <cell-size>` record.
 
-Thumbnail policy:
+Optional metadata records are `title`, `description`, `author`, repeated `tag`, and repeated `note`. Authored state records are `wall`, `emitter`, `gate`, `sensor`, `drain`, `pump`, and `valve`. Secondary devices remain serializable for laboratory and deferred-content work even though they are not part of the first recovered sandbox UI.
 
-- Thumbnails are stored as sibling BMP files next to the scene rather than embedded in the scene text.
-- See [scene-metadata.md](scene-metadata.md) for the metadata field list and thumbnail naming example.
+Player saves use atomic replacement:
 
-Compatibility policy:
+1. write `<path>.tmp`;
+2. parse and validate the temporary scene;
+3. move the previous valid scene to `<path>.bak`;
+4. rename the validated temporary scene to the requested path;
+5. restore the backup if publication fails.
 
-- The loader accepts version `1` and `2`.
-- Version `1` scenes have no authored solver profile. Direct `load_scene` calls use the `balanced` fallback, while the app can pass the current user profile as the fallback.
-- Version `2` scenes may specify `solver-profile`; if present, that profile overrides the user setting unless the app was launched with `--solver-profile`.
-- Unknown, future, malformed, or missing versions are rejected.
-- `save_scene` always writes version `2`.
-- If the format changes in the future, the parser should be updated with an explicit compatibility or migration rule instead of silently accepting unknown data.
-
-Failure behavior:
-
-- `load_scene(path, simulation)` returns `false` if the file cannot be opened or the scene text is invalid.
-- `save_scene(path, document)` returns `false` if the file cannot be created or written.
+Malformed headers, missing required records, invalid profiles, non-positive grids, invalid devices, and unknown records are rejected without applying partial state.

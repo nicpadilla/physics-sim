@@ -39,7 +39,7 @@ struct UserSettings
     InputBindings input_bindings{};
 };
 
-inline constexpr int UserSettingsVersion = 3;
+inline constexpr int UserSettingsVersion = 1;
 
 [[nodiscard]] inline std::optional<VisualMode> parse_visual_mode_token(std::string_view value)
 {
@@ -115,6 +115,7 @@ inline constexpr int UserSettingsVersion = 3;
     bool saw_help_overlay = false;
     bool saw_visual_mode = false;
     bool saw_solver_profile = false;
+    bool saw_reduced_motion = false;
     bool saw_fullscreen = false;
     bool saw_high_contrast = false;
     bool saw_audio_muted = false;
@@ -147,10 +148,10 @@ inline constexpr int UserSettingsVersion = 3;
             return std::nullopt;
         }
 
-        if (keyword == "physics-sim-settings")
+        if (keyword == "physics-sim-recovery-settings")
         {
             int version = 0;
-            if (!(line_stream >> version) || (version < 1 || version > UserSettingsVersion))
+            if (saw_header || !(line_stream >> version) || version != UserSettingsVersion)
             {
                 return std::nullopt;
             }
@@ -248,6 +249,7 @@ inline constexpr int UserSettingsVersion = 3;
             }
 
             settings.reduced_motion = *parsed;
+            saw_reduced_motion = true;
             continue;
         }
 
@@ -391,12 +393,10 @@ inline constexpr int UserSettingsVersion = 3;
         return std::nullopt;
     }
 
-    if (!saw_header || !saw_window || !saw_help_overlay || !saw_visual_mode)
-    {
-        return std::nullopt;
-    }
-
-    if (file_version >= 3 && !saw_solver_profile)
+    if (!saw_header || file_version != UserSettingsVersion || !saw_window || !saw_help_overlay
+        || !saw_visual_mode || !saw_solver_profile || !saw_reduced_motion || !saw_fullscreen
+        || !saw_high_contrast || !saw_audio_muted || !saw_audio_master_volume
+        || !saw_audio_effects_volume || !saw_audio_music_volume)
     {
         return std::nullopt;
     }
@@ -443,7 +443,7 @@ inline constexpr int UserSettingsVersion = 3;
         return false;
     }
 
-    file << "physics-sim-settings " << UserSettingsVersion << "\n";
+    file << "physics-sim-recovery-settings " << UserSettingsVersion << "\n";
     file << "window " << settings.window_size.width << ' ' << settings.window_size.height << "\n";
     file << "help_overlay " << (settings.help_overlay_visible ? 1 : 0) << "\n";
     file << "visual_mode " << visual_mode_name(settings.visual_mode) << "\n";

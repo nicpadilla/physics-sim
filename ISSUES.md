@@ -9,7 +9,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0089 | Done | P0 | Recovery Foundation | R14.01, R14.02, R14.03, R14.04 | Reset recovery governance and architecture decisions |
 | PSIM-0090 | Done | P0 | Recovery Foundation | R14.05 | Capture trusted pre-refactor baseline |
 | PSIM-0091 | Done | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
-| PSIM-0092 | Open | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
+| PSIM-0092 | Done | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Open | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Open | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | Open | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
@@ -183,7 +183,7 @@ Implementation notes:
 
 ### PSIM-0092: Replace scene, replay, and settings contracts
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -227,7 +227,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Made scene v2 intentionally exclusive: version 1, missing explicit solver profile, duplicate/malformed headers, and unknown versions are rejected. Regenerated all eight bundled scenes with explicit balanced profiles.
+- Added validated atomic scene publication through `.tmp` and `.bak`, including round-trip validation before replacement and restoration on publish failure. Tests prove replacement and previous-file backup behavior.
+- Added replay v2 identity fields for exact scene digest, fixed timestep, solver profile, and optional expected final digest. The digest is deterministic FNV-1a 64 over exact scene bytes; application startup rejects scene/timestep/profile mismatch before replay execution.
+- Regenerated all repository replays with v2 identity. Events remain semantic tick-indexed commands, never SDL events; direct facade-command expansion continues with lab work.
+- Reset settings to the distinct `physics-sim-recovery-settings 1` contract, requiring the complete recovered settings document and rejecting all pre-recovery headers/versions.
+- Rewrote scene, replay, and settings documentation and added parser, identity, unsupported-version feedback, backup, and bundled-content tests.
+- Verification on 2026-07-10: `.\scripts\build.ps1` passed in 15.6 seconds; targeted scene/replay/settings/gallery/tutorial tests and clean demo regression passed; `.\scripts\test.ps1` passed 28/28 in 178.1 seconds. The dedicated replay suite reaches execution through valid v2 identity and retains the known pre-recovery directional hash mismatch unchanged for PSIM-0093/0094.
 
 ## Epic 14: Validated Water
 

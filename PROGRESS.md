@@ -22,7 +22,7 @@ Allowed statuses: `Missing`, `Partial`, `Implemented`, `Automated`, `Human Accep
 | R16.03 | Expose complete laboratory field views. | Partial | Existing debug modes are incomplete and coupled to the app renderer. | PSIM-0097. |
 | R16.04 | Run semantic visual checks. | Missing | Existing image regressions use hash equality only. | PSIM-0095. |
 | R16.05 | Require numeric plus human visual acceptance. | Missing | No recovered capture has human acceptance evidence. | PSIM-0095. |
-| R17.01 | Deliver the narrow sandbox interaction loop. | Partial | Most actions exist but are mixed with deferred product breadth. | PSIM-0096. |
+| R17.01 | Deliver the narrow sandbox interaction loop. | Partial | Recovery scene v2 and atomic save/load contracts passed automated tests on 2026-07-10; player-loop scope and acceptance remain PSIM-0096. | PSIM-0096. |
 | R17.02 | Deliver accessible player-facing SDL UI. | Partial | Existing UI needs scope reduction and recovered acceptance. | PSIM-0096. |
 | R17.03 | Teach the loop through first-run interaction. | Partial | Existing tutorial is not accepted against the narrow recovery loop. | PSIM-0096. |
 | R17.04 | Deliver Dear ImGui laboratory mode. | Missing | Dear ImGui is not a dependency and lab mode does not exist. | PSIM-0097. |

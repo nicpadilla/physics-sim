@@ -1,40 +1,18 @@
-# Replay Regression Harness
+# Recovery Replay Contract
 
-The replay harness drives deterministic, fixed-step actions through the app and captures frames for comparison.
+Replay version 2 stores semantic, tick-indexed commands rather than SDL events or render-frame timing.
 
-## Command
-
-Use the replay suite command:
-
-```powershell
-.\scripts\verify-replay-suite.ps1
-```
-
-The suite currently runs two replay cases:
-
-- `demo-add-directional`
-- `demo-add-omni`
-
-Each case loads the committed demo scene, applies scripted actions at fixed simulation ticks, captures a frame, and compares the result with a golden BMP in `regression\`.
-
-## Replay file format
-
-Replay files use a simple text format:
+Required header:
 
 ```text
-physics-sim-replay 1
-tick 0 tool directional
-tick 0 speed 8
-tick 0 rate 192
-tick 0 place 880 120
+physics-sim-replay 2
+scene-digest 0E70DEFE66E332D7
+fixed-timestep 0.008333333333333333
+solver-profile balanced
 ```
 
-- The header declares the file format version.
-- Each `tick` line schedules one command at a fixed-step tick count.
-- Supported commands are `action`, `tool`, `direction`, `speed`, `rate`, and `place`.
-- Blank lines and `#` comments are ignored.
+An optional `expected-final-digest` records the accepted terminal simulation identity. Each event uses `tick <tick> <command> [arguments...]`; current recovery parsing supports semantic action, tool, direction, speed, rate, and placement commands while the application is migrated to the stable simulation facade.
 
-## App option
+The scene digest is deterministic FNV-1a 64 over scene bytes after normalizing CRLF to LF, so Git line-ending conversion does not invalidate identity. Replay startup fails before simulation if scene digest, fixed timestep, or solver profile differs. Version 1, missing identity, malformed commands, and unknown versions are rejected.
 
-Pass `--replay-file <path>` to load a replay script at startup.
-Actions are applied in tick order during the fixed-step loop, which keeps the replay deterministic across runs.
+Image hashes remain determinism evidence only. Recovery acceptance additionally requires structured numeric and semantic visual evidence.

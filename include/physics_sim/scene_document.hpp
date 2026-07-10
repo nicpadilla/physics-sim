@@ -104,7 +104,7 @@ struct SceneDocument
     std::vector<SceneValve> valves{};
 };
 
-// Version 2 adds an optional solver profile while preserving version 1 scene loading.
+// Recovery scene v2 is intentionally incompatible with the pre-recovery v1 format.
 inline constexpr int SceneFormatVersion = 2;
 
 [[nodiscard]] inline SceneDocument capture_scene(const WaterSimulation2D& simulation, SceneMetadata metadata = {})
@@ -347,7 +347,7 @@ inline void apply_scene(
         if (keyword == "physics-sim-scene")
         {
             int version = 0;
-            if (!(line_stream >> version) || version < 1 || version > SceneFormatVersion)
+            if (saw_header || !(line_stream >> version) || version != SceneFormatVersion)
             {
                 return std::nullopt;
             }
@@ -563,7 +563,7 @@ inline void apply_scene(
         return std::nullopt;
     }
 
-    if (!saw_header || !saw_grid || file_version == 0)
+    if (!saw_header || !saw_grid || file_version != SceneFormatVersion || !document.solver_profile.has_value())
     {
         return std::nullopt;
     }
@@ -593,7 +593,14 @@ inline void apply_scene(
         std::filesystem::create_directories(parent, ec);
     }
 
-    std::ofstream file(path, std::ios::trunc);
+    std::filesystem::path temporary_path = path;
+    temporary_path += ".tmp";
+    std::filesystem::path backup_path = path;
+    backup_path += ".bak";
+
+    std::error_code cleanup_error;
+    std::filesystem::remove(temporary_path, cleanup_error);
+    std::ofstream file(temporary_path, std::ios::trunc);
     if (!file.is_open())
     {
         return false;
@@ -694,7 +701,42 @@ inline void apply_scene(
     }
 
     file.flush();
-    return static_cast<bool>(file);
+    const bool write_succeeded = static_cast<bool>(file);
+    file.close();
+    if (!write_succeeded || !load_scene(temporary_path).has_value())
+    {
+        std::filesystem::remove(temporary_path, cleanup_error);
+        return false;
+    }
+
+    std::error_code ec;
+    const bool had_existing_file = std::filesystem::exists(path, ec) && !ec;
+    if (had_existing_file)
+    {
+        std::filesystem::remove(backup_path, ec);
+        ec.clear();
+        std::filesystem::rename(path, backup_path, ec);
+        if (ec)
+        {
+            std::filesystem::remove(temporary_path, cleanup_error);
+            return false;
+        }
+    }
+
+    ec.clear();
+    std::filesystem::rename(temporary_path, path, ec);
+    if (ec)
+    {
+        if (had_existing_file)
+        {
+            std::error_code restore_error;
+            std::filesystem::rename(backup_path, path, restore_error);
+        }
+        std::filesystem::remove(temporary_path, cleanup_error);
+        return false;
+    }
+
+    return true;
 }
 
 [[nodiscard]] inline bool save_scene(const std::filesystem::path& path, const WaterSimulation2D& simulation)

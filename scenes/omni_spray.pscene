@@ -1,4 +1,5 @@
-physics-sim-scene 1
+physics-sim-scene 2
+solver-profile balanced
 title Omni Spray
 description An omni emitter fills a shallow basin.
 author Nic
