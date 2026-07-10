@@ -108,6 +108,14 @@ void Simulation::apply(const SimulationCommand &command)
             {
                 impl_->water.emitters().clear();
             }
+            else if constexpr (std::is_same_v<Command, SeedParticleCommand>)
+            {
+                const float default_volume = impl_->config.cell_size * impl_->config.cell_size /
+                                             static_cast<float>(std::max<std::size_t>(1, impl_->water.solver_settings().particles_per_full_cell));
+                const float volume = value.volume > 0.0f ? value.volume : default_volume;
+                const float mass = value.mass > 0.0f ? value.mass : volume * impl_->water.solver_settings().rest_density;
+                impl_->water.particles().push_back(FluidParticle{value.position, value.velocity, mass, volume});
+            }
             else if constexpr (std::is_same_v<Command, SetPausedCommand>)
             {
                 impl_->paused = value.paused;
@@ -148,12 +156,21 @@ SimulationSnapshot Simulation::snapshot() const
     result.cell_size = impl_->water.grid().cell_size();
     result.particles = impl_->water.particles();
     result.volume_fractions.reserve(result.grid_width * result.grid_height);
+    result.densities.reserve(result.grid_width * result.grid_height);
+    result.pressures.reserve(result.grid_width * result.grid_height);
+    result.divergences.reserve(result.grid_width * result.grid_height);
+    result.velocities.reserve(result.grid_width * result.grid_height);
     result.solid_cells.reserve(result.grid_width * result.grid_height);
     for (std::size_t y = 0; y < result.grid_height; ++y)
     {
         for (std::size_t x = 0; x < result.grid_width; ++x)
         {
             result.volume_fractions.push_back(impl_->water.cell_volume_fraction(x, y));
+            result.densities.push_back(impl_->water.cell_density(x, y));
+            result.pressures.push_back(impl_->water.grid().pressure(x, y));
+            result.divergences.push_back(impl_->water.grid().divergence(x, y));
+            result.velocities.push_back({0.5f * (impl_->water.grid().u(x, y) + impl_->water.grid().u(x + 1, y)),
+                                         0.5f * (impl_->water.grid().v(x, y) + impl_->water.grid().v(x, y + 1))});
             result.solid_cells.push_back(impl_->water.grid().solid(x, y) ? std::uint8_t{1} : std::uint8_t{0});
         }
     }

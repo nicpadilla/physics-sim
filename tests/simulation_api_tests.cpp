@@ -36,6 +36,7 @@ int main()
         4.0f,
         120.0f,
         true});
+    simulation.apply(physics_sim::SeedParticleCommand{{3.5f, 3.5f}, {0.0f, 0.0f}});
     repeated.apply(physics_sim::AddEmitterCommand{
         physics_sim::SimulationEmitterKind::Directional,
         {6.0f, 2.0f},
@@ -43,6 +44,7 @@ int main()
         4.0f,
         120.0f,
         true});
+    repeated.apply(physics_sim::SeedParticleCommand{{3.5f, 3.5f}, {0.0f, 0.0f}});
 
     require(simulation.step(), "running simulation did not advance");
     require(repeated.step(), "repeated simulation did not advance");
@@ -51,6 +53,8 @@ int main()
     require(snapshot.tick == 1, "snapshot tick did not advance");
     require(snapshot.grid_width == 8 && snapshot.grid_height == 6, "snapshot grid differs from config");
     require(snapshot.solid_cells.at(3 * 8 + 2) == 1, "solid command was not reflected in snapshot");
+    require(snapshot.densities.size() == 48 && snapshot.pressures.size() == 48 && snapshot.divergences.size() == 48 && snapshot.velocities.size() == 48,
+        "diagnostic fields were not exposed through the snapshot");
     require(!snapshot.particles.empty(), "emitter command produced no particles");
     require(simulation.metrics().tick == snapshot.tick, "metrics and snapshot ticks differ");
 

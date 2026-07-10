@@ -10,6 +10,7 @@
 #include <array>
 #include <cfloat>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -30,6 +31,7 @@ struct LabOptions
 {
     std::optional<std::chrono::milliseconds> auto_exit{};
     std::optional<std::filesystem::path> capture_bundle{};
+    int scenario = 1;
 };
 
 LabOptions parse_options(int argc, char *argv[])
@@ -46,11 +48,43 @@ LabOptions parse_options(int argc, char *argv[])
         {
             options.capture_bundle = std::filesystem::path{argv[++index]};
         }
+        else if (argument == "--scenario" && index + 1 < argc)
+        {
+            options.scenario = std::clamp(std::atoi(argv[++index]), 0, 9);
+        }
     }
     return options;
 }
 
-void add_basin(Simulation &simulation, const SimulationConfig &config, float emission_rate)
+constexpr std::array<const char *, 10> scenario_names{
+    "Closed box",     "U-container",  "Still pool", "Hydrostatic column", "Dam break", "Wall and corner impact",
+    "Narrow channel", "Overcrowding", "Long run",   "Determinism"};
+
+void add_border(Simulation &simulation, const SimulationConfig &config)
+{
+    for (std::size_t x = 0; x < config.grid_width; ++x)
+    {
+        simulation.apply(SetSolidCellCommand{x, 0, true});
+        simulation.apply(SetSolidCellCommand{x, config.grid_height - 1, true});
+    }
+    for (std::size_t y = 0; y < config.grid_height; ++y)
+    {
+        simulation.apply(SetSolidCellCommand{0, y, true});
+        simulation.apply(SetSolidCellCommand{config.grid_width - 1, y, true});
+    }
+}
+
+void seed_cell(Simulation &simulation, const SimulationConfig &config, std::size_t x, std::size_t y, Vec2 velocity = {})
+{
+    constexpr std::array<std::array<float, 2>, 4> offsets{{{{0.3f, 0.3f}}, {{0.7f, 0.3f}}, {{0.3f, 0.7f}}, {{0.7f, 0.7f}}}};
+    for (const auto &offset : offsets)
+    {
+        simulation.apply(
+            SeedParticleCommand{{(static_cast<float>(x) + offset[0]) * config.cell_size, (static_cast<float>(y) + offset[1]) * config.cell_size}, velocity});
+    }
+}
+
+void add_basin(Simulation &simulation, const SimulationConfig &config, float emission_rate, bool emitter)
 {
     const std::size_t left = config.grid_width / 4;
     const std::size_t right = config.grid_width * 3 / 4;
@@ -64,23 +98,82 @@ void add_basin(Simulation &simulation, const SimulationConfig &config, float emi
     {
         simulation.apply(SetSolidCellCommand{x, floor, true});
     }
-    simulation.apply(
-        AddEmitterCommand{SimulationEmitterKind::Directional,
-                          {static_cast<float>(config.grid_width) * config.cell_size * 0.5f, static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
-                          {0.0f, 1.0f},
-                          5.0f,
-                          emission_rate,
-                          true});
+    if (emitter)
+    {
+        simulation.apply(AddEmitterCommand{
+            SimulationEmitterKind::Directional,
+            {static_cast<float>(config.grid_width) * config.cell_size * 0.5f, static_cast<float>(config.grid_height) * config.cell_size * 0.18f},
+            {0.0f, 1.0f},
+            5.0f,
+            emission_rate,
+            true});
+    }
 }
 
-std::unique_ptr<Simulation> make_simulation(FluidSolverProfile profile, float gravity, double timestep, float emission_rate)
+std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile profile, float gravity, double timestep, float emission_rate)
 {
     SimulationConfig config;
     config.solver_profile = profile;
     config.gravity_acceleration = gravity;
     config.fixed_timestep = timestep;
     auto simulation = std::make_unique<Simulation>(config);
-    add_basin(*simulation, config, emission_rate);
+    add_border(*simulation, config);
+    if (scenario == 1 || scenario == 8 || scenario == 9)
+    {
+        add_basin(*simulation, config, emission_rate, true);
+    }
+    else if (scenario == 0)
+    {
+        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {640.0f, 120.0f}, {0.0f, 1.0f}, 3.0f, emission_rate * 0.5f, true});
+    }
+    else if (scenario == 2 || scenario == 3)
+    {
+        const std::size_t left = scenario == 2 ? 25 : 35;
+        const std::size_t right = scenario == 2 ? 54 : 44;
+        for (std::size_t y = 20; y < 35; ++y)
+        {
+            for (std::size_t x = left; x <= right; ++x)
+            {
+                seed_cell(*simulation, config, x, y);
+            }
+        }
+    }
+    else if (scenario == 4)
+    {
+        for (std::size_t y = 12; y < 36; ++y)
+        {
+            for (std::size_t x = 8; x < 27; ++x)
+            {
+                seed_cell(*simulation, config, x, y);
+            }
+        }
+    }
+    else if (scenario == 5)
+    {
+        for (std::size_t y = 18; y < 28; ++y)
+        {
+            for (std::size_t x = 10; x < 20; ++x)
+            {
+                seed_cell(*simulation, config, x, y, {240.0f, 80.0f});
+            }
+        }
+    }
+    else if (scenario == 6)
+    {
+        for (std::size_t x = 1; x < config.grid_width - 1; ++x)
+        {
+            simulation->apply(SetSolidCellCommand{x, 18, x < 10 || x > 70});
+            simulation->apply(SetSolidCellCommand{x, 27, true});
+        }
+        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {96.0f, 360.0f}, {1.0f, 0.0f}, 6.0f, emission_rate, true});
+    }
+    else if (scenario == 7)
+    {
+        for (int index = 0; index < 80; ++index)
+        {
+            simulation->apply(SeedParticleCommand{{640.0f + static_cast<float>(index % 5), 360.0f + static_cast<float>(index / 5)}, {}});
+        }
+    }
     return simulation;
 }
 
@@ -170,7 +263,8 @@ void process_event(const SDL_Event &event, bool &running)
     }
 }
 
-bool write_capture_bundle(const std::filesystem::path &directory, const Simulation &simulation, SDL_Renderer *renderer, int width, int height)
+bool write_capture_bundle(const std::filesystem::path &directory, const char *scenario, const Simulation &simulation, SDL_Renderer *renderer, int width,
+                          int height)
 {
     std::error_code error;
     std::filesystem::create_directories(directory, error);
@@ -179,11 +273,13 @@ bool write_capture_bundle(const std::filesystem::path &directory, const Simulati
         return false;
     }
     const SimulationMetrics metrics = simulation.metrics();
+    const SimulationConfig &config = simulation.config();
     std::ofstream json{directory / "metrics.json", std::ios::trunc};
-    json << "{\n  \"tick\": " << metrics.tick << ",\n  \"state_digest\": \"" << simulation.state_digest()
-         << "\",\n  \"active_particles\": " << metrics.active_particles << ",\n  \"active_cells\": " << metrics.active_cells
-         << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual << ",\n  \"average_density_error\": " << metrics.average_density_error
-         << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << "\n}\n";
+    json << "{\n  \"scenario\": \"" << scenario << "\",\n  \"tick\": " << metrics.tick << ",\n  \"state_digest\": \"" << simulation.state_digest()
+         << "\",\n  \"fixed_timestep\": " << config.fixed_timestep << ",\n  \"gravity\": " << config.gravity_acceleration << ",\n  \"solver_profile\": \""
+         << (config.solver_profile == FluidSolverProfile::Quality ? "quality" : "balanced") << "\",\n  \"active_particles\": " << metrics.active_particles
+         << ",\n  \"active_cells\": " << metrics.active_cells << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual
+         << ",\n  \"average_density_error\": " << metrics.average_density_error << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << "\n}\n";
 
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
     if (surface == nullptr)
@@ -235,12 +331,13 @@ int run_lab_application(int argc, char *argv[])
     SDL_StartTextInput();
 
     FluidSolverProfile profile = FluidSolverProfile::Balanced;
+    int scenario = options.scenario;
     float gravity = 9.8f;
     float timestep = 1.0f / 120.0f;
     float emission_rate = 90.0f;
-    auto simulation = make_simulation(profile, gravity, timestep, emission_rate);
-    auto balanced_comparison = make_simulation(FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
-    auto quality_comparison = make_simulation(FluidSolverProfile::Quality, gravity, timestep, emission_rate);
+    auto simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
+    auto balanced_comparison = make_simulation(scenario, FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
+    auto quality_comparison = make_simulation(scenario, FluidSolverProfile::Quality, gravity, timestep, emission_rate);
     bool running = true;
     int exit_code = 0;
     bool paused = false;
@@ -270,12 +367,21 @@ int run_lab_application(int argc, char *argv[])
         ImGui::SetNextWindowPos({10.0f, 10.0f}, ImGuiCond_Always);
         ImGui::SetNextWindowSize({590.0f, 270.0f}, ImGuiCond_Always);
         ImGui::Begin("Scenario & Run");
-        ImGui::TextUnformatted("Canonical basin");
+        if (ImGui::Combo("Scenario", &scenario,
+                         "Closed box\0U-container\0Still pool\0Hydrostatic column\0Dam break\0Wall and corner impact\0Narrow channel\0Overcrowding\0Long "
+                         "run\0Determinism\0"))
+        {
+            simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
+            balanced_comparison = make_simulation(scenario, FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
+            quality_comparison = make_simulation(scenario, FluidSolverProfile::Quality, gravity, timestep, emission_rate);
+            identity_diverged = false;
+        }
+        ImGui::Text("Manifest: %s", scenario_names[static_cast<std::size_t>(scenario)]);
         int profile_index = profile == FluidSolverProfile::Quality ? 1 : 0;
         if (ImGui::Combo("Solver profile", &profile_index, "Balanced\0Quality\0"))
         {
             profile = profile_index == 0 ? FluidSolverProfile::Balanced : FluidSolverProfile::Quality;
-            simulation = make_simulation(profile, gravity, timestep, emission_rate);
+            simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
             identity_diverged = false;
         }
         if (ImGui::Button(paused ? "Run" : "Pause"))
@@ -289,11 +395,11 @@ int run_lab_application(int argc, char *argv[])
             paused = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reset"))
+        if (ImGui::Button("Replay initial"))
         {
-            simulation = make_simulation(profile, gravity, timestep, emission_rate);
-            balanced_comparison = make_simulation(FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
-            quality_comparison = make_simulation(FluidSolverProfile::Quality, gravity, timestep, emission_rate);
+            simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
+            balanced_comparison = make_simulation(scenario, FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
+            quality_comparison = make_simulation(scenario, FluidSolverProfile::Quality, gravity, timestep, emission_rate);
             identity_diverged = false;
         }
         ImGui::SameLine();
@@ -308,9 +414,9 @@ int run_lab_application(int argc, char *argv[])
         parameters_changed |= ImGui::SliderFloat("Emission", &emission_rate, 0.0f, 240.0f, "%.1f");
         if (parameters_changed)
         {
-            simulation = make_simulation(profile, gravity, timestep, emission_rate);
-            balanced_comparison = make_simulation(FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
-            quality_comparison = make_simulation(FluidSolverProfile::Quality, gravity, timestep, emission_rate);
+            simulation = make_simulation(scenario, profile, gravity, timestep, emission_rate);
+            balanced_comparison = make_simulation(scenario, FluidSolverProfile::Balanced, gravity, timestep, emission_rate);
+            quality_comparison = make_simulation(scenario, FluidSolverProfile::Quality, gravity, timestep, emission_rate);
             identity_diverged = true;
         }
         ImGui::Text("Run identity: %s", simulation->state_digest().c_str());
@@ -357,7 +463,7 @@ int run_lab_application(int argc, char *argv[])
         ImGui::SetNextWindowSize({650.0f, 770.0f}, ImGuiCond_Always);
         ImGui::Begin("Field View");
         static int field_view = 0;
-        ImGui::Combo("Field", &field_view, "Particles\0Volume fraction\0Solids\0");
+        ImGui::Combo("Field", &field_view, "Particles\0Velocity\0Pressure\0Divergence\0Density\0Volume fraction\0Solids\0");
         const ImVec2 canvas_position = ImGui::GetCursorScreenPos();
         const ImVec2 canvas_size = ImGui::GetContentRegionAvail();
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -374,24 +480,65 @@ int run_lab_application(int argc, char *argv[])
                 draw_list->AddCircleFilled(point, std::max(1.0f, snapshot.cell_size * view_scale * 0.18f), IM_COL32(45, 184, 225, 220));
             }
         }
+        else if (field_view == 1)
+        {
+            for (std::size_t y = 0; y < snapshot.grid_height; y += 2)
+            {
+                for (std::size_t x = 0; x < snapshot.grid_width; x += 2)
+                {
+                    const Vec2 velocity = snapshot.velocities[y * snapshot.grid_width + x];
+                    const ImVec2 start_point{canvas_position.x + (x + 0.5f) * snapshot.cell_size * view_scale,
+                                             canvas_position.y + (y + 0.5f) * snapshot.cell_size * view_scale};
+                    const float arrow_scale = std::min(0.03f, snapshot.cell_size * view_scale / 2000.0f);
+                    const ImVec2 end_point{start_point.x + velocity.x * arrow_scale, start_point.y + velocity.y * arrow_scale};
+                    draw_list->AddLine(start_point, end_point, IM_COL32(90, 220, 255, 220), 1.0f);
+                }
+            }
+        }
         else
         {
+            float maximum = 1.0e-6f;
+            const std::vector<float> *values = nullptr;
+            if (field_view == 2)
+            {
+                values = &snapshot.pressures;
+            }
+            else if (field_view == 3)
+            {
+                values = &snapshot.divergences;
+            }
+            else if (field_view == 4)
+            {
+                values = &snapshot.densities;
+            }
+            else if (field_view == 5)
+            {
+                values = &snapshot.volume_fractions;
+            }
+            if (values != nullptr)
+            {
+                for (float value : *values)
+                {
+                    maximum = std::max(maximum, std::abs(value));
+                }
+            }
             for (std::size_t y = 0; y < snapshot.grid_height; ++y)
             {
                 for (std::size_t x = 0; x < snapshot.grid_width; ++x)
                 {
                     const std::size_t index = y * snapshot.grid_width + x;
                     const bool solid = snapshot.solid_cells[index] != 0;
-                    const float fraction = snapshot.volume_fractions[index];
-                    if ((field_view == 1 && fraction <= 0.01f) || (field_view == 2 && !solid))
+                    const float value = values == nullptr ? 0.0f : std::abs((*values)[index]) / maximum;
+                    if ((field_view >= 2 && field_view <= 5 && value <= 0.01f) || (field_view == 6 && !solid))
                     {
                         continue;
                     }
-                    const ImU32 color = field_view == 2 ? IM_COL32(90, 100, 120, 255)
-                                                        : IM_COL32(45, 184, 225, static_cast<int>(std::clamp(60.0f + fraction * 195.0f, 60.0f, 255.0f)));
+                    const ImU32 color = field_view == 6
+                                            ? IM_COL32(90, 100, 120, 255)
+                                            : IM_COL32(static_cast<int>(40.0f + value * 210.0f), static_cast<int>(80.0f + (1.0f - value) * 140.0f), 225, 220);
                     const ImVec2 minimum{canvas_position.x + x * snapshot.cell_size * view_scale, canvas_position.y + y * snapshot.cell_size * view_scale};
-                    const ImVec2 maximum{minimum.x + snapshot.cell_size * view_scale, minimum.y + snapshot.cell_size * view_scale};
-                    draw_list->AddRectFilled(minimum, maximum, color);
+                    const ImVec2 cell_maximum{minimum.x + snapshot.cell_size * view_scale, minimum.y + snapshot.cell_size * view_scale};
+                    draw_list->AddRectFilled(minimum, cell_maximum, color);
                 }
             }
         }
@@ -406,7 +553,8 @@ int run_lab_application(int argc, char *argv[])
 
         if (options.capture_bundle && metrics.tick >= 10)
         {
-            static_cast<void>(write_capture_bundle(*options.capture_bundle, *simulation, renderer, width, height));
+            static_cast<void>(
+                write_capture_bundle(*options.capture_bundle, scenario_names[static_cast<std::size_t>(scenario)], *simulation, renderer, width, height));
             running = false;
         }
         if (options.auto_exit && std::chrono::duration_cast<std::chrono::milliseconds>(now - start) >= *options.auto_exit)

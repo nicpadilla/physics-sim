@@ -14,7 +14,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
-| PSIM-0097 | In Progress | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
+| PSIM-0097 | Done | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | In Progress | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
@@ -435,13 +435,14 @@ Dependencies:
 
 Implementation notes:
 
-- Added pinned Dear ImGui 1.92.8 through the vcpkg manifest and confined it to `physics_sim_lab`; core/content remain platform-independent and the SDL sandbox target has no ImGui dependency.
-- Added `--mode lab` composition dispatch, SDL2-hosted ImGui rendering, basin/profile selection, pause/step/reset, gravity/timestep/emission controls, live metrics and fixed history plots, particle/volume/solid views, matched balanced/quality comparison, run identity/fork status, and atomic metrics/digest/image capture bundles.
-- Added `run-lab-smoke.ps1`; on 2026-07-10 it captured tick 10 with digest `70A7D530755DB8B1`, metrics JSON, and a 1280x800 BMP. Canonical scenario selection, deterministic replay, remaining field visualizations, and richer capture metadata remain open.
+- Reduced the release-facing sandbox to pour, draw wall, erase wall, pause/step/reset, undo/redo, save/load, and sandbox/lab navigation. Tab cycling is constrained to those three tools; keys 3-9 and gallery paging now report that the feature is deferred.
+- Replaced the broad main/pause navigation with recovery menus and added in-process sandbox/lab switching through the thin executable composition loop. Dear ImGui remains absent from the sandbox target.
+- Rebuilt first-run guidance as a six-step interactive pour/draw/erase/pause/reset/save loop and removed device, objective, and gallery instructions from player help.
+- Verification on 2026-07-10: `build.ps1`, sandbox smoke, lab smoke, dependency validation, tracking validation, and `test.ps1 -Tier Fast` (25/25 in 3.3 seconds) passed. The full manual acceptance matrix and named usability review remain open.
 
 ### PSIM-0097: Deliver Dear ImGui laboratory mode
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -485,10 +486,10 @@ Dependencies:
 
 Implementation notes:
 
-- Reduced the release-facing sandbox to pour, draw wall, erase wall, pause/step/reset, undo/redo, save/load, and sandbox/lab navigation. Tab cycling is constrained to those three tools; keys 3-9 and gallery paging now report that the feature is deferred.
-- Replaced the broad main/pause navigation with recovery menus and added in-process sandbox/lab switching through the thin executable composition loop. Dear ImGui remains absent from the sandbox target.
-- Rebuilt first-run guidance as a six-step interactive pour/draw/erase/pause/reset/save loop and removed device, objective, and gallery instructions from player help.
-- Verification on 2026-07-10: `build.ps1`, sandbox smoke, lab smoke, dependency validation, tracking validation, and `test.ps1 -Tier Fast` (25/25 in 3.3 seconds) passed. The full manual acceptance matrix and named usability review remain open.
+- Added pinned Dear ImGui 1.92.8 through the vcpkg manifest and confined it to `physics_sim_lab`; core/content remain platform-independent and the SDL sandbox target has no ImGui dependency.
+- Added `--mode lab` composition dispatch, SDL2-hosted ImGui rendering, all 10 canonical scenarios, run/pause/step/replay controls, gravity/timestep/emission controls, metrics, plots, complete particle/velocity/pressure/divergence/density/volume/solid views, matched balanced/quality comparison, and run identity/fork status.
+- Added command-based particle seeding for deterministic initial states. Capture bundles record scenario, tick, digest, fixed timestep, gravity, profile, metrics JSON, and image.
+- Verification on 2026-07-10: `build.ps1` passed with `/W4 /WX`; `run-lab-smoke.ps1 -SkipBuild` launched and captured all 10 scenarios; simulation API tests and dependency validation passed.
 
 ## Epic 17: Verification And Release
 

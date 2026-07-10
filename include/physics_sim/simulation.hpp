@@ -58,6 +58,14 @@ struct ClearEmittersCommand
 {
 };
 
+struct SeedParticleCommand
+{
+    Vec2 position{};
+    Vec2 velocity{};
+    float mass = 0.0f;
+    float volume = 0.0f;
+};
+
 struct SetPausedCommand
 {
     bool paused = true;
@@ -73,6 +81,7 @@ using SimulationCommand = std::variant<
     SetSolidCellCommand,
     AddEmitterCommand,
     ClearEmittersCommand,
+    SeedParticleCommand,
     SetPausedCommand,
     SingleStepCommand>;
 
@@ -84,6 +93,10 @@ struct SimulationSnapshot
     float cell_size = 1.0f;
     std::vector<FluidParticle> particles{};
     std::vector<float> volume_fractions{};
+    std::vector<float> densities{};
+    std::vector<float> pressures{};
+    std::vector<float> divergences{};
+    std::vector<Vec2> velocities{};
     std::vector<std::uint8_t> solid_cells{};
 };
 
