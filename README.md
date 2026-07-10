@@ -39,6 +39,8 @@ The first functional Dear ImGui lab slice and recovered command/data contracts a
 .\build\windows-x64\Debug\physics-sim.exe --mode lab
 ```
 
+Sandbox starts without engineering metrics. Add `--debug-overlay` only when diagnosing a run; laboratory diagnostics remain available through `--mode lab`.
+
 Lab capture smoke:
 
 ```powershell

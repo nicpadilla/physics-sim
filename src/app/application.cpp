@@ -75,6 +75,7 @@ struct RuntimeOptions
     std::optional<VisualMode> initialVisualMode;
     std::optional<physics_sim::FluidSolverProfile> initialSolverProfile;
     bool disableAudio = false;
+    bool debugOverlay = false;
     bool tutorialMode = false;
     bool skipSessionShell = false;
 };
@@ -500,6 +501,10 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg == "--disable-audio")
         {
             options.disableAudio = true;
+        }
+        else if (arg == "--debug-overlay")
+        {
+            options.debugOverlay = true;
         }
         else if (arg == "--skip-session-shell")
         {
@@ -4479,7 +4484,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
             draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y), palette);
         }
         const double averageFps = realElapsed.count() > 0.0 ? static_cast<double>(frameCount) / realElapsed.count() : 0.0;
-        if (!cleanCaptureFrame && !sessionShellVisible)
+        if (options.debugOverlay && !cleanCaptureFrame && !sessionShellVisible)
         {
             physics_sim::DebugOverlayMetrics overlayMetrics;
             overlayMetrics.fps = averageFps;

@@ -28,4 +28,4 @@ Set-Content -LiteralPath $invalidReplay -Value "physics-sim-replay 2`nscene-dige
 
 The log records the failed scene or replay load, the fallback to the demo scene when one is available, the renderer setup, and the shutdown path. Player-facing messages use the same failure taxonomy for scene, replay, audio, settings, renderer, and package-content errors, while the log includes the detailed technical context.
 
-User-facing feedback uses the on-screen debug overlay as well: save, load, reset, delete, and tool changes flash a short `MSG` line so important actions are visible without opening the log.
+Player-facing feedback is rendered by the sandbox status UI. The engineering overlay is opt-in with `--debug-overlay`; save, load, reset, and tool changes remain visible without exposing solver metrics during ordinary play.

@@ -442,6 +442,7 @@ Implementation notes:
 - Reduced the release-facing sandbox to pour, draw wall, erase wall, pause/step/reset, undo/redo, save/load, and sandbox/lab navigation. Tab cycling is constrained to those three tools; keys 3-9 and gallery paging now report that the feature is deferred.
 - Replaced the broad main/pause navigation with recovery menus and added in-process sandbox/lab switching through the thin executable composition loop. Dear ImGui remains absent from the sandbox target.
 - Rebuilt first-run guidance as a six-step interactive pour/draw/erase/pause/reset/save loop and removed device, objective, and gallery instructions from player help.
+- Removed the engineering metrics overlay from ordinary sandbox launches; it is now explicitly opt-in with `--debug-overlay`, while player action feedback remains in the custom SDL UI.
 - Verification on 2026-07-10: `build.ps1`, sandbox smoke, lab smoke, dependency validation, tracking validation, and `test.ps1 -Tier Fast` (25/25 in 3.3 seconds) passed. The full manual acceptance matrix and named usability review remain open.
 
 ### PSIM-0097: Deliver Dear ImGui laboratory mode
