@@ -544,8 +544,9 @@ Dependencies:
 Implementation notes:
 
 - Added Fast, Standard, and Full tiers, parallel label selection, Release prebuild for Full packaging, and CTest labels for unit, integration, solver, visual, benchmark, smoke, and release coverage.
-- Fast passed 25/25 in 3.3 seconds and Standard passed 25/25 in 78.2 seconds on 2026-07-10. Full is intentionally still open because recovered visual/replay baselines have not passed numeric-plus-human acceptance.
-- Fluid-quality and lab failures now retain structured JSON/image/log artifacts. Legacy visual/replay scripts still require uniform result JSON and success-only cleanup before this issue can close.
+- Fast passed 25/25 in 8.6 seconds and Standard passed 27/27 in 25.9 seconds on 2026-07-10 after the canonical 2400-tick suite moved to the explicit `stress` label.
+- Full completed in 157.7 seconds on 2026-07-10: 30/33 tests passed, including the complete canonical solver suite, benchmark, package, smoke, and all non-visual coverage. The three expected legacy image-hash comparisons failed and preserved captures; their baselines remain unchanged pending PSIM-0095 named human acceptance.
+- Fluid-quality, lab, and legacy visual failures now retain structured JSON/image/log artifacts; successful visual captures are cleaned only after their hashes match. The 2026-07-10 forced mismatch check preserved both the BMP and result JSON with baseline/capture hashes and artifact paths. This issue remains open until accepted recovered baselines make Full green.
 
 ### PSIM-0099: Add CI, hygiene, and prerelease packaging
 

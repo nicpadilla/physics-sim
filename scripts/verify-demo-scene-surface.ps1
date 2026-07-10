@@ -4,6 +4,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $repoRoot 'build\windows-x64\Debug\physics-sim.exe'
 $baseline = Join-Path $repoRoot 'regression\demo_scene_surface_golden.bmp'
 $capture = Join-Path $repoRoot 'build\windows-x64\demo_scene_surface_regression_capture.bmp'
+$result = Join-Path $repoRoot 'build\windows-x64\demo_scene_surface_regression-result.json'
 $log = Join-Path $repoRoot 'build\windows-x64\demo_scene_surface_regression.log'
 $appLog = Join-Path $repoRoot 'build\windows-x64\demo_scene_surface_regression-app.log'
 $settings = Join-Path $repoRoot 'build\windows-x64\demo_scene_surface_regression-settings.txt'
@@ -79,23 +80,29 @@ $captureHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $capture).Hash
 Write-Log "[demo-regression-surface] baseline hash: $baselineHash"
 Write-Log "[demo-regression-surface] capture hash:  $captureHash"
 
-try
-{
-    if ($baselineHash -ne $captureHash)
-    {
-        Write-Log "[demo-regression-surface] hash mismatch"
-        throw "Surface demo scene regression mismatch.`nBaseline: $baselineHash`nCapture:  $captureHash"
-    }
+@{
+    scenario = 'demo-scene-surface'
+    profile = 'balanced'
+    tick = 2400
+    baseline = $baseline
+    capture = $capture
+    baseline_sha256 = $baselineHash
+    capture_sha256 = $captureHash
+    matched = ($baselineHash -eq $captureHash)
+    result = if ($baselineHash -eq $captureHash) { 'passed' } else { 'failed' }
+} | ConvertTo-Json | Set-Content -LiteralPath $result -Encoding utf8
 
-    Write-Log "[demo-regression-surface] hash match"
-}
-finally
+if ($baselineHash -ne $captureHash)
 {
-    if (Test-Path $capture)
-    {
-        Remove-Item -LiteralPath $capture -Force
-        Write-Log "[demo-regression-surface] capture removed"
-    }
+    Write-Log "[demo-regression-surface] hash mismatch; capture preserved: $capture; result: $result"
+    throw "Surface demo scene regression mismatch.`nBaseline: $baselineHash`nCapture:  $captureHash`nArtifacts: $capture, $result"
+}
+
+Write-Log "[demo-regression-surface] hash match"
+if (Test-Path $capture)
+{
+    Remove-Item -LiteralPath $capture -Force
+    Write-Log "[demo-regression-surface] successful capture removed"
 }
 
 Write-Log "[demo-regression-surface] success"
