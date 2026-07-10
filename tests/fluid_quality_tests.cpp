@@ -212,6 +212,27 @@ std::size_t count_particles_in_region(
     return count;
 }
 
+double particle_mass_in_region(
+    const physics_sim::WaterSimulation2D& simulation,
+    float left,
+    float top,
+    float right,
+    float bottom)
+{
+    double mass = 0.0;
+    for (const auto& particle : simulation.particles())
+    {
+        if (particle.position.x >= left
+            && particle.position.x < right
+            && particle.position.y >= top
+            && particle.position.y < bottom)
+        {
+            mass += static_cast<double>(particle.mass);
+        }
+    }
+    return mass;
+}
+
 void add_border_walls(physics_sim::WaterSimulation2D& simulation)
 {
     for (std::size_t x = 0; x < simulation.grid().width(); ++x)
@@ -505,12 +526,12 @@ ScenarioCase make_u_container_case()
         {
             return physics_sim::WaterSimulation2D{80, 45, 16.0f};
         },
-        {0, 120, 720},
+        {0, 1200, 2400},
         36.0f * 16.0f,
         32,
         [](physics_sim::WaterSimulation2D& simulation)
         {
-            for (std::size_t y = 24; y <= 35; ++y)
+            for (std::size_t y = 0; y <= 35; ++y)
             {
                 simulation.set_solid_cell(20, y, true);
                 simulation.set_solid_cell(60, y, true);
@@ -520,11 +541,11 @@ ScenarioCase make_u_container_case()
                 simulation.set_solid_cell(x, 36, true);
             }
 
-            simulation.add_emitter(directional_emitter(Vec2{640.0f, 160.0f}, Vec2{0.0f, 1.0f}, 8.0f, 42.0f));
+            simulation.add_emitter(directional_emitter(Vec2{640.0f, 160.0f}, Vec2{0.0f, 1.0f}, 5.0f, 1.0f));
         },
         [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
         {
-            if (tick == 120 && !simulation.emitters().empty())
+            if (tick == 1200 && !simulation.emitters().empty())
             {
                 simulation.emitters().front().enabled = false;
             }
@@ -535,6 +556,18 @@ ScenarioCase make_u_container_case()
             require_greater_than(final, "total_emitted", static_cast<double>(final.metrics.total_emitted), 0.0);
             require_count(final, "particles_in_solids", final.particles_in_solids, 0);
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            const double remaining_mass = physics_sim::sum_particle_mass(first.final_state.particles());
+            const double contained_mass = particle_mass_in_region(
+                first.final_state,
+                21.0f * 16.0f,
+                0.0f,
+                60.0f * 16.0f,
+                36.0f * 16.0f);
+            require_greater_than_or_equal(
+                final,
+                "basin_retained_mass_ratio",
+                remaining_mass > 0.0 ? contained_mass / remaining_mass : 0.0,
+                0.99);
             require_less_than(final, "average_divergence", final.metrics.average_divergence_after_projection, 0.2);
             require_less_than(final, "max_divergence", final.metrics.max_divergence_after_projection, 0.6);
             require_greater_than(final, "pooled_height", final.pooled_height, 0.4);

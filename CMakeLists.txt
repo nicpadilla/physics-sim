@@ -511,7 +511,15 @@ if(BUILD_TESTING)
         target_compile_definitions(physics_sim_fluid_quality_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
 
-    add_test(NAME physics_sim_fluid_quality_tests COMMAND physics_sim_fluid_quality_tests)
+    add_test(
+        NAME physics_sim_fluid_quality_standard
+        COMMAND physics_sim_fluid_quality_tests
+            --scenario still-pool
+            --scenario dam-break
+            --scenario hose-wall-impact
+            --scenario narrow-channel
+    )
+    add_test(NAME physics_sim_fluid_quality_full COMMAND physics_sim_fluid_quality_tests)
 
     add_executable(physics_sim_solver_benchmark
         tests/water_solver_benchmark.cpp
@@ -583,9 +591,10 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         physics_sim_water_tests
-        physics_sim_fluid_quality_tests
+        physics_sim_fluid_quality_standard
         PROPERTIES LABELS "solver"
     )
+    set_tests_properties(physics_sim_fluid_quality_full PROPERTIES LABELS "solver;stress")
     set_tests_properties(physics_sim_solver_benchmark PROPERTIES LABELS "benchmark")
     set_tests_properties(physics_sim_smoke physics_sim_lab_smoke PROPERTIES LABELS "smoke")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")

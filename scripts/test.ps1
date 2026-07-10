@@ -25,7 +25,7 @@ switch ($Tier)
     }
     'Standard'
     {
-        $arguments += @('-LE', 'visual|benchmark|release')
+        $arguments += @('-LE', 'visual|benchmark|release|stress')
         $budgetSeconds = 90
     }
     'Full'
