@@ -9,13 +9,13 @@ The current executable builds, runs, and has broad legacy editor/game functional
 - **Sandbox:** pour water, draw/erase walls, pause/step/resume, reset, undo/redo, and save/load.
 - **Lab:** canonical scenarios, profiles, metrics, plots, field views, replay, capture, and comparison.
 
-Lab mode and the recovered command/data contracts are not implemented yet. The active recovery queue begins at PSIM-0089 in `ISSUES.md`. Pre-recovery sources and evidence are preserved by tag `pre-recovery-2026-07-10`.
+The first functional Dear ImGui lab slice and recovered command/data contracts are implemented; scenario breadth and human acceptance remain active work. The recovery queue begins at PSIM-0089 in `ISSUES.md`. Pre-recovery sources and evidence are preserved by tag `pre-recovery-2026-07-10`.
 
 ## Current Limitations
 
 - The committed surface regression is deterministic but does not meet the recovered visual acceptance bar.
 - The executable entry point is now thin, but the legacy SDL application remains concentrated in `src/app/application.cpp` and solver orchestration remains in a large header pending staged extraction.
-- The current test command includes long solver and visual cases and takes several minutes.
+- Full verification still includes long solver and visual cases; Fast and Standard provide bounded developer feedback.
 - Recovery scene v2, replay v2, and recovered-settings v1 intentionally reject pre-recovery formats; goldens remain legacy evidence until visual recovery.
 - Secondary devices, objectives, progression, gallery breadth, and decorative polish will not be exposed in the first recovered release.
 - No Git remote, CI run, or current distributable establishes release readiness yet.
@@ -35,7 +35,14 @@ Lab mode and the recovered command/data contracts are not implemented yet. The a
 .\scripts\build.ps1
 .\scripts\test.ps1
 .\scripts\run-smoke.ps1
-.\build\windows-x64\Debug\physics-sim.exe
+.\build\windows-x64\Debug\physics-sim.exe --mode sandbox
+.\build\windows-x64\Debug\physics-sim.exe --mode lab
+```
+
+Lab capture smoke:
+
+```powershell
+.\scripts\run-lab-smoke.ps1
 ```
 
 Use `scripts/test.ps1 -Tier Fast|Standard|Full`. Fast is the sub-30-second developer loop, Standard adds solver and smoke coverage under 90 seconds, and Full adds visuals, benchmarks, and release checks under eight minutes.

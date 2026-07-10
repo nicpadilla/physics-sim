@@ -19,14 +19,14 @@ Allowed statuses: `Missing`, `Partial`, `Implemented`, `Automated`, `Human Accep
 | R15.05 | Pass balanced and quality numeric/performance budgets. | Automated | `test.ps1 -Tier Standard` passed 25/25 in 78.2 seconds and the 2026-07-10 Release all-profile benchmark passed; balanced and quality demo steps averaged 0.5028 ms and 0.6951 ms. | None. |
 | R16.01 | Render continuous player-facing water. | Implemented | Deterministic thresholded marching-triangle geometry now replaces isolated filled cells; automated geometry coverage passed on 2026-07-10. | PSIM-0095 visual acceptance. |
 | R16.02 | Interpolate rendering without mutating simulation state. | Automated | Surface rendering interpolates cached read-only volume fields using the fixed-step accumulator; Fast passed 24/24 in 3.4 seconds on 2026-07-10. | None. |
-| R16.03 | Expose complete laboratory field views. | Partial | Existing debug modes are incomplete and coupled to the app renderer. | PSIM-0097. |
+| R16.03 | Expose complete laboratory field views. | Partial | Dear ImGui lab now provides particle, volume-fraction, and solid views plus numeric labels for the remaining fields; velocity/pressure/divergence/density visualizations remain. | PSIM-0097. |
 | R16.04 | Run semantic visual checks. | Partial | Deterministic state analysis now measures occupied bounds, connected components, isolated cells, and escaped cells; canonical scene manifests still need frozen thresholds. | PSIM-0095. |
 | R16.05 | Require numeric plus human visual acceptance. | Missing | No recovered capture has human acceptance evidence. | PSIM-0095. |
 | R17.01 | Deliver the narrow sandbox interaction loop. | Partial | Recovery scene v2 and atomic save/load contracts passed automated tests on 2026-07-10; player-loop scope and acceptance remain PSIM-0096. | PSIM-0096. |
 | R17.02 | Deliver accessible player-facing SDL UI. | Partial | Existing UI needs scope reduction and recovered acceptance. | PSIM-0096. |
 | R17.03 | Teach the loop through first-run interaction. | Partial | Existing tutorial is not accepted against the narrow recovery loop. | PSIM-0096. |
-| R17.04 | Deliver Dear ImGui laboratory mode. | Missing | Dear ImGui is not a dependency and lab mode does not exist. | PSIM-0097. |
-| R17.05 | Make lab forks and digest divergence explicit. | Missing | No lab run identity contract exists. | PSIM-0097. |
+| R17.04 | Deliver Dear ImGui laboratory mode. | Implemented | `--mode lab` launches an SDL2-hosted Dear ImGui client with run controls, parameters, metrics, plots, field views, profile comparison, and capture bundles; scenario/replay breadth remains. | PSIM-0097. |
+| R17.05 | Make lab forks and digest divergence explicit. | Automated | Lab displays the deterministic state digest, marks parameter forks, resets on determinism-affecting changes, and `run-lab-smoke.ps1` validated a tick/digest/image bundle on 2026-07-10. | None. |
 | R17.06 | Keep deferred breadth out of the first recovery release UI. | Missing | Existing runtime exposes secondary devices and progression. | PSIM-0096. |
 | R18.01 | Meet fast, standard, and full verification time budgets. | Missing | Current default test run takes about four minutes. | PSIM-0098. |
 | R18.02 | Label CTest coverage by purpose and cost. | Missing | Tests are currently unlabeled. | PSIM-0098. |

@@ -14,7 +14,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | Open | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
-| PSIM-0097 | Open | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
+| PSIM-0097 | In Progress | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | Open | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Open | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
@@ -435,11 +435,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added pinned Dear ImGui 1.92.8 through the vcpkg manifest and confined it to `physics_sim_lab`; core/content remain platform-independent and the SDL sandbox target has no ImGui dependency.
+- Added `--mode lab` composition dispatch, SDL2-hosted ImGui rendering, basin/profile selection, pause/step/reset, gravity/timestep/emission controls, live metrics and fixed history plots, particle/volume/solid views, matched balanced/quality comparison, run identity/fork status, and atomic metrics/digest/image capture bundles.
+- Added `run-lab-smoke.ps1`; on 2026-07-10 it captured tick 10 with digest `70A7D530755DB8B1`, metrics JSON, and a 1280x800 BMP. Canonical scenario selection, deterministic replay, remaining field visualizations, and richer capture metadata remain open.
 
 ### PSIM-0097: Deliver Dear ImGui laboratory mode
 
-Status: Open
+Status: In Progress
 
 Priority: P0
 

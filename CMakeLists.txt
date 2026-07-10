@@ -10,6 +10,7 @@ include(CTest)
 enable_testing()
 
 find_package(SDL2 CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 
 add_library(physics_sim_core STATIC
     src/core/simulation.cpp
@@ -33,7 +34,7 @@ target_compile_features(physics_sim_app PUBLIC cxx_std_20)
 add_library(physics_sim_lab STATIC
     src/lab/lab_module.cpp
 )
-target_link_libraries(physics_sim_lab PUBLIC physics_sim_content physics_sim_core SDL2::SDL2)
+target_link_libraries(physics_sim_lab PUBLIC physics_sim_content physics_sim_core SDL2::SDL2 imgui::imgui)
 target_compile_features(physics_sim_lab PUBLIC cxx_std_20)
 
 add_executable(physics_sim WIN32
@@ -57,6 +58,7 @@ if(MSVC)
     target_compile_definitions(physics_sim PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_definitions(physics_sim_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_definitions(physics_sim_app PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(physics_sim_lab PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
 set_target_properties(physics_sim PROPERTIES
@@ -537,6 +539,9 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_smoke
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
     )
+    add_test(NAME physics_sim_lab_smoke
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild
+    )
     add_test(NAME physics_sim_package
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
     )
@@ -576,7 +581,7 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "solver"
     )
     set_tests_properties(physics_sim_solver_benchmark PROPERTIES LABELS "benchmark")
-    set_tests_properties(physics_sim_smoke PROPERTIES LABELS "smoke")
+    set_tests_properties(physics_sim_smoke physics_sim_lab_smoke PROPERTIES LABELS "smoke")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")
     set_tests_properties(
         physics_sim_demo_regression
