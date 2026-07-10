@@ -1,3 +1,5 @@
+param([switch]$SkipBuild)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -11,7 +13,10 @@ if (-not $packageRootFull.StartsWith($repoRootFull, [System.StringComparison]::O
     throw "Refusing to delete or recreate a package outside the repository root: $packageRootFull"
 }
 
-& (Join-Path $PSScriptRoot 'build.ps1')
+if (-not $SkipBuild)
+{
+    & (Join-Path $PSScriptRoot 'build.ps1')
+}
 
 if (Test-Path -LiteralPath $packageRoot)
 {

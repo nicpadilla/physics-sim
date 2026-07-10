@@ -1,3 +1,5 @@
+param([switch]$SkipBuild)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -5,7 +7,10 @@ $exe = Join-Path $repoRoot 'build\windows-x64\Debug\physics-sim.exe'
 $log = Join-Path $repoRoot 'build\windows-x64\physics-sim-smoke.log'
 $settings = Join-Path $repoRoot 'build\windows-x64\physics-sim-smoke-settings.txt'
 
-& (Join-Path $PSScriptRoot 'build.ps1')
+if (-not $SkipBuild)
+{
+    & (Join-Path $PSScriptRoot 'build.ps1')
+}
 
 if (Test-Path -LiteralPath $settings)
 {

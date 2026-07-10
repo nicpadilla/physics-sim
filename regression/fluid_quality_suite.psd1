@@ -1,4 +1,14 @@
 @{
+    RecoveryContractVersion = 1
+    HardGates = @{
+        MaxMassError = 0.00001
+        MaxMomentumRelativeError = 0.0001
+        BalancedPressureResidual = 0.00005
+        QualityPressureResidual = 0.00001
+        MaxParticlesInSolids = 0
+        MaxNonFiniteValues = 0
+        MaxUnexplainedLifecycleChanges = 0
+    }
     Cases = @(
         @{
             Name = 'still-pool'

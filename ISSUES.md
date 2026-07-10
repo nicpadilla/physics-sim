@@ -10,12 +10,12 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0090 | Done | P0 | Recovery Foundation | R14.05 | Capture trusted pre-refactor baseline |
 | PSIM-0091 | Done | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
 | PSIM-0092 | Done | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
-| PSIM-0093 | Open | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
-| PSIM-0094 | Open | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
+| PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
+| PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | Open | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | Open | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Open | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
-| PSIM-0098 | Open | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
+| PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | Open | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Open | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Open | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
@@ -239,7 +239,7 @@ Implementation notes:
 
 ### PSIM-0093: Rebuild invariant and scenario validation
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -282,11 +282,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added deterministic facade state digests and repeat-run equality coverage, expanded focused solver tests, and made the recovery hard gates explicit in the versioned fluid-quality manifest.
+- Extended scenario output with penetration, non-finite, unexplained-lifecycle, seed, tick, threshold, and artifact evidence; the runner now retains and summarizes results as structured JSON.
+- Verification on 2026-07-10: `test.ps1 -Tier Fast` passed 23/23 in 4.1 seconds; `verify-fluid-quality-suite.ps1` passed 18/18 balanced/quality runs in about 303 seconds; `check-tracking.ps1` passed after the evidence was recorded.
 
 ### PSIM-0094: Correct solver behavior against recovery gates
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -329,7 +331,9 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Re-established full pressure-halo activation, tightened balanced/quality pressure targets, reused solver workspaces, and calibrated density correction, resampling, viscosity, transfer retention, and particle counts in solver order. Runtime APIC and surface tension remain disabled because the validated implementation does not yet justify exposing them as quality improvements.
+- The recovery scenarios pass mass, momentum, pressure, penetration, finiteness, lifecycle, U-container retention, still-pool settling, density, and long-run gates for both balanced and quality profiles. Numeric acceptance is separate from the still-open PSIM-0095 visual/human gate.
+- Verification on 2026-07-10: `test.ps1 -Tier Standard` passed 25/25 in 78.2 seconds; `verify-fluid-quality-suite.ps1` passed 18/18 in about 303 seconds; `measure-water-solver.ps1 -Profile All` passed in Release with balanced and quality demo averages of 0.5028 ms and 0.6951 ms; `check-tracking.ps1` passed after tracking reconciliation.
 
 ## Epic 15: Water Presentation
 
@@ -482,7 +486,7 @@ Implementation notes:
 
 ### PSIM-0098: Introduce tiered structured verification
 
-Status: Open
+Status: In Progress
 
 Priority: P1
 

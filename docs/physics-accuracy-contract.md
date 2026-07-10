@@ -115,14 +115,14 @@ The contract is profile-based. The benchmark still reports `tier` for compatibil
 | Profile | Benchmark tier | Role | Pressure target | Density target |
 | --- | --- | --- | --- | --- |
 | `fast` | `live` | Compatibility and performance path for legacy regression coverage | relative residual `<= 1e-4` | relaxed, not a hard quality gate |
-| `balanced` | `live` | Default app profile and main runtime quality gate | relative residual `<= 5e-5` | average density error `<= 3.0`, max density error `<= 10.0`, active-cell overreach `<= 3.0` |
-| `quality` | `offline` | Strict offline/reference profile | relative residual `<= 1e-5` | average density error `<= 1.0`, max density error `<= 1.25`, active-cell overreach `<= 3.0` |
+| `balanced` | `live` | Default app profile and main runtime quality gate | relative residual `<= 5e-5` | average density error `<= 3.0`, max density error `<= 10.0`, active-cell overreach `<= 3.5` |
+| `quality` | `offline` | Strict offline/reference profile | relative residual `<= 1e-5` | average density error `<= 1.0`, max density error `<= 1.25`, active-cell overreach `<= 3.5` |
 
 All three profiles use the same governing equations and deterministic ordering. The differences are in enabled passes, iteration budgets, and density targets:
 
 - `fast` preserves the legacy live-budget path and is allowed to keep relaxed density behavior.
 - `balanced` is the default app profile and should remain inside the documented runtime density budget.
-- `quality` enables the strictest density correction, resampling, and APIC affine transfer settings used for offline-style checks.
+- `quality` uses the strictest pressure target and offline scenario checks. Runtime APIC affine feedback is disabled until it can pass the recovery energy/containment gates.
 
 The current target scale remains `80 x 45` cells, `16` world units per cell, fixed `1 / 120` second simulation tick, 60 FPS interaction target. The live/offline benchmark tiers are retained only as compatibility labels for the benchmark and scripts.
 
@@ -133,7 +133,7 @@ The solver now includes the physical state and bounded correction passes needed 
 - Particle mass, volume, density, neighbor counts, and affine velocity are part of `FluidParticle`.
 - Fluid, air, and solid cell classification uses deterministic volume fractions and cell density diagnostics.
 - Transfer uses mass-weighted APIC scatter helpers, PIC/FLIP blending, and deterministic affine state support.
-- Runtime APIC affine updates are profile controlled; the quality profile enables affine transfer while balanced keeps it disabled for current stability.
+- Runtime APIC affine feedback is disabled in recovered profiles for stability; isolated APIC transfer primitives remain tested.
 - Pressure projection reports matrix-free PCG iterations, residuals, convergence, and active pressure cells.
 - Pressure projection also reports visible fluid cells, pressure-active cells, overreach ratio, RHS norm, solution norm, `dt`, and rest density for diagnostics.
 - Local density correction is implemented as a bounded deterministic pass with mass and center-of-mass diagnostics.

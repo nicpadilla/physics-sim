@@ -15,7 +15,8 @@ function Invoke-BundleStep
 {
     param(
         [string]$Name,
-        [string]$ScriptPath
+        [string]$ScriptPath,
+        [string[]]$Arguments = @()
     )
 
     Write-Host "[verification-bundle] $Name"
@@ -23,7 +24,7 @@ function Invoke-BundleStep
 
     try
     {
-        & $ScriptPath
+        & $ScriptPath @Arguments
         Write-BundleLog ("[verification-bundle] {0}: succeeded" -f $Name)
     }
     catch
@@ -40,7 +41,7 @@ Set-Content -LiteralPath $log -Value "[verification-bundle] starting"
 $steps = @(
     @{ Name = 'tracking validation'; Script = (Join-Path $PSScriptRoot 'check-tracking.ps1') },
     @{ Name = 'build'; Script = (Join-Path $PSScriptRoot 'build.ps1') },
-    @{ Name = 'tests'; Script = (Join-Path $PSScriptRoot 'test.ps1') },
+    @{ Name = 'tests'; Script = (Join-Path $PSScriptRoot 'test.ps1'); Arguments = @('-Tier', 'Full') },
     @{ Name = 'smoke test'; Script = (Join-Path $PSScriptRoot 'run-smoke.ps1') },
     @{ Name = 'replay regression suite'; Script = (Join-Path $PSScriptRoot 'verify-replay-suite.ps1') },
     @{ Name = 'fluid-quality regression suite'; Script = (Join-Path $PSScriptRoot 'verify-fluid-quality-suite.ps1') }
@@ -48,7 +49,8 @@ $steps = @(
 
 foreach ($step in $steps)
 {
-    Invoke-BundleStep -Name $step.Name -ScriptPath $step.Script
+    $arguments = if ($step.Arguments) { @($step.Arguments) } else { @() }
+    Invoke-BundleStep -Name $step.Name -ScriptPath $step.Script -Arguments $arguments
 }
 
 Write-BundleLog "[verification-bundle] success"

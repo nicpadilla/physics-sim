@@ -95,6 +95,25 @@ if (-not $manifest)
     throw "Fluid-quality manifest did not define any content: $manifestPath"
 }
 
+$hardGates = $manifest.HardGates
+if ($manifest.RecoveryContractVersion -ne 1 -or -not $hardGates)
+{
+    throw 'Fluid-quality manifest is missing recovery contract v1 hard gates.'
+}
+$structuredResults = [System.Collections.Generic.List[object]]::new()
+$summaryPath = Join-Path $suiteDir 'summary.json'
+function Write-StructuredSummary
+{
+    $summary = [ordered]@{
+        schema_version = 1
+        generated_at = (Get-Date).ToString('o')
+        manifest = 'regression/fluid_quality_suite.psd1'
+        hard_gates = $hardGates
+        results = $structuredResults
+    }
+    $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding utf8
+}
+
 $cases = @($manifest.Cases)
 if (-not $cases)
 {
@@ -203,7 +222,7 @@ foreach ($case in $cases)
     }
 
     $fields = Parse-ScenarioFields ([string]$finalLines[-1])
-    foreach ($requiredField in @('scenario', 'profile', 'tier', 'mass_error', 'density_error', 'kinetic_energy', 'pressure_residual', 'removed', 'outflow'))
+    foreach ($requiredField in @('scenario', 'profile', 'tier', 'mass_error', 'density_error', 'kinetic_energy', 'pressure_residual', 'removed', 'outflow', 'particles_in_solids', 'non_finite_values', 'unexplained_lifecycle_changes'))
     {
         if (-not $fields.ContainsKey($requiredField))
         {
@@ -251,7 +270,51 @@ foreach ($case in $cases)
             throw "Fluid-quality case $caseName ($profile) reported invalid integer value for ${integerField}: $($fields[$integerField])."
         }
     }
+
+    $massError = [double]::Parse($fields['mass_error'], [System.Globalization.CultureInfo]::InvariantCulture)
+    $pressureResidual = [double]::Parse($fields['pressure_residual'], [System.Globalization.CultureInfo]::InvariantCulture)
+    $pressureLimit = if ($profile -eq 'quality') { [double]$hardGates.QualityPressureResidual } else { [double]$hardGates.BalancedPressureResidual }
+    $passed = $massError -le [double]$hardGates.MaxMassError -and $pressureResidual -le $pressureLimit
+    $structuredResults.Add([pscustomobject]@{
+        scenario = $caseName
+        profile = $profile
+        mass_error = $massError
+        pressure_residual = $pressureResidual
+        density_error = [double]::Parse($fields['density_error'], [System.Globalization.CultureInfo]::InvariantCulture)
+        kinetic_energy = [double]::Parse($fields['kinetic_energy'], [System.Globalization.CultureInfo]::InvariantCulture)
+        removed = [UInt64]::Parse($fields['removed'], [System.Globalization.CultureInfo]::InvariantCulture)
+        outflow = [UInt64]::Parse($fields['outflow'], [System.Globalization.CultureInfo]::InvariantCulture)
+        particles_in_solids = [UInt64]::Parse($fields['particles_in_solids'], [System.Globalization.CultureInfo]::InvariantCulture)
+        non_finite_values = [UInt64]::Parse($fields['non_finite_values'], [System.Globalization.CultureInfo]::InvariantCulture)
+        unexplained_lifecycle_changes = [UInt64]::Parse($fields['unexplained_lifecycle_changes'], [System.Globalization.CultureInfo]::InvariantCulture)
+        mass_error_limit = [double]$hardGates.MaxMassError
+        pressure_residual_limit = $pressureLimit
+        passed = $passed -and [UInt64]$fields['particles_in_solids'] -le [UInt64]$hardGates.MaxParticlesInSolids -and [UInt64]$fields['non_finite_values'] -le [UInt64]$hardGates.MaxNonFiniteValues -and [UInt64]$fields['unexplained_lifecycle_changes'] -le [UInt64]$hardGates.MaxUnexplainedLifecycleChanges
+        artifact = ("build/windows-x64/fluid-quality-suite/{0}-{1}.log" -f $caseName, $profile)
+    })
+    Write-StructuredSummary
+    if ($massError -gt [double]$hardGates.MaxMassError)
+    {
+        throw "Recovery mass gate failed: scenario=$caseName profile=$profile actual=$massError threshold=$($hardGates.MaxMassError) artifact=$caseLog"
+    }
+    if ($pressureResidual -gt $pressureLimit)
+    {
+        throw "Recovery pressure gate failed: scenario=$caseName profile=$profile actual=$pressureResidual threshold=$pressureLimit artifact=$caseLog"
+    }
+    foreach ($countGate in @(
+        @{ Field = 'particles_in_solids'; Limit = [UInt64]$hardGates.MaxParticlesInSolids },
+        @{ Field = 'non_finite_values'; Limit = [UInt64]$hardGates.MaxNonFiniteValues },
+        @{ Field = 'unexplained_lifecycle_changes'; Limit = [UInt64]$hardGates.MaxUnexplainedLifecycleChanges }
+    ))
+    {
+        $actual = [UInt64]::Parse($fields[$countGate.Field], [System.Globalization.CultureInfo]::InvariantCulture)
+        if ($actual -gt $countGate.Limit)
+        {
+            throw "Recovery count gate failed: scenario=$caseName profile=$profile field=$($countGate.Field) actual=$actual threshold=$($countGate.Limit) artifact=$caseLog"
+        }
+    }
 }
 
+Write-StructuredSummary
 Write-SuiteLog "[fluid-quality-suite] success"
 Write-Host '[fluid-quality-suite] success'

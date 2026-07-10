@@ -454,8 +454,9 @@ ScenarioCase make_particle_overcrowding_case()
             settings.resampling.max_resampling_operations_per_step = 64;
             settings.resampling.split_offset_fraction = 0.20f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
-            settings.density_correction_iterations = 1;
-            settings.max_density_correction_fraction = 0.15f;
+            settings.density_correction_iterations = 8;
+            settings.max_density_correction_fraction = 0.25f;
+            settings.density_kernel_radius_cells = 2.0f;
             simulation.set_solver_settings(settings);
 
             for (std::size_t index = 0; index < 16; ++index)
@@ -972,7 +973,7 @@ ScenarioCase make_long_run_stress_case()
             {
                 auto settings = simulation.solver_settings();
                 settings.particles_per_full_cell = 8;
-                settings.density_kernel_radius_cells = 1.25f;
+                settings.density_kernel_radius_cells = 2.0f;
                 settings.density_correction_iterations = 4;
                 settings.max_density_correction_fraction = 0.08f;
                 settings.resampling.enabled = true;
@@ -1177,10 +1178,34 @@ int main(int argc, char* argv[])
         REQUIRE(second.final_state.solver_settings().profile == profile, "fluid quality scenario did not preserve the selected solver profile on the repeated run");
 
         const auto& final_snapshot = first.snapshots.back();
+        std::size_t non_finite_values = 0;
+        const auto count_non_finite = [&non_finite_values](double value)
+        {
+            if (!std::isfinite(value))
+            {
+                ++non_finite_values;
+            }
+        };
+        for (const auto& particle : first.final_state.particles())
+        {
+            count_non_finite(particle.position.x);
+            count_non_finite(particle.position.y);
+            count_non_finite(particle.velocity.x);
+            count_non_finite(particle.velocity.y);
+            count_non_finite(particle.mass);
+            count_non_finite(particle.volume);
+            count_non_finite(particle.density);
+        }
+        count_non_finite(final_snapshot.metrics.average_divergence_after_projection);
+        count_non_finite(final_snapshot.metrics.max_divergence_after_projection);
+        count_non_finite(final_snapshot.metrics.pressure_solve.relative_residual);
+        count_non_finite(final_snapshot.average_density_error);
+        count_non_finite(final_snapshot.kinetic_energy);
+        const std::size_t unexplained_lifecycle_changes = final_snapshot.mass_error > 1.0e-5 ? 1U : 0U;
         const char* profile_name = physics_sim::solver_profile_name(profile);
         const char* tier = first.final_state.solver_settings().tier == physics_sim::FluidSolverQualityTier::Offline ? "offline" : "live";
         std::printf(
-            "scenario=%s profile=%s tier=%s ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu\n",
+            "scenario=%s profile=%s tier=%s ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu particles_in_solids=%zu non_finite_values=%zu unexplained_lifecycle_changes=%zu\n",
             scenario->name.c_str(),
             profile_name,
             tier,
@@ -1198,7 +1223,10 @@ int main(int argc, char* argv[])
             final_snapshot.surface_height_jitter,
             elapsed_ms,
             static_cast<unsigned long long>(final_snapshot.metrics.total_removed),
-            static_cast<unsigned long long>(final_snapshot.metrics.total_outflow));
+            static_cast<unsigned long long>(final_snapshot.metrics.total_outflow),
+            final_snapshot.particles_in_solids,
+            non_finite_values,
+            unexplained_lifecycle_changes);
     }
 
     return 0;

@@ -3,6 +3,9 @@
 #include <physics_sim/water_simulation.hpp>
 
 #include <algorithm>
+#include <bit>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <type_traits>
 
@@ -183,5 +186,51 @@ SimulationMetrics Simulation::metrics() const noexcept
     result.pressure_iterations = source.pressure_solve.iterations;
     result.pressure_converged = source.pressure_solve.converged;
     return result;
+}
+
+std::string Simulation::state_digest() const
+{
+    const auto state = snapshot();
+    std::uint64_t hash = 14695981039346656037ULL;
+    const auto mix = [&hash](std::uint64_t value)
+    {
+        for (int byte = 0; byte < 8; ++byte)
+        {
+            hash ^= static_cast<std::uint8_t>((value >> (byte * 8)) & 0xffU);
+            hash *= 1099511628211ULL;
+        }
+    };
+    const auto mix_float = [&mix](float value)
+    {
+        mix(std::bit_cast<std::uint32_t>(value));
+    };
+
+    mix(state.tick);
+    mix(state.grid_width);
+    mix(state.grid_height);
+    mix_float(state.cell_size);
+    for (const auto& particle : state.particles)
+    {
+        mix_float(particle.position.x);
+        mix_float(particle.position.y);
+        mix_float(particle.velocity.x);
+        mix_float(particle.velocity.y);
+        mix_float(particle.mass);
+        mix_float(particle.volume);
+        mix_float(particle.density);
+        mix(particle.neighbor_count);
+    }
+    for (const float fraction : state.volume_fractions)
+    {
+        mix_float(fraction);
+    }
+    for (const std::uint8_t solid : state.solid_cells)
+    {
+        mix(solid);
+    }
+
+    std::ostringstream stream;
+    stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
+    return stream.str();
 }
 } // namespace physics_sim

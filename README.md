@@ -38,7 +38,7 @@ Lab mode and the recovered command/data contracts are not implemented yet. The a
 .\build\windows-x64\Debug\physics-sim.exe
 ```
 
-The current `scripts/test.ps1` runs all 26 legacy CTest targets. PSIM-0098 will add `-Tier Fast`, `-Tier Standard`, and `-Tier Full`; do not use those parameters until that issue lands.
+Use `scripts/test.ps1 -Tier Fast|Standard|Full`. Fast is the sub-30-second developer loop, Standard adds solver and smoke coverage under 90 seconds, and Full adds visuals, benchmarks, and release checks under eight minutes.
 
 Current full local bundle:
 

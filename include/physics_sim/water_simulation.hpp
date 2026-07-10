@@ -332,24 +332,24 @@ public:
 
         case FluidSolverProfile::Balanced:
             settings.tier = FluidSolverQualityTier::Live;
-            settings.pressure_max_iterations = 120;
-            settings.pressure_relative_residual_target = 1.0e-2f;
+            settings.pressure_max_iterations = 160;
+            settings.pressure_relative_residual_target = 5.0e-5f;
             settings.rest_density = 1.0f;
-            settings.particles_per_full_cell = 6;
+            settings.particles_per_full_cell = 4;
             settings.density_kernel_radius_cells = 1.2f;
             settings.density_correction_iterations = 1;
-            settings.max_density_correction_fraction = 0.02f;
-            settings.flip_blend = 0.65f;
-            settings.velocity_retention = 0.92f;
+            settings.max_density_correction_fraction = 0.025f;
+            settings.flip_blend = 0.55f;
+            settings.velocity_retention = 0.90f;
             settings.apic_affine_ratio = 0.0f;
-            settings.viscosity_coefficient = 0.025f;
+            settings.viscosity_coefficient = 0.035f;
             settings.surface_tension_coefficient = 0.0f;
-            settings.max_surface_velocity_delta_fraction = 0.10f;
+            settings.max_surface_velocity_delta_fraction = 0.12f;
             settings.resampling.enabled = true;
             settings.resampling.min_particles_per_fluid_cell = 1;
-            settings.resampling.target_particles_per_fluid_cell = 6;
-            settings.resampling.max_particles_per_fluid_cell = 10;
-            settings.resampling.max_resampling_operations_per_step = 40;
+            settings.resampling.target_particles_per_fluid_cell = 4;
+            settings.resampling.max_particles_per_fluid_cell = 8;
+            settings.resampling.max_resampling_operations_per_step = 48;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
             settings.density_metrics_interval_ticks = 60;
@@ -358,26 +358,26 @@ public:
         case FluidSolverProfile::Quality:
             settings.tier = FluidSolverQualityTier::Offline;
             settings.pressure_max_iterations = 260;
-            settings.pressure_relative_residual_target = 5.0e-2f;
+            settings.pressure_relative_residual_target = 1.0e-5f;
             settings.rest_density = 1.0f;
             settings.particles_per_full_cell = 6;
             settings.density_kernel_radius_cells = 1.2f;
             settings.density_correction_iterations = 1;
-            settings.max_density_correction_fraction = 0.03f;
-            settings.flip_blend = 0.72f;
-            settings.velocity_retention = 0.985f;
-            settings.apic_affine_ratio = 0.10f;
-            settings.viscosity_coefficient = 0.025f;
-            settings.surface_tension_coefficient = 0.04f;
-            settings.max_surface_velocity_delta_fraction = 0.07f;
+            settings.max_density_correction_fraction = 0.025f;
+            settings.flip_blend = 0.55f;
+            settings.velocity_retention = 0.90f;
+            settings.apic_affine_ratio = 0.0f;
+            settings.viscosity_coefficient = 0.035f;
+            settings.surface_tension_coefficient = 0.0f;
+            settings.max_surface_velocity_delta_fraction = 0.10f;
             settings.resampling.enabled = true;
             settings.resampling.min_particles_per_fluid_cell = 1;
-            settings.resampling.target_particles_per_fluid_cell = 7;
-            settings.resampling.max_particles_per_fluid_cell = 14;
-            settings.resampling.max_resampling_operations_per_step = 48;
+            settings.resampling.target_particles_per_fluid_cell = 4;
+            settings.resampling.max_particles_per_fluid_cell = 8;
+            settings.resampling.max_resampling_operations_per_step = 96;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
-            settings.density_metrics_interval_ticks = 120;
+            settings.density_metrics_interval_ticks = 30;
             break;
         }
 
@@ -1314,8 +1314,7 @@ private:
         }
 
         constexpr float active_fraction_threshold = 1.0e-5f;
-        constexpr float halo_fraction_threshold = 0.15f;
-        const bool use_full_halo = solver_settings_.tier == FluidSolverQualityTier::Live;
+        constexpr bool use_full_halo = true;
         const auto activate_cell = [&](int x, int y)
         {
             if (x < 0 || y < 0 || static_cast<size_type>(x) >= grid_.width() || static_cast<size_type>(y) >= grid_.height())
@@ -1347,11 +1346,6 @@ private:
                         activate_cell(ix + 1, iy);
                         activate_cell(ix, iy - 1);
                         activate_cell(ix, iy + 1);
-                    }
-                    else if (cell_volume_fractions_[idx] > halo_fraction_threshold)
-                    {
-                        activate_cell(ix - 1, iy);
-                        activate_cell(ix + 1, iy);
                     }
                 }
             }
@@ -1660,9 +1654,14 @@ private:
             pressure_next_.assign(cell_count, 0.0f);
         }
 
-        std::vector<int> cell_to_system(cell_count, -1);
-        std::vector<size_type> system_to_cell;
-        system_to_cell.reserve(cell_count);
+        auto& cell_to_system = pressure_cell_to_system_workspace_;
+        auto& system_to_cell = pressure_system_to_cell_workspace_;
+        cell_to_system.assign(cell_count, -1);
+        system_to_cell.clear();
+        if (system_to_cell.capacity() < cell_count)
+        {
+            system_to_cell.reserve(cell_count);
+        }
 
         for (size_type y = 0; y < grid_.height(); ++y)
         {
@@ -1698,13 +1697,20 @@ private:
         const std::size_t system_size = system_to_cell.size();
         result.max_iterations = std::max(1, solver_settings_.pressure_max_iterations);
         result.target_relative_residual = std::max(0.0f, solver_settings_.pressure_relative_residual_target);
-        std::vector<double> pressure(system_size, 0.0);
-        std::vector<double> rhs(system_size, 0.0);
-        std::vector<double> residual(system_size, 0.0);
-        std::vector<double> direction(system_size, 0.0);
-        std::vector<double> preconditioned(system_size, 0.0);
-        std::vector<double> applied(system_size, 0.0);
-        std::vector<double> inverse_diagonal(system_size, 1.0);
+        auto& pressure = pressure_workspace_;
+        auto& rhs = pressure_rhs_workspace_;
+        auto& residual = pressure_residual_workspace_;
+        auto& direction = pressure_direction_workspace_;
+        auto& preconditioned = pressure_preconditioned_workspace_;
+        auto& applied = pressure_applied_workspace_;
+        auto& inverse_diagonal = pressure_inverse_diagonal_workspace_;
+        pressure.assign(system_size, 0.0);
+        rhs.assign(system_size, 0.0);
+        residual.assign(system_size, 0.0);
+        direction.assign(system_size, 0.0);
+        preconditioned.assign(system_size, 0.0);
+        applied.assign(system_size, 0.0);
+        inverse_diagonal.assign(system_size, 1.0);
 
         const auto cell_x = [&](size_type cell_index) noexcept -> size_type
         {
@@ -2659,6 +2665,15 @@ private:
     std::vector<float> u_previous_{};
     std::vector<float> v_previous_{};
     std::vector<float> pressure_next_{};
+    std::vector<double> pressure_workspace_{};
+    std::vector<double> pressure_rhs_workspace_{};
+    std::vector<double> pressure_residual_workspace_{};
+    std::vector<double> pressure_direction_workspace_{};
+    std::vector<double> pressure_preconditioned_workspace_{};
+    std::vector<double> pressure_applied_workspace_{};
+    std::vector<double> pressure_inverse_diagonal_workspace_{};
+    std::vector<int> pressure_cell_to_system_workspace_{};
+    std::vector<size_type> pressure_system_to_cell_workspace_{};
     WaterSimulationMetrics metrics_{};
     FluidSolverSettings solver_settings_ = solver_settings_for_profile(FluidSolverProfile::Balanced);
     std::uint64_t total_emitted_ = 0;

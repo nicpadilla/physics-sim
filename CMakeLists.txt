@@ -523,4 +523,53 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_demo_regression_surface
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-surface.ps1
     )
+    add_test(NAME physics_sim_smoke
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
+    )
+    add_test(NAME physics_sim_package
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
+    )
+
+    set_tests_properties(
+        physics_sim_simulation_api_tests
+        physics_sim_dependency_check
+        physics_sim_tests
+        physics_sim_wall_tests
+        physics_sim_ui_tests
+        physics_sim_feedback_tests
+        physics_sim_ui_palette_tests
+        physics_sim_player_feedback_tests
+        physics_sim_save_browser_tests
+        physics_sim_audio_feedback_tests
+        physics_sim_replay_script_tests
+        physics_sim_user_settings_tests
+        physics_sim_input_bindings_tests
+        physics_sim_player_guidance_tests
+        physics_sim_settings_menu_tests
+        physics_sim_session_shell_tests
+        physics_sim_tutorial_tests
+        PROPERTIES LABELS "unit"
+    )
+    set_tests_properties(
+        physics_sim_editor_tests
+        physics_sim_scene_persistence_tests
+        physics_sim_scene_gallery_tests
+        physics_sim_device_runtime_tests
+        physics_sim_tutorial_scene_tests
+        PROPERTIES LABELS "integration"
+    )
+    set_tests_properties(
+        physics_sim_water_tests
+        physics_sim_fluid_quality_tests
+        PROPERTIES LABELS "solver"
+    )
+    set_tests_properties(physics_sim_solver_benchmark PROPERTIES LABELS "benchmark")
+    set_tests_properties(physics_sim_smoke PROPERTIES LABELS "smoke")
+    set_tests_properties(physics_sim_package PROPERTIES LABELS "release")
+    set_tests_properties(
+        physics_sim_demo_regression
+        physics_sim_demo_regression_density
+        physics_sim_demo_regression_surface
+        PROPERTIES LABELS "visual"
+    )
 endif()

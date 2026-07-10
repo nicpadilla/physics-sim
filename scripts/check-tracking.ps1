@@ -386,6 +386,7 @@ $allowedAbsolutePathFiles = @(
     'scripts\verify-demo-scene.ps1',
     'scripts\verify-demo-scene-density.ps1',
     'scripts\capture-recovery-baseline.ps1',
+    'scripts\measure-water-solver.ps1',
     'scripts\check-tracking.ps1'
 )
 

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -126,6 +127,7 @@ public:
     bool step();
     [[nodiscard]] SimulationSnapshot snapshot() const;
     [[nodiscard]] SimulationMetrics metrics() const noexcept;
+    [[nodiscard]] std::string state_digest() const;
 
 private:
     class Impl;
