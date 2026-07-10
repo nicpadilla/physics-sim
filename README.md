@@ -14,7 +14,7 @@ Lab mode and the recovered command/data contracts are not implemented yet. The a
 ## Current Limitations
 
 - The committed surface regression is deterministic but does not meet the recovered visual acceptance bar.
-- Runtime behavior remains concentrated in `src/main.cpp` and algorithmic headers pending the compiled-module refactor.
+- The executable entry point is now thin, but the legacy SDL application remains concentrated in `src/app/application.cpp` and solver orchestration remains in a large header pending staged extraction.
 - The current test command includes long solver and visual cases and takes several minutes.
 - Scene, replay, save, settings, and golden formats will intentionally break during recovery.
 - Secondary devices, objectives, progression, gallery breadth, and decorative polish will not be exposed in the first recovered release.
@@ -53,6 +53,7 @@ Additional current checks:
 .\scripts\verify-replay-suite.ps1
 .\scripts\measure-water-solver.ps1 -Profile All
 .\scripts\check-tracking.ps1
+.\scripts\check-dependencies.ps1
 ```
 
 Create a legacy package (not a recovered release):
@@ -82,6 +83,7 @@ Legacy secondary tool shortcuts `3` through `9`, gallery navigation, objectives,
 - `ISSUES.md`: implementation-ready recovery queue.
 - `docs/TRACKING.md`: lifecycle and evidence rules.
 - `docs/adr/README.md`: architecture decisions.
+- `docs/recovery-architecture.md`: active compiled boundaries and simulation facade.
 - `docs/history/pre-recovery-snapshot.md`: immutable legacy snapshot reference.
 
 A matching image hash proves reproducibility only. Recovered visual acceptance requires semantic checks plus a named, dated human review.

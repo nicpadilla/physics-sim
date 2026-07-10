@@ -30,6 +30,7 @@ Important commands:
 - Release package: `.\scripts\package-release.ps1`
 - Demo regression: `.\scripts\verify-demo-scene.ps1`
 - Tracking check: `.\scripts\check-tracking.ps1`
+- Dependency boundary check: `.\scripts\check-dependencies.ps1`
 - Install Git hooks: `.\scripts\install-git-hooks.ps1`
 - Hook contract check: `.\scripts\test-git-hooks.ps1`
 

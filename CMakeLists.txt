@@ -11,8 +11,29 @@ enable_testing()
 
 find_package(SDL2 CONFIG REQUIRED)
 
-add_library(physics_sim_core INTERFACE)
-target_include_directories(physics_sim_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_library(physics_sim_core STATIC
+    src/core/simulation.cpp
+)
+target_include_directories(physics_sim_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(physics_sim_core PUBLIC cxx_std_20)
+
+add_library(physics_sim_content STATIC
+    src/content/content_module.cpp
+)
+target_link_libraries(physics_sim_content PUBLIC physics_sim_core)
+target_compile_features(physics_sim_content PUBLIC cxx_std_20)
+
+add_library(physics_sim_app STATIC
+    src/app/application.cpp
+)
+target_link_libraries(physics_sim_app PUBLIC physics_sim_content physics_sim_core SDL2::SDL2)
+target_compile_features(physics_sim_app PUBLIC cxx_std_20)
+
+add_library(physics_sim_lab STATIC
+    src/lab/lab_module.cpp
+)
+target_link_libraries(physics_sim_lab PUBLIC physics_sim_content physics_sim_core SDL2::SDL2)
+target_compile_features(physics_sim_lab PUBLIC cxx_std_20)
 
 add_executable(physics_sim WIN32
     src/main.cpp
@@ -20,16 +41,21 @@ add_executable(physics_sim WIN32
 
 target_link_libraries(physics_sim
     PRIVATE
-        physics_sim_core
-        SDL2::SDL2
+        physics_sim_app
+        physics_sim_lab
 )
 
 target_compile_features(physics_sim PRIVATE cxx_std_20)
 
 if(MSVC)
     target_compile_options(physics_sim PRIVATE /W4 /permissive- /utf-8)
-    target_compile_options(physics_sim_core INTERFACE /W4 /permissive- /utf-8)
+    target_compile_options(physics_sim_core PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(physics_sim_content PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(physics_sim_app PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(physics_sim_lab PRIVATE /W4 /permissive- /utf-8)
     target_compile_definitions(physics_sim PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(physics_sim_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(physics_sim_app PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
 set_target_properties(physics_sim PROPERTIES
@@ -37,6 +63,20 @@ set_target_properties(physics_sim PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(physics_sim_simulation_api_tests
+        tests/simulation_api_tests.cpp
+    )
+    target_link_libraries(physics_sim_simulation_api_tests PRIVATE physics_sim_core)
+    target_compile_features(physics_sim_simulation_api_tests PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(physics_sim_simulation_api_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_simulation_api_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_simulation_api_tests COMMAND physics_sim_simulation_api_tests)
+    add_test(NAME physics_sim_dependency_check
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-dependencies.ps1
+    )
+
     add_executable(physics_sim_tests
         tests/math_tests.cpp
     )

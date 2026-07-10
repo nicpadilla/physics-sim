@@ -111,6 +111,7 @@ struct FluidSolverSettings
 {
     FluidSolverProfile profile = FluidSolverProfile::Balanced;
     FluidSolverQualityTier tier = FluidSolverQualityTier::Live;
+    float gravity_acceleration = 9.8f;
     int pressure_max_iterations = 120;
     float pressure_relative_residual_target = 1.0e-4f;
     float rest_density = 1.0f;
@@ -663,7 +664,7 @@ public:
         }
 
         const float step_seconds = static_cast<float>(dt);
-        const float gravity = 9.8f;
+        const float gravity = solver_settings_.gravity_acceleration;
         const float inv_cell_size = 1.0f / grid_.cell_size();
 
         sync_gate_cells();

@@ -8,7 +8,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | --- | --- | --- | --- | --- | --- |
 | PSIM-0089 | Done | P0 | Recovery Foundation | R14.01, R14.02, R14.03, R14.04 | Reset recovery governance and architecture decisions |
 | PSIM-0090 | Done | P0 | Recovery Foundation | R14.05 | Capture trusted pre-refactor baseline |
-| PSIM-0091 | Open | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
+| PSIM-0091 | Done | P0 | Recovery Architecture | R14.06, R15.01 | Introduce compiled boundaries and stable simulation API |
 | PSIM-0092 | Open | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Open | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Open | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
@@ -129,7 +129,7 @@ Implementation notes:
 
 ### PSIM-0091: Introduce compiled boundaries and stable simulation API
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -173,7 +173,13 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Replaced the INTERFACE core with compiled `physics_sim_core`, `physics_sim_content`, `physics_sim_app`, and `physics_sim_lab` static targets behind one executable.
+- Moved the legacy 4,500-line SDL implementation into `src/app/application.cpp`; `src/main.cpp` now contains only platform entry-point composition.
+- Added the PIMPL-based `Simulation` facade with sanitized config, command application, pause/single-step, fixed stepping, copied snapshots, and client-facing metrics. The core facade exposes no SDL or ImGui types.
+- Added configurable gravity to solver settings without changing the 9.8 default.
+- Added simulation API tests and an automated dependency check enforcing core/content platform independence, app exclusion of ImGui, and composition-only main includes.
+- Documented the compiled boundaries and the remaining staged extraction: legacy app responsibilities will separate under PSIM-0096 and internal solver passes under PSIM-0093/0094 rather than performing an unsafe rewrite in this behavior-preserving issue.
+- Verification on 2026-07-10: `.\scripts\build.ps1` passed in 12.1 seconds; `.\scripts\test.ps1` passed 28/28 in 170.8 seconds; `.\scripts\run-smoke.ps1`, the simulation API test, and `.\scripts\check-dependencies.ps1` passed. The known directional replay failure retained the exact pre-refactor capture hash `DE40E02A...3F5B2`, proving this refactor did not alter that baseline defect.
 
 ### PSIM-0092: Replace scene, replay, and settings contracts
 
