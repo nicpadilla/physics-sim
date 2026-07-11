@@ -18,7 +18,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0098 | Done | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | Done | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
-| PSIM-0101 | In Progress | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
+| PSIM-0101 | Done | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
 
 ## Epic 12: Recovery Foundation
 
@@ -615,6 +615,7 @@ Implementation notes:
 - Hardened `verify-all.ps1` parameter/exit-code forwarding and made it the intended Full alias instead of redundantly rerunning every long suite. The final local bundle passed in 108.3 seconds and regenerated the package ZIP with SHA-256 `d1e0d9e1b2c139d54849eb3149e811b8853b68c24dcc01bc2aff0a7e85abdefa`.
 - Created public repository `nicpadilla/physics-sim`, set `main` as the default, and protected it with strict required `verify` status, required pull requests, admin enforcement, conversation resolution, and force-push/deletion bans. Pull request #1 merged only after Windows run `29141676905` passed clean configure/build, tracking/hygiene, and Fast in 3m36s.
 - Clean CI exposed and verified fixes for CRLF tracking input and excluding untracked dependency checkouts from repository path hygiene. The initial failing runs remain available as evidence rather than being hidden.
+- Tag Full exposed that legacy `powershell.exe` on the runner lacked automatically loaded utility commands. Release scripts now explicitly import their standard module and CMake discovers `pwsh.exe` first with a Windows PowerShell fallback. Pull request #4 passed before the corrected tag was published.
 
 ## Epic 18: Selective Restoration
 
@@ -670,7 +671,7 @@ Implementation notes:
 
 ### PSIM-0101: Complete recovery release acceptance
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -720,4 +721,6 @@ Implementation notes:
 
 - Reconciled the recovery dependencies: PSIM-0094 through PSIM-0100 are Done; every active roadmap marker except this final release marker is Automated or Human Accepted.
 - `verify-all.ps1` passed locally in 108.3 seconds with Full 35/35 in 76.0 seconds; the Release package ZIP SHA-256 is `d1e0d9e1b2c139d54849eb3149e811b8853b68c24dcc01bc2aff0a7e85abdefa`.
-- Owner-delegated sandbox acceptance and visual acceptance are recorded in the dated review files. Protected pull request #1 and required Windows CI passed. The remaining action is tagging the protected main release commit and recording that tag.
+- Owner-delegated sandbox acceptance and visual acceptance are recorded in the dated review files. Protected pull requests and required Windows CI passed.
+- Annotated tag `v0.2.0-alpha.1` resolves to protected main commit `279a5fb726457a4ed58a249939bef21dc500ce96`. Tag workflow `29142733405` passed clean build, tracking/hygiene, Full, explicit prerelease packaging, and artifact upload in 9m10s. The explicit package-step ZIP SHA-256 is `6dd48e2e7155636657ed55ca0d556bf6201c6f9ecb671a31447ab536745de3a9`.
+- No P0 or P1 recovery issue remains open. Deferred breadth remains governed by PSIM-0100 rather than being misrepresented as part of this alpha.
