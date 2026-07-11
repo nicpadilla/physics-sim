@@ -235,7 +235,7 @@ Use the strongest applicable evidence:
 - Automated tests: `.\scripts\test.ps1`, named CTest target, or specific test executable.
 - Build evidence: `.\scripts\build.ps1`.
 - Smoke evidence: `.\scripts\run-smoke.ps1`.
-- Visual regression: `.\scripts\verify-demo-scene.ps1` or a named regression command.
+- Visual regression: `.\scripts\verify-recovery-basin.ps1` or a named regression command.
 - Manual evidence: a dated, reproducible manual check with exact actions and expected outcome.
 
 Every recovery verification entry records the command or review, date, result, duration, and relevant profile/scenario. Visual and usability reviews also record the reviewer and artifact path. Evidence from the pre-recovery snapshot is historical context, not current acceptance.

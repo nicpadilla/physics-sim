@@ -1,22 +1,13 @@
 @(
     @{
-        Name = 'demo-add-directional'
-        Baseline = 'regression\demo_scene_replay_add_directional_golden.bmp'
-        ReplayFile = 'regression\replays\demo-add-directional.replay'
+        Name = 'recovery-basin'
+        Baseline = 'regression\recovery_basin_surface_golden.bmp'
+        ReplayFile = 'regression\replays\recovery-basin.replay'
         Arguments = @(
-            '--scene-path', 'scenes/demo_scene.pscene',
-            '--dump-frame-after-ticks', '240',
-            '--auto-exit-ms', '30000'
-        )
-    },
-    @{
-        Name = 'demo-add-omni'
-        Baseline = 'regression\demo_scene_replay_add_omni_golden.bmp'
-        ReplayFile = 'regression\replays\demo-add-omni.replay'
-        Arguments = @(
-            '--scene-path', 'scenes/demo_scene.pscene',
-            '--dump-frame-after-ticks', '240',
-            '--auto-exit-ms', '30000'
+            '--scene-path', 'scenes/starter_basin.pscene',
+            '--visual-mode', 'surface',
+            '--dump-frame-after-ticks', '2400',
+            '--auto-exit-ms', '60000'
         )
     }
 )

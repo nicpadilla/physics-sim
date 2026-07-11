@@ -14,7 +14,7 @@ if (Test-Path -LiteralPath $rootBundle) { Remove-Item -LiteralPath $rootBundle -
 New-Item -ItemType Directory -Path $rootBundle -Force | Out-Null
 
 $results = @()
-$canonicalTicks = @(10, 2400, 1200, 1200, 480, 360, 360, 8, 6000, 2400)
+$canonicalTicks = @(10, 2400, 1200, 1200, 480, 360, 600, 8, 6000, 2400)
 for ($scenario = 0; $scenario -lt 10; $scenario++)
 {
     $bundle = Join-Path $rootBundle ("scenario-{0:D2}" -f $scenario)

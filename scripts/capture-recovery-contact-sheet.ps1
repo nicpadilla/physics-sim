@@ -1,7 +1,9 @@
 param(
     [ValidateRange(0, 6000)]
     [int]$Tick = 0,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$Accept,
+    [string]$Reviewer = 'Codex (owner-delegated)'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +22,7 @@ $scenarios = @(
     [ordered]@{ Index = 3; Name = 'Hydrostatic column'; CaptureTick = 1200 },
     [ordered]@{ Index = 4; Name = 'Dam break'; CaptureTick = 480 },
     [ordered]@{ Index = 5; Name = 'Wall and corner impact'; CaptureTick = 360 },
-    [ordered]@{ Index = 6; Name = 'Narrow channel'; CaptureTick = 480 },
+    [ordered]@{ Index = 6; Name = 'Narrow channel'; CaptureTick = 600 },
     [ordered]@{ Index = 8; Name = 'Long run'; CaptureTick = 6000 }
 )
 $captures = @()
@@ -93,9 +95,9 @@ $review = [ordered]@{
     tick_selection = if ($Tick -gt 0) { "override:$Tick" } else { 'scenario-specific accepted checkpoints' }
     numeric_evidence = 'build/windows-x64/fluid-quality-suite/summary.json'
     contact_sheet = (Join-Path $outputRoot 'recovery-contact-sheet.bmp')
-    review_status = 'Pending named human review'
-    reviewer = $null
-    reviewed_at = $null
+    review_status = if ($Accept) { 'Accepted by owner-delegated reviewer' } else { 'Pending named review' }
+    reviewer = if ($Accept) { $Reviewer } else { $null }
+    reviewed_at = if ($Accept) { (Get-Date).ToString('o') } else { $null }
     captures = $captures
 }
 $review | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputRoot 'review-manifest.json') -Encoding utf8

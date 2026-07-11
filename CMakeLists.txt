@@ -539,16 +539,16 @@ if(BUILD_TESTING)
 
     add_test(NAME physics_sim_solver_benchmark COMMAND physics_sim_solver_benchmark)
 
-    add_test(NAME physics_sim_demo_regression
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene.ps1
+    add_test(NAME physics_sim_recovery_basin_regression
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin.ps1
     )
 
-    add_test(NAME physics_sim_demo_regression_density
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-density.ps1
+    add_test(NAME physics_sim_recovery_basin_regression_density
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-density.ps1
     )
 
-    add_test(NAME physics_sim_demo_regression_surface
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-demo-scene-surface.ps1
+    add_test(NAME physics_sim_recovery_basin_regression_surface
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-surface.ps1
     )
     add_test(NAME physics_sim_smoke
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
@@ -603,9 +603,9 @@ if(BUILD_TESTING)
     set_tests_properties(physics_sim_lab_canonical PROPERTIES LABELS "integration;stress")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")
     set_tests_properties(
-        physics_sim_demo_regression
-        physics_sim_demo_regression_density
-        physics_sim_demo_regression_surface
+        physics_sim_recovery_basin_regression
+        physics_sim_recovery_basin_regression_density
+        physics_sim_recovery_basin_regression_surface
         PROPERTIES LABELS "visual"
     )
 endif()

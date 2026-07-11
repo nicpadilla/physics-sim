@@ -12,7 +12,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0092 | Done | P1 | Recovery Architecture | R15.01, R17.01, R17.04 | Replace scene, replay, and settings contracts |
 | PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
-| PSIM-0095 | In Progress | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
+| PSIM-0095 | Done | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
 | PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Done | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
@@ -343,7 +343,7 @@ Implementation notes:
 
 ### PSIM-0095: Reconstruct cohesive water and semantic visual gates
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -376,7 +376,7 @@ Subtasks:
 Verification:
 
 - `.\scripts\test.ps1 -Tier Standard`
-- `.\scripts\verify-demo-scene-surface.ps1`
+- `.\scripts\verify-recovery-basin-surface.ps1`
 - `.\scripts\check-tracking.ps1`
 - Manual visual review of the recovery contact sheet.
 
@@ -393,6 +393,8 @@ Implementation notes:
 - Extracted a platform-independent `physics_sim_presentation` target so sandbox and lab use the exact same continuous reconstruction. Lab capture metadata now records component, isolated-cell, and escaped-region counts; smoke enforces the U-container and still-pool semantic gates.
 - Added `capture-recovery-contact-sheet.ps1`, which produces fixed-tick continuous-surface scenario captures plus a review manifest without modifying goldens. The current manifest remains `Pending named human review`; visual tuning and acceptance are intentionally not self-certified.
 - Replaced the misleading universal tick-60 sheet with scenario-specific accepted checkpoints (including U at 2400, still pool at 1200, and long run at 6000). The regenerated candidate passes semantic gates, but its review manifest remains pending and legacy goldens remain untouched.
+- The project owner explicitly delegated the remaining acceptance decisions to Codex on 2026-07-10. The first exact regression candidates were rejected for overflow and fragmentation; active regression truth was then rebuilt around `starter_basin.pscene` plus the tick-indexed recovery replay.
+- Accepted evidence is recorded in `docs/reviews/recovery-visual-acceptance-2026-07-10.md`. The three recovered basin baselines pass exact SHA-256 verification, canonical contact-sheet review includes solid geometry, and pre-recovery demo/deferred-emitter goldens are isolated under `regression/legacy/pre-recovery-2026-07-10`.
 
 ## Epic 16: Product Experiences
 

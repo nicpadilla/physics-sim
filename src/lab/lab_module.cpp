@@ -219,25 +219,27 @@ std::unique_ptr<Simulation> make_simulation(int scenario, FluidSolverProfile pro
     }
     else if (scenario == 5)
     {
-        for (std::size_t y = 18; y < 28; ++y)
+        for (std::size_t y = 18; y <= 30; ++y)
         {
-            for (std::size_t x = 10; x < 20; ++x)
-            {
-                seed_cell(*simulation, config, x, y, {240.0f, 80.0f});
-            }
+            simulation->apply(SetSolidCellCommand{28, y, true});
         }
+        for (std::size_t x = 18; x <= 28; ++x)
+        {
+            simulation->apply(SetSolidCellCommand{x, 30, true});
+        }
+        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {192.0f, 352.0f}, {1.0f, 0.0f}, 8.0f, 48.0f, true});
     }
     else if (scenario == 6)
     {
         for (std::size_t y = 1; y <= 22; ++y)
         {
-            if (y != 10 && y != 11)
+            if (y != 18 && y != 19)
             {
                 simulation->apply(SetSolidCellCommand{14, y, true});
                 simulation->apply(SetSolidCellCommand{17, y, true});
             }
         }
-        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {4.5f, 5.5f}, {0.0f, 1.0f}, 4.0f, 28.0f, true});
+        simulation->apply(AddEmitterCommand{SimulationEmitterKind::Directional, {4.5f, 18.5f}, {1.0f, 0.0f}, 10.0f, 28.0f, true});
     }
     else if (scenario == 7)
     {
@@ -576,6 +578,19 @@ int run_lab_application(int argc, char *argv[])
         }
         else if (field_view == 1)
         {
+            for (std::size_t y = 0; y < snapshot.grid_height; ++y)
+            {
+                for (std::size_t x = 0; x < snapshot.grid_width; ++x)
+                {
+                    if (snapshot.solid_cells[y * snapshot.grid_width + x] == 0)
+                    {
+                        continue;
+                    }
+                    const ImVec2 minimum{canvas_position.x + x * snapshot.cell_size * view_scale, canvas_position.y + y * snapshot.cell_size * view_scale};
+                    const ImVec2 maximum{minimum.x + snapshot.cell_size * view_scale, minimum.y + snapshot.cell_size * view_scale};
+                    draw_list->AddRectFilled(minimum, maximum, IM_COL32(78, 88, 108, 255));
+                }
+            }
             const auto surface =
                 reconstruct_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, 0.25f);
             for (const SurfaceTriangle &triangle : surface)

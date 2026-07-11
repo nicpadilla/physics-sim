@@ -119,9 +119,9 @@ Invoke-BaselineStep 'smoke' '.\scripts\run-smoke.ps1' { & (Join-Path $PSScriptRo
 Invoke-BaselineStep 'replay-suite' '.\scripts\verify-replay-suite.ps1' { & (Join-Path $PSScriptRoot 'verify-replay-suite.ps1') } -Profile 'balanced' -Scenario 'legacy replay manifest'
 Invoke-BaselineStep 'fluid-quality-suite' '.\scripts\verify-fluid-quality-suite.ps1' { & (Join-Path $PSScriptRoot 'verify-fluid-quality-suite.ps1') } -Profile 'balanced,quality' -Scenario 'legacy canonical scenarios'
 Invoke-BaselineStep 'solver-profiles' '.\scripts\measure-water-solver.ps1 -Profile All' { & (Join-Path $PSScriptRoot 'measure-water-solver.ps1') -Profile All } -Profile 'fast,balanced,quality' -Scenario 'small-container-stress,demo-grid-flow'
-Invoke-BaselineStep 'demo-clean' '.\scripts\verify-demo-scene.ps1' { & (Join-Path $PSScriptRoot 'verify-demo-scene.ps1') } -Profile 'balanced' -Scenario 'U-container tick 240'
-Invoke-BaselineStep 'demo-density' '.\scripts\verify-demo-scene-density.ps1' { & (Join-Path $PSScriptRoot 'verify-demo-scene-density.ps1') } -Profile 'balanced' -Scenario 'U-container tick 960'
-Invoke-BaselineStep 'demo-surface' '.\scripts\verify-demo-scene-surface.ps1' { & (Join-Path $PSScriptRoot 'verify-demo-scene-surface.ps1') } -Profile 'balanced' -Scenario 'U-container tick 2400'
+Invoke-BaselineStep 'basin-early-surface' '.\scripts\verify-recovery-basin.ps1' { & (Join-Path $PSScriptRoot 'verify-recovery-basin.ps1') } -Profile 'balanced' -Scenario 'Recovery basin tick 240'
+Invoke-BaselineStep 'basin-density' '.\scripts\verify-recovery-basin-density.ps1' { & (Join-Path $PSScriptRoot 'verify-recovery-basin-density.ps1') } -Profile 'balanced' -Scenario 'Recovery basin tick 2400'
+Invoke-BaselineStep 'basin-surface' '.\scripts\verify-recovery-basin-surface.ps1' { & (Join-Path $PSScriptRoot 'verify-recovery-basin-surface.ps1') } -Profile 'balanced' -Scenario 'Recovery basin tick 2400'
 Invoke-BaselineStep 'package' '.\scripts\package-release.ps1' { & (Join-Path $PSScriptRoot 'package-release.ps1') } -Profile 'balanced' -Scenario 'legacy package'
 
 $goldens = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'regression') -Filter '*.bmp' | ForEach-Object {
