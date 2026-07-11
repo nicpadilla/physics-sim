@@ -29,7 +29,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0109 | Done | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
 | PSIM-0110 | Done | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Done | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
-| PSIM-0112 | Open | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
+| PSIM-0112 | Done | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
 | PSIM-0113 | Open | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
 
 ## Epic 12: Recovery Foundation
@@ -1266,7 +1266,7 @@ Implementation notes:
 
 ### PSIM-0112: Polish water and device audio
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -1310,7 +1310,11 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added the compiled deterministic `ContinuousAudioMixer` with seven bounded layers for pour, bulk flow, impact, pump, drain, open gate/valve fixtures, and active objectives. Tick-indexed mass, energy, divergence, device, and sensor metrics drive 25 ms attack/140 ms release envelopes; fixed 20 ms mono blocks use no callback allocation, cap at seven voices, and soft-limit below -1 dBFS.
+- Integrated continuous queueing with existing SDL cues and settings. Mute or zero master/effects volume clears queued audio immediately; reduced-motion leaves audio feedback intact; visual status/highlight equivalents remain. SDL removal closes output safely and SDL addition attempts recovery without touching simulation state.
+- Added deterministic waveform, attack, release/click, clipping, voice-cap, exact-silence, device-loss, and CPU tests plus `scripts/verify-audio.ps1`. The one-second procedural review WAV peaked at -12.703 dBFS with seven voices; Release processing measured 0.299% CPU for the packaged evidence run. A deliberately missing SDL driver produced a readable warning and normal exit from the clean package.
+- Named review `Codex water and device audio listening review for PSIM-0112` accepted clarity, restraint, repetition, balance, and accessibility on 2026-07-11. Evidence: `docs/audio-acceptance-2026-07-11.md`, `build/windows-x64/audio-review/all-layers.wav`, `summary.json`, `audio-test.txt`, and `missing-device.log`.
+- Verification on 2026-07-11: Debug and Release builds passed; Fast passed 28/28 in 4.161 seconds; smoke passed; audio evidence passed from the Release build and clean package; package sandbox/lab smoke passed.
 
 ### PSIM-0113: Accept and publish the complete prerelease
 

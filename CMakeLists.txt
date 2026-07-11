@@ -28,6 +28,7 @@ target_link_libraries(physics_sim_content PUBLIC physics_sim_core)
 target_compile_features(physics_sim_content PUBLIC cxx_std_20)
 
 add_library(physics_sim_presentation STATIC
+    src/app/audio_mixer.cpp
     src/app/surface_reconstruction.cpp
     src/app/water_visual_effects.cpp
 )
@@ -306,6 +307,7 @@ if(BUILD_TESTING)
     target_link_libraries(physics_sim_audio_feedback_tests
         PRIVATE
             physics_sim_core
+            physics_sim_presentation
             SDL2::SDL2
     )
 

@@ -2916,11 +2916,15 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
     std::size_t previousActiveSensors = simulation.metrics().active_sensors;
     bool previousObjectiveCompleted = simulation.metrics().objective_completed;
+    std::uint64_t previousAudioEmitted = simulation.metrics().total_emitted;
+    std::uint64_t previousAudioOutflow = simulation.metrics().total_outflow;
     const auto sync_scene_feedback_metrics = [&]()
     {
         const auto metrics = simulation.metrics();
         previousActiveSensors = metrics.active_sensors;
         previousObjectiveCompleted = metrics.objective_completed;
+        previousAudioEmitted = metrics.total_emitted;
+        previousAudioOutflow = metrics.total_outflow;
         challengeEvaluator.reset();
         static_cast<void>(challengeEvaluator.update(sceneMetadata.challenge, metrics, simulation.simulation_tick()));
     };
@@ -2928,6 +2932,23 @@ int physics_sim::app::run_application(int argc, char* argv[])
     const auto update_scene_feedback_audio = [&]()
     {
         const auto metrics = simulation.metrics();
+        const std::uint64_t emittedDelta = metrics.total_emitted >= previousAudioEmitted ? metrics.total_emitted - previousAudioEmitted : 0;
+        const std::uint64_t outflowDelta = metrics.total_outflow >= previousAudioOutflow ? metrics.total_outflow - previousAudioOutflow : 0;
+        const bool pumpEnabled = std::any_of(simulation.pumps().begin(), simulation.pumps().end(), [](const physics_sim::WaterPump& pump) { return pump.enabled; });
+        const bool drainEnabled = std::any_of(simulation.drains().begin(), simulation.drains().end(), [](const physics_sim::WaterDrain& drain) { return drain.enabled; });
+        const bool fixtureOpen = std::any_of(simulation.gates().begin(), simulation.gates().end(), [](const physics_sim::WaterGate& gate) { return gate.open; })
+            || std::any_of(simulation.valves().begin(), simulation.valves().end(), [](const physics_sim::WaterValve& valve) { return valve.open; });
+        physics_sim::AudioLoopSignals loopSignals;
+        loopSignals.pour = std::clamp(static_cast<float>(emittedDelta) / 12.0f, 0.0f, 1.0f);
+        loopSignals.flow = metrics.active_particles > 0
+            ? std::clamp(static_cast<float>(std::log1p(std::max(0.0, metrics.kinetic_energy)) / std::log(1000001.0)), 0.0f, 1.0f)
+            : 0.0f;
+        loopSignals.impact = std::clamp(static_cast<float>(metrics.max_divergence_after_projection) * 0.02f, 0.0f, 1.0f);
+        loopSignals.pump = pumpEnabled ? 0.55f : 0.0f;
+        loopSignals.drain = drainEnabled ? std::clamp(static_cast<float>(outflowDelta) / 8.0f, 0.0f, 1.0f) : 0.0f;
+        loopSignals.fixture = fixtureOpen && metrics.active_particles > 0 ? 0.25f : 0.0f;
+        loopSignals.objective = metrics.active_sensors > 0 ? 0.32f : 0.0f;
+        static_cast<void>(audioPlayer.update_continuous(loopSignals));
         if (metrics.active_sensors > 0 && previousActiveSensors == 0)
         {
             play_audio(physics_sim::AudioCue::DeviceTrigger);
@@ -2957,6 +2978,8 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
         previousActiveSensors = metrics.active_sensors;
         previousObjectiveCompleted = metrics.objective_completed;
+        previousAudioEmitted = metrics.total_emitted;
+        previousAudioOutflow = metrics.total_outflow;
     };
 
     if (startupAudioFeedback.has_value())
@@ -4224,6 +4247,29 @@ int physics_sim::app::run_application(int argc, char* argv[])
             {
             case SDL_QUIT:
                 running = false;
+                break;
+            case SDL_AUDIODEVICEREMOVED:
+                if (event.adevice.iscapture == 0)
+                {
+                    audioPlayer.handle_device_removed(event.adevice.which);
+                    logger.log("audio output device removed; simulation continues silently");
+                    set_status_message("AUDIO DEVICE LOST", StatusMessageKind::Warning);
+                }
+                break;
+            case SDL_AUDIODEVICEADDED:
+                if (event.adevice.iscapture == 0 && !audioPlayer.available() && !options.disableAudio)
+                {
+                    std::string recoveryError;
+                    if (audioPlayer.recover(&recoveryError))
+                    {
+                        logger.log("audio output device recovered");
+                        set_status_message("AUDIO RESTORED", StatusMessageKind::Success);
+                    }
+                    else
+                    {
+                        logger.log("audio recovery failed: " + recoveryError);
+                    }
+                }
                 break;
             case SDL_KEYDOWN:
             {
