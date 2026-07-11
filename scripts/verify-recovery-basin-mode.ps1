@@ -7,6 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $repoRoot 'build\windows-x64\Debug\physics-sim.exe'
 $baselinePath = Join-Path $repoRoot $Baseline
