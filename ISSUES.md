@@ -24,6 +24,13 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0104 | Done | P0 | Convincing Water Motion | R20.03 | Restore believable transfer and free-surface flow |
 | PSIM-0105 | Done | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
 | PSIM-0106 | Done | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
+| PSIM-0107 | In Progress | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
+| PSIM-0108 | Open | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
+| PSIM-0109 | Open | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
+| PSIM-0110 | Open | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
+| PSIM-0111 | Open | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
+| PSIM-0112 | Open | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
+| PSIM-0113 | Open | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
 
 ## Epic 12: Recovery Foundation
 
@@ -991,3 +998,340 @@ Implementation notes:
 - Fixed large-surface lab corruption by advertising the renderer's `ImDrawCmd::VtxOffset` support; automated capture now advances only the selected run, reducing the 10-scenario canonical matrix to 18.4 seconds and eliminating the prior parallel timeout.
 - `verify-all.ps1` passed 36/36 plus tracking, hygiene, packaging, replay, and visual verification in 169.6 seconds on 2026-07-11.
 - A populated balanced sandbox replay soak ran from 10:27:06 through 10:42:06 on 2026-07-11, emitted through tick 1200, continuously rendered the settled surface, saved settings, and exited normally at the configured 900 seconds. Log: `build/windows-x64/water-feel-soak.log`.
+
+## Epic 21: Complete Water Sandbox
+
+### PSIM-0107: Regularize active pours and refine droplets
+
+Status: In Progress
+
+Priority: P0
+
+Linked roadmap IDs: R21.01
+
+Problem:
+Active pours still have uneven per-cell sampling and energetic interactions can leave tiny unsupported fragments that read as solver debris rather than water.
+
+Technical implementation direction:
+
+- Extend `WaterSimulation2D` regularization with a deterministic neighborhood pass after collision/density correction and before metrics collection. Use stable cell and particle ordering, compact support, zero-net correction, and a per-step displacement cap expressed in cell units.
+- Improve split/merge selection across immediate fluid neighbors without teleporting isolated particles. Any merge must conserve mass, volume, linear momentum, and center of mass; physically separated supported droplets remain valid.
+- Add particle-support age or equivalent deterministic evidence only if needed to distinguish transient under-sampling from stable droplets; include it in state digests and commands only if it becomes solver state.
+- Promote active-pour sampling, unsupported-fragment lifetime, center-of-mass drift, angular error, particle-count growth, and performance thresholds in the feel suite. Do not relax mass, pressure, penetration, determinism, or settled-energy gates.
+
+Acceptance criteria:
+
+- Settled-pool and slosh sampling CV are `<= 0.35`; steady-pour CV is `<= 0.40` in balanced and quality without particle-count explosion.
+- Unsupported one-particle fragments created by standard wall/obstacle impacts rejoin or remain physically supported within 120 ticks; supported separated droplets are preserved.
+- Mass error stays `<= 1e-5`, force-free momentum error `<= 1e-4`, center-of-mass drift from regularization `<= 1e-5` cells, particles in solids and unexplained lifecycle changes remain zero.
+- Fast, Standard, the 30-run matrix, 6000-tick stress, and deterministic repeated digests pass within existing budgets.
+
+Subtasks:
+
+- Add regularization and fragment-lifetime metrics/tests.
+- Implement conservative neighborhood shifting and neighbor-aware split/merge.
+- Run bounded parameter sweeps and record selected defaults.
+- Capture before/after active-pour and impact evidence.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- `.\scripts\verify-fluid-quality-suite.ps1`
+- `.\scripts\measure-water-solver.ps1 -Profile All`
+
+Dependencies:
+
+- PSIM-0102 through PSIM-0106 provide the invariant, feel, rendering, and review baseline.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0108: Add deterministic foam and spray presentation
+
+Status: Open
+
+Priority: P1
+
+Linked roadmap IDs: R21.02
+
+Problem:
+The continuous surface reads as water but lacks small-scale impact, aeration, and breakup cues that communicate speed and energy.
+
+Technical implementation direction:
+
+- Add a compiled presentation-only `WaterVisualEffects` builder derived from `SimulationSnapshot`, the reconstructed field, velocity, vorticity, curvature, connectivity, and the deterministic tick. It must never mutate solver state or enter physics digests.
+- Generate bounded foam bands at exposed high-curvature/high-vorticity surface samples, spray points only from fast small supported components above the main body, and short impact accents near solid contacts. Use stable spatial hashing/tick phases rather than frame-time randomness.
+- Render effects through SDL geometry with fixed maximum counts and explicit color/alpha budgets. Reduced motion freezes phase and disables ballistic accent motion while preserving static legibility; high contrast remains readable.
+- Add semantic counts/bounds, deterministic hashes, performance tests, fixed-tick captures, and named human review before changing visual baselines.
+
+Acceptance criteria:
+
+- Identical snapshot/tick/settings produce identical effect primitives and hashes; interpolation/frame rate do not alter selection.
+- Still pools produce no spray and minimal foam; wall impacts, pours, and obstacle breakup produce bounded visible accents with zero effects inside solids or outside the domain.
+- Effects add no represented water area or physics mass and stay below 1.5 ms CPU presentation time at the 80x45 target with at most 512 foam and 256 spray primitives.
+- Reduced-motion, high-contrast, sandbox, lab, semantic, and named visual acceptance pass.
+
+Subtasks:
+
+- Implement deterministic effect extraction and unit fixtures.
+- Integrate sandbox/lab rendering and accessibility settings.
+- Add capture metrics and performance budgets.
+- Review and accept new visual baselines.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\capture-recovery-contact-sheet.ps1`
+- `.\scripts\verify-recovery-basin.ps1`
+
+Dependencies:
+
+- PSIM-0107 must settle final particle/component behavior before visual acceptance.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0109: Restore advanced water tools and devices
+
+Status: Open
+
+Priority: P0
+
+Linked roadmap IDs: R21.03
+
+Problem:
+Directional/omni emitters, gates, sensors, drains, pumps, and valves are implemented but intentionally unreachable in the recovered sandbox.
+
+Technical implementation direction:
+
+- Restore tools `3` through `9` behind an explicit keyboard-accessible Advanced Tools palette in the custom SDL sandbox; keep pour/draw/erase as the default compact palette and keep ImGui out of sandbox mode.
+- Route every placement, selection, toggle, parameter edit, undo/redo, replay, and load through existing `SimulationCommand`/`SceneController` boundaries. Add missing commands rather than mutating solver internals from UI.
+- Re-enable scene v2 persistence and replay v2 coverage for each device family, with malformed bounds/parameter validation and deterministic ordering. Keep player saves separate from bundled scenes.
+- Provide visible selection, enabled/open state, direction/strength feedback, keyboard alternatives, short help text, and per-device performance/state tests. Package only scenes accepted under PSIM-0111.
+
+Acceptance criteria:
+
+- A keyboard-only user can place, select, configure, toggle, undo, redo, save, reload, and replay every advanced tool without debug overlays.
+- Device state round-trips exactly; malformed device records fail safely; identical command replays produce identical state digests and metrics.
+- Drain/outflow accounting remains explicit, pumps/valves/gates do not create mass, sensors do not mutate physics, and all existing canonical device scenarios pass.
+- Advanced tools add less than 10% median solver cost in their accepted scenes and do not regress the core compact palette or first-run tutorial.
+
+Subtasks:
+
+- Restore advanced palette and tool feedback.
+- Complete command/undo/replay/persistence contracts.
+- Add device-family UI and malformed-input tests.
+- Run keyboard, save/load, performance, and named usability review.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\verify-fluid-quality-suite.ps1`
+
+Dependencies:
+
+- PSIM-0107 is required for final water/device captures; implementation may begin after its solver defaults are stable.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0110: Restore challenge objectives
+
+Status: Open
+
+Priority: P1
+
+Linked roadmap IDs: R21.04
+
+Problem:
+Objective sensors and completion metrics exist, but the release has no intentional challenge contract or player flow.
+
+Technical implementation direction:
+
+- Define explicit scene-v2 challenge metadata: objective title, required objective-sensor count, hold duration in ticks, optional maximum emitted/outflow mass, and completion state that is runtime-only unless a separate profile progression record is justified.
+- Drive progress exclusively from sensor readings and tick-indexed commands; objective logic must not mutate solver state or depend on frame timing. Expose progress, restart, completion, and failure feedback in custom SDL UI.
+- Create three bounded challenges teaching redirection, gating, and pump/valve control. Each must remain solvable through keyboard-accessible tools and replayable deterministically.
+- Keep challenge selection optional; creative sandbox remains unconstrained and never displays hidden objectives.
+
+Acceptance criteria:
+
+- Three curated challenges have deterministic success replays, visible progress/criteria, restart, and completion feedback.
+- Objective state round-trips where scene-authored, runtime completion resets predictably, and repeated replays complete on the same tick with identical digests/metrics.
+- No objective changes mass, forces, devices, or solver ordering; missing/malformed criteria fail safely.
+- Named usability review confirms criteria are understandable without README or debug overlays.
+
+Subtasks:
+
+- Extend challenge metadata/parser/validation.
+- Implement deterministic objective evaluator and UI.
+- Author three challenge scenes and success replays.
+- Add automated and named player acceptance.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- Challenge replay verification script.
+- Packaged keyboard-only manual matrix.
+
+Dependencies:
+
+- PSIM-0109 supplies the restored device interactions.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0111: Ship the curated scene gallery
+
+Status: Open
+
+Priority: P1
+
+Linked roadmap IDs: R21.05
+
+Problem:
+Gallery code and legacy thumbnails exist, but the release lacks a reviewed, coherent set of creative and challenge scenes.
+
+Technical implementation direction:
+
+- Replace broad filesystem exposure with a versioned curated manifest containing stable ID, title, description, category, scene path, thumbnail path, required feature set, and sort order.
+- Restore custom SDL gallery navigation with categories for Learn, Sandbox, and Challenges, keyboard/pointer parity, load-error recovery, current-scene confirmation, and no build-tree paths.
+- Review/regenerate scenes as v2 and deterministic thumbnails using current rendering. Include starter/tutorial, three creative advanced-device scenes, and the three PSIM-0110 challenges; exclude legacy scenes that fail current quality gates.
+- Package the manifest, scenes, thumbnails, replay evidence, and licenses. Add manifest completeness, duplicate-ID, missing-file, and clean-directory tests.
+
+Acceptance criteria:
+
+- At least eight reviewed scenes are discoverable with valid thumbnails and useful descriptions; every entry loads from the package directory.
+- Keyboard-only navigation, category filtering, load confirmation, malformed/missing entry recovery, and return to the current session pass.
+- Gallery scenes meet numeric/semantic gates appropriate to their devices/objectives and do not expose unreviewed legacy content.
+- Named review accepts ordering, thumbnails, readability, and product coherence.
+
+Subtasks:
+
+- Add curated manifest contract and validation.
+- Restore gallery UI and navigation.
+- Review/author scenes and regenerate thumbnails.
+- Verify and package the complete gallery.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- Gallery capture/validation script.
+- `.\scripts\package-release.ps1`
+
+Dependencies:
+
+- PSIM-0109 and PSIM-0110 define the accepted feature and challenge content.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0112: Polish water and device audio
+
+Status: Open
+
+Priority: P1
+
+Linked roadmap IDs: R21.06
+
+Problem:
+Short functional synthesized cues exist, but water motion and restored devices lack layered, continuous, and reviewed audio feedback.
+
+Technical implementation direction:
+
+- Extend the compiled audio model with bounded loop layers for pour, flow, impact, pump, drain, gate/valve, and objective ambience derived from smoothed simulation metrics, never frame-random state.
+- Use deterministic procedural synthesis or repository-owned assets with documented licenses. Mix through a fixed-size callback/queue path with attack/release envelopes, voice caps, soft limiting, master/effects/music controls, and zero allocation in the audio callback.
+- Handle lost/reopened devices without crashing or blocking simulation. Mute produces silence immediately; reduced motion must not disable necessary audio feedback, and all interactions retain visual equivalents.
+- Add waveform, clipping, envelope, transition, mute/volume, device-loss, CPU, and named listening-review evidence.
+
+Acceptance criteria:
+
+- Pour/flow/impact/device layers respond within 100 ms, release without clicks, remain below `-1 dBFS`, and never exceed eight simultaneous voices.
+- Muting and zero volume produce exact silence; missing/lost devices degrade safely and can recover without restarting the simulation.
+- Audio processing remains below 1% CPU at 48 kHz on the recorded recovery environment and does not change simulation determinism.
+- Named review accepts clarity, restraint, repetition, balance, and accessibility across sandbox/challenge/gallery flows.
+
+Subtasks:
+
+- Implement continuous layer synthesis/mixer state.
+- Connect deterministic simulation/device signals.
+- Add resilience, performance, and waveform tests.
+- Run named listening and packaged-device review.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\run-smoke.ps1`
+- Audio render/performance capture.
+- Packaged lost-device manual matrix.
+
+Dependencies:
+
+- PSIM-0109 supplies final device signals; PSIM-0110 supplies objective transitions.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0113: Accept and publish the complete prerelease
+
+Status: Open
+
+Priority: P0
+
+Linked roadmap IDs: R21.07, R21.08
+
+Problem:
+The complete feature set needs integrated acceptance and a protected downloadable release rather than isolated local implementation.
+
+Technical implementation direction:
+
+- Reconcile PSIM-0107 through PSIM-0112, update README/limitations/disposition/release notes, choose the next semantic prerelease version, and ensure no P0/P1 issue remains incomplete.
+- Extend Full verification for visual effects, advanced tools, challenges, curated gallery, audio, package launch, and failed-artifact retention while keeping the eight-minute target or documenting/approving a tier split before release.
+- Run named live review covering core pour/build, every advanced tool, all challenges, gallery navigation, audio/mute/lost-device, reduced motion, high contrast, keyboard-only use, and a populated fifteen-minute soak.
+- Commit focused completed issues, push through protected `main` via the repository's accepted workflow, create an annotated prerelease tag, wait for tag CI, publish/check the GitHub release and downloadable ZIP, verify checksums, then launch that downloaded-equivalent package locally.
+
+Acceptance criteria:
+
+- All linked roadmap rows are Automated or Human Accepted with current dated evidence and no open P0/P1 issue.
+- Fast/Standard/Full, tracking, hygiene, replay/visual/challenge/gallery/audio/package checks, and clean-directory launch pass within recorded budgets.
+- Protected GitHub CI succeeds for the accepted commit and tag; the published ZIP checksum matches the verified local/downloaded artifact and contains the full curated product.
+- A fresh user can complete core sandbox, one advanced device workflow, one challenge, gallery navigation, mute, save/load, and return to sandbox without external instructions.
+
+Subtasks:
+
+- Complete integrated automated and human acceptance.
+- Update versioning, package manifest, docs, and release notes.
+- Push protected commit and annotated prerelease tag.
+- Verify CI, GitHub release/artifact, checksum, clean launch, and final local game window.
+
+Verification:
+
+- `.\scripts\verify-all.ps1`
+- Integrated packaged acceptance matrix and 900-second soak.
+- `.\scripts\check-tracking.ps1`
+- GitHub branch/tag workflow and release artifact inspection.
+
+Dependencies:
+
+- PSIM-0107, PSIM-0108, PSIM-0109, PSIM-0110, PSIM-0111, and PSIM-0112 must be Done.
+
+Implementation notes:
+
+- None yet.
