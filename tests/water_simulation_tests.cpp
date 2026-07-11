@@ -135,6 +135,12 @@ int main()
         REQUIRE(balanced_settings.resampling.target_particles_per_fluid_cell == 4, "balanced solver settings did not keep the target particle count");
         REQUIRE(balanced_settings.resampling.max_particles_per_fluid_cell == 8, "balanced solver settings did not keep the maximum particle count");
         REQUIRE(balanced_settings.resampling.max_resampling_operations_per_step == 48, "balanced solver settings did not cap resampling operations");
+        REQUIRE(balanced_settings.regularization.enabled, "balanced solver settings did not enable particle regularization");
+        REQUIRE(balanced_settings.regularization.minimum_particle_count == 8, "balanced solver settings did not protect small supported droplets");
+        REQUIRE(balanced_settings.regularization.interval_ticks == 4, "balanced solver settings did not preserve the regularization cadence");
+        REQUIRE(balanced_settings.regularization.iterations == 1, "balanced solver settings did not preserve the regularization iteration budget");
+        REQUIRE(nearly_equal(balanced_settings.regularization.support_radius_cells, 0.50f, 0.000001), "balanced solver settings did not preserve regularization support");
+        REQUIRE(nearly_equal(balanced_settings.regularization.max_displacement_fraction, 0.010f, 0.000001), "balanced solver settings did not cap regularization displacement");
         REQUIRE(nearly_equal(balanced_settings.flip_blend, 0.78f, 0.000001), "balanced solver settings did not preserve the water-feel FLIP blend");
         REQUIRE(nearly_equal(balanced_settings.velocity_retention, 0.0f, 0.000001), "balanced solver settings did not apply the complete projected transfer");
         REQUIRE(nearly_equal(balanced_settings.viscosity_coefficient, 0.035f, 0.000001), "balanced solver settings did not enable the target viscosity");
@@ -155,6 +161,12 @@ int main()
         REQUIRE(quality_settings.resampling.target_particles_per_fluid_cell == 4, "quality solver settings did not match its full-cell particle count");
         REQUIRE(quality_settings.resampling.max_particles_per_fluid_cell == 8, "quality solver settings did not keep a consistent resampling ceiling");
         REQUIRE(quality_settings.resampling.max_resampling_operations_per_step == 96, "quality solver settings did not cap resampling operations");
+        REQUIRE(quality_settings.regularization.enabled, "quality solver settings did not enable particle regularization");
+        REQUIRE(quality_settings.regularization.minimum_particle_count == 8, "quality solver settings did not protect small supported droplets");
+        REQUIRE(quality_settings.regularization.interval_ticks == 1, "quality solver settings did not preserve the regularization cadence");
+        REQUIRE(quality_settings.regularization.iterations == 2, "quality solver settings did not preserve the regularization iteration budget");
+        REQUIRE(nearly_equal(quality_settings.regularization.support_radius_cells, 0.45f, 0.000001), "quality solver settings did not preserve regularization support");
+        REQUIRE(nearly_equal(quality_settings.regularization.max_displacement_fraction, 0.010f, 0.000001), "quality solver settings did not cap regularization displacement");
 
         physics_sim::WaterSimulation2D simulation{8, 8, 1.0f};
         REQUIRE(simulation.solver_settings().profile == physics_sim::FluidSolverProfile::Balanced, "simulation did not start with balanced solver defaults");
@@ -198,6 +210,43 @@ int main()
         const double unit_grid_velocity_cells = unit_grid.particles().front().velocity.y;
         const double scaled_grid_velocity_cells = scaled_grid.particles().front().velocity.y / scaled_grid.grid().cell_size();
         REQUIRE(nearly_equal(unit_grid_velocity_cells, scaled_grid_velocity_cells, 0.00001), "gravity acceleration changed when the physical cell size changed");
+    }
+
+    {
+        physics_sim::WaterSimulation2D control{12, 12, 1.0f};
+        physics_sim::WaterSimulation2D regularized{12, 12, 1.0f};
+        auto settings = physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Fast);
+        settings.gravity_acceleration = 0.0f;
+        settings.density_correction_iterations = 0;
+        settings.resampling.enabled = false;
+        settings.regularization.enabled = false;
+        settings.regularization.iterations = 2;
+        settings.regularization.support_radius_cells = 0.5f;
+        settings.regularization.strength = 0.5f;
+        settings.regularization.max_displacement_fraction = 0.05f;
+        control.set_solver_settings(settings);
+        settings.regularization.enabled = true;
+        settings.regularization.minimum_particle_count = 2;
+        regularized.set_solver_settings(settings);
+        for (auto* simulation : {&control, &regularized})
+        {
+            simulation->add_particle({Vec2{5.00f, 5.00f}, Vec2{0.25f, 0.10f}, 0.25f, 0.25f});
+            simulation->add_particle({Vec2{5.02f, 5.00f}, Vec2{0.25f, 0.10f}, 0.50f, 0.50f});
+            simulation->add_particle({Vec2{5.01f, 5.02f}, Vec2{0.25f, 0.10f}, 0.375f, 0.375f});
+            simulation->step(1.0 / 120.0);
+        }
+
+        const float control_distance = physics_sim::length(control.particles()[0].position - control.particles()[1].position);
+        const float regularized_distance = physics_sim::length(regularized.particles()[0].position - regularized.particles()[1].position);
+        const Vec2 control_center = physics_sim::particle_center_of_mass(control.particles());
+        const Vec2 regularized_center = physics_sim::particle_center_of_mass(regularized.particles());
+
+        REQUIRE(regularized_distance > control_distance, "particle regularization did not separate an under-sampled cluster");
+        REQUIRE(nearly_equal(physics_sim::total_particle_mass(regularized.particles()), physics_sim::total_particle_mass(control.particles()), 0.000001), "particle regularization changed mass");
+        REQUIRE(nearly_equal(sum_momentum(regularized.particles()).x, sum_momentum(control.particles()).x, 0.000001), "particle regularization changed x momentum");
+        REQUIRE(nearly_equal(sum_momentum(regularized.particles()).y, sum_momentum(control.particles()).y, 0.000001), "particle regularization changed y momentum");
+        REQUIRE(nearly_equal(regularized_center.x, control_center.x, 0.00001), "particle regularization changed center-of-mass x motion");
+        REQUIRE(nearly_equal(regularized_center.y, control_center.y, 0.00001), "particle regularization changed center-of-mass y motion");
     }
 
     {

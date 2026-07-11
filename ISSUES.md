@@ -24,7 +24,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0104 | Done | P0 | Convincing Water Motion | R20.03 | Restore believable transfer and free-surface flow |
 | PSIM-0105 | Done | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
 | PSIM-0106 | Done | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
-| PSIM-0107 | In Progress | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
+| PSIM-0107 | Done | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
 | PSIM-0108 | Open | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
 | PSIM-0109 | Open | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
 | PSIM-0110 | Open | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
@@ -1003,7 +1003,7 @@ Implementation notes:
 
 ### PSIM-0107: Regularize active pours and refine droplets
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -1047,7 +1047,12 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added deterministic mass-weighted pair regularization with compact support, one globally capped correction field, unchanged velocities, solid projection, configurable cadence, and an eight-particle small-component guard so supported droplets are not cosmetically merged.
+- Balanced uses one iteration every four ticks at support `0.50` and max displacement `0.010` cells; quality uses two iterations every tick at support `0.45` and the same cap. Both use strength `0.25`.
+- Added focused control-vs-regularized separation, mass, momentum, and center-of-mass tests plus calibration-only CLI overrides for iterations, support, strength, displacement, and cadence.
+- Promoted leveling/slosh CV `<= 0.35`, steady-pour CV `<= 0.40`, obstacle main-component fraction `>= 0.90`, and remaining components `<= 3` into scenario assertions without weakening existing hard gates.
+- Rejected per-tick balanced shifting after it exceeded the U-container energy gate; selected cadence passes U energy at `11,554` balanced and `10,408` quality. Full calibration is in `docs/particle-regularization-2026-07-11.md`.
+- Verification on 2026-07-11: build passed; Fast 26/26 in 4.164 seconds; Standard 28/28 in 33.83 seconds; all 30 fluid-quality cases passed; all solver benchmark profiles passed (`0.4302 ms/step` balanced stress, `1.6074 ms/step` quality stress).
 
 ### PSIM-0108: Add deterministic foam and spray presentation
 

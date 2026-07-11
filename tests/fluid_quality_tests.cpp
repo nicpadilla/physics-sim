@@ -25,6 +25,11 @@ std::optional<float> selected_flip_blend;
 std::optional<float> selected_apic_affine_ratio;
 std::optional<int> selected_density_correction_iterations;
 std::optional<float> selected_density_correction_velocity_ratio;
+std::optional<int> selected_regularization_iterations;
+std::optional<float> selected_regularization_support;
+std::optional<float> selected_regularization_strength;
+std::optional<float> selected_regularization_max_displacement;
+std::optional<int> selected_regularization_interval_ticks;
 
 [[noreturn]] void fail(const std::string& message, const char* file, int line)
 {
@@ -325,7 +330,12 @@ physics_sim::FluidQualityScenarioResult run_case(const ScenarioCase& scenario, p
         }
         if (selected_flip_blend.has_value() || selected_apic_affine_ratio.has_value()
             || selected_density_correction_iterations.has_value()
-            || selected_density_correction_velocity_ratio.has_value())
+            || selected_density_correction_velocity_ratio.has_value()
+            || selected_regularization_iterations.has_value()
+            || selected_regularization_support.has_value()
+            || selected_regularization_strength.has_value()
+            || selected_regularization_max_displacement.has_value()
+            || selected_regularization_interval_ticks.has_value())
         {
             auto settings = simulation.solver_settings();
             if (selected_flip_blend.has_value())
@@ -343,6 +353,26 @@ physics_sim::FluidQualityScenarioResult run_case(const ScenarioCase& scenario, p
             if (selected_density_correction_velocity_ratio.has_value())
             {
                 settings.density_correction_velocity_ratio = std::clamp(*selected_density_correction_velocity_ratio, 0.0f, 1.0f);
+            }
+            if (selected_regularization_iterations.has_value())
+            {
+                settings.regularization.iterations = std::max(0, *selected_regularization_iterations);
+            }
+            if (selected_regularization_support.has_value())
+            {
+                settings.regularization.support_radius_cells = std::max(0.0f, *selected_regularization_support);
+            }
+            if (selected_regularization_strength.has_value())
+            {
+                settings.regularization.strength = std::clamp(*selected_regularization_strength, 0.0f, 1.0f);
+            }
+            if (selected_regularization_max_displacement.has_value())
+            {
+                settings.regularization.max_displacement_fraction = std::clamp(*selected_regularization_max_displacement, 0.0f, 0.25f);
+            }
+            if (selected_regularization_interval_ticks.has_value())
+            {
+                settings.regularization.interval_ticks = static_cast<std::uint64_t>(std::max(1, *selected_regularization_interval_ticks));
             }
             simulation.set_solver_settings(settings);
         }
@@ -1131,6 +1161,7 @@ ScenarioCase make_asymmetric_leveling_case()
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
             require_greater_than(final, "horizontal_footprint_cells", final.feel.horizontal_footprint_cells, initial.feel.horizontal_footprint_cells);
             require_greater_than_or_equal(final, "largest_component_fraction", final.feel.largest_component_particle_fraction, 0.95);
+            require_less_than(final, "settled_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.35);
         },
     };
 }
@@ -1172,6 +1203,7 @@ ScenarioCase make_steady_pour_feel_case()
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
             require_greater_than(final, "pool_spread_after_pour", final.feel.horizontal_footprint_cells, impact.feel.horizontal_footprint_cells);
             require_greater_than_or_equal(final, "largest_component_fraction", final.feel.largest_component_particle_fraction, 0.85);
+            require_less_than(final, "steady_pour_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.40);
         },
     };
 }
@@ -1214,6 +1246,7 @@ ScenarioCase make_slosh_decay_case()
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
             require_greater_than(middle, "slosh_motion", middle.kinetic_energy, 0.01);
             require_less_than(final, "slosh_decay", final.kinetic_energy, initial.kinetic_energy * 1.25);
+            require_less_than(final, "settled_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.35);
         },
     };
 }
@@ -1330,6 +1363,8 @@ ScenarioCase make_obstacle_breakup_rejoin_case()
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
             const std::size_t below_obstacle = count_particles_in_region(first.final_state, 3, 12, 22, 11);
             REQUIRE(below_obstacle > 0, "obstacle-breakup-rejoin did not pass the obstacle");
+            require_greater_than_or_equal(final, "rejoined_component_fraction", final.feel.largest_component_particle_fraction, 0.90);
+            require_less_than(final, "remaining_component_count", static_cast<double>(final.feel.particle_components), 3.5);
         },
     };
 }
@@ -1450,6 +1485,36 @@ physics_sim::FluidSolverProfile parse_profile(int argc, char* argv[])
             selected_density_correction_velocity_ratio = std::strtof(argv[++i], nullptr);
             continue;
         }
+
+        if (arg == "--regularization-iterations" && i + 1 < argc)
+        {
+            selected_regularization_iterations = std::max(0, std::atoi(argv[++i]));
+            continue;
+        }
+
+        if (arg == "--regularization-support" && i + 1 < argc)
+        {
+            selected_regularization_support = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-strength" && i + 1 < argc)
+        {
+            selected_regularization_strength = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-max-displacement" && i + 1 < argc)
+        {
+            selected_regularization_max_displacement = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-interval" && i + 1 < argc)
+        {
+            selected_regularization_interval_ticks = std::max(1, std::atoi(argv[++i]));
+            continue;
+        }
     }
 
     return profile;
@@ -1480,7 +1545,9 @@ int main(int argc, char* argv[])
         }
 
         if ((arg == "--flip-blend" || arg == "--apic-affine-ratio" || arg == "--density-correction-iterations"
-                || arg == "--density-correction-velocity-ratio") && i + 1 < argc)
+                || arg == "--density-correction-velocity-ratio" || arg == "--regularization-iterations"
+                || arg == "--regularization-support" || arg == "--regularization-strength"
+                || arg == "--regularization-max-displacement" || arg == "--regularization-interval") && i + 1 < argc)
         {
             ++i;
             continue;

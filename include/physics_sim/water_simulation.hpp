@@ -107,6 +107,17 @@ struct ParticleResamplingSettings
     float min_split_particle_mass = 1.0e-6f;
 };
 
+struct ParticleRegularizationSettings
+{
+    bool enabled = false;
+    std::size_t minimum_particle_count = 8;
+    std::uint64_t interval_ticks = 4;
+    int iterations = 1;
+    float support_radius_cells = 0.45f;
+    float strength = 0.20f;
+    float max_displacement_fraction = 0.01f;
+};
+
 struct FluidSolverSettings
 {
     FluidSolverProfile profile = FluidSolverProfile::Balanced;
@@ -129,6 +140,7 @@ struct FluidSolverSettings
     float surface_tension_coefficient = 0.0f;
     float max_surface_velocity_delta_fraction = 0.15f;
     ParticleResamplingSettings resampling{};
+    ParticleRegularizationSettings regularization{};
     std::uint64_t density_metrics_interval_ticks = 120;
 };
 
@@ -354,6 +366,13 @@ public:
             settings.resampling.max_resampling_operations_per_step = 48;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
+            settings.regularization.enabled = true;
+            settings.regularization.minimum_particle_count = 8;
+            settings.regularization.interval_ticks = 4;
+            settings.regularization.iterations = 1;
+            settings.regularization.support_radius_cells = 0.50f;
+            settings.regularization.strength = 0.25f;
+            settings.regularization.max_displacement_fraction = 0.010f;
             settings.density_metrics_interval_ticks = 60;
             break;
 
@@ -380,6 +399,13 @@ public:
             settings.resampling.max_resampling_operations_per_step = 96;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
+            settings.regularization.enabled = true;
+            settings.regularization.minimum_particle_count = 8;
+            settings.regularization.interval_ticks = 1;
+            settings.regularization.iterations = 2;
+            settings.regularization.support_radius_cells = 0.45f;
+            settings.regularization.strength = 0.25f;
+            settings.regularization.max_displacement_fraction = 0.010f;
             settings.density_metrics_interval_ticks = 30;
             break;
         }
@@ -745,6 +771,13 @@ public:
         {
             refresh_cell_classification();
             resample_particles();
+            remove_particles_in_drains();
+            cull_out_of_domain_particles();
+            refresh_cell_classification();
+        }
+        if (solver_settings_.regularization.enabled)
+        {
+            regularize_particle_distribution();
             remove_particles_in_drains();
             cull_out_of_domain_particles();
             refresh_cell_classification();
@@ -2606,6 +2639,139 @@ private:
         refresh_cell_classification();
     }
 
+    void regularize_particle_distribution()
+    {
+        if (!solver_settings_.regularization.enabled
+            || particles_.size() < solver_settings_.regularization.minimum_particle_count
+            || simulation_tick_ % solver_settings_.regularization.interval_ticks != 0
+            || grid_.width() == 0
+            || grid_.height() == 0)
+        {
+            return;
+        }
+
+        const float cell_size = grid_.cell_size();
+        const float support_radius = solver_settings_.regularization.support_radius_cells * cell_size;
+        const float support_radius_squared = support_radius * support_radius;
+        const float maximum_displacement = solver_settings_.regularization.max_displacement_fraction * cell_size;
+        if (support_radius <= 0.0f || maximum_displacement <= 0.0f || solver_settings_.regularization.strength <= 0.0f)
+        {
+            return;
+        }
+
+        const auto particle_mass = [&](const FluidParticle& particle) noexcept
+        {
+            if (particle.mass > 0.0f)
+            {
+                return particle.mass;
+            }
+            const float volume = particle.volume > 0.0f ? particle.volume : density_settings().particle_volume;
+            return std::max(1.0e-8f, solver_settings_.rest_density * volume);
+        };
+
+        for (int iteration = 0; iteration < solver_settings_.regularization.iterations; ++iteration)
+        {
+            std::vector<std::vector<size_type>> buckets(grid_.cell_count());
+            for (size_type index = 0; index < particles_.size(); ++index)
+            {
+                const FluidParticle& particle = particles_[index];
+                if (particle.position.x < 0.0f || particle.position.y < 0.0f)
+                {
+                    continue;
+                }
+                const size_type x = static_cast<size_type>(std::floor(particle.position.x / cell_size));
+                const size_type y = static_cast<size_type>(std::floor(particle.position.y / cell_size));
+                if (grid_.contains(x, y) && !grid_.solid(x, y))
+                {
+                    buckets[grid_.cell_index(x, y)].push_back(index);
+                }
+            }
+
+            std::vector<Vec2> corrections(particles_.size(), Vec2{});
+            for (size_type first = 0; first < particles_.size(); ++first)
+            {
+                const FluidParticle& first_particle = particles_[first];
+                if (first_particle.position.x < 0.0f || first_particle.position.y < 0.0f)
+                {
+                    continue;
+                }
+                const int cell_x = static_cast<int>(std::floor(first_particle.position.x / cell_size));
+                const int cell_y = static_cast<int>(std::floor(first_particle.position.y / cell_size));
+                for (int offset_y = -1; offset_y <= 1; ++offset_y)
+                {
+                    const int neighbor_y = cell_y + offset_y;
+                    if (neighbor_y < 0 || neighbor_y >= static_cast<int>(grid_.height()))
+                    {
+                        continue;
+                    }
+                    for (int offset_x = -1; offset_x <= 1; ++offset_x)
+                    {
+                        const int neighbor_x = cell_x + offset_x;
+                        if (neighbor_x < 0 || neighbor_x >= static_cast<int>(grid_.width()))
+                        {
+                            continue;
+                        }
+                        const auto& bucket = buckets[grid_.cell_index(static_cast<size_type>(neighbor_x), static_cast<size_type>(neighbor_y))];
+                        for (const size_type second : bucket)
+                        {
+                            if (second <= first)
+                            {
+                                continue;
+                            }
+                            Vec2 separation = first_particle.position - particles_[second].position;
+                            const float distance_squared = length_squared(separation);
+                            if (distance_squared >= support_radius_squared)
+                            {
+                                continue;
+                            }
+                            float distance = 0.0f;
+                            Vec2 direction{};
+                            if (distance_squared <= 1.0e-12f)
+                            {
+                                direction = ((first + second) & 1U) == 0U ? Vec2{1.0f, 0.0f} : Vec2{0.0f, 1.0f};
+                            }
+                            else
+                            {
+                                distance = std::sqrt(distance_squared);
+                                direction = separation / distance;
+                            }
+                            const float overlap = support_radius - distance;
+                            if (overlap <= 0.0f)
+                            {
+                                continue;
+                            }
+                            const float first_mass = particle_mass(first_particle);
+                            const float second_mass = particle_mass(particles_[second]);
+                            const float total_mass = first_mass + second_mass;
+                            if (total_mass <= 0.0f)
+                            {
+                                continue;
+                            }
+                            const float pair_shift = overlap * solver_settings_.regularization.strength;
+                            corrections[first] = corrections[first] + direction * (pair_shift * second_mass / total_mass);
+                            corrections[second] = corrections[second] - direction * (pair_shift * first_mass / total_mass);
+                        }
+                    }
+                }
+            }
+
+            float correction_scale = 1.0f;
+            for (const Vec2 correction : corrections)
+            {
+                const float correction_length = length(correction);
+                if (correction_length > maximum_displacement)
+                {
+                    correction_scale = std::min(correction_scale, maximum_displacement / correction_length);
+                }
+            }
+            for (size_type index = 0; index < particles_.size(); ++index)
+            {
+                particles_[index].position = particles_[index].position + corrections[index] * correction_scale;
+                resolve_particle_out_of_solids(particles_[index]);
+            }
+        }
+    }
+
     [[nodiscard]] std::vector<float> collect_u() const
     {
         return grid_.u_values();
@@ -2675,6 +2841,12 @@ private:
         settings.resampling.max_resampling_operations_per_step = std::max<std::size_t>(1, settings.resampling.max_resampling_operations_per_step);
         settings.resampling.split_offset_fraction = std::clamp(settings.resampling.split_offset_fraction, 0.0f, 0.5f);
         settings.resampling.min_split_particle_mass = std::max(0.0f, settings.resampling.min_split_particle_mass);
+        settings.regularization.iterations = std::max(0, settings.regularization.iterations);
+        settings.regularization.minimum_particle_count = std::max<std::size_t>(2, settings.regularization.minimum_particle_count);
+        settings.regularization.interval_ticks = std::max<std::uint64_t>(1, settings.regularization.interval_ticks);
+        settings.regularization.support_radius_cells = std::max(0.0f, settings.regularization.support_radius_cells);
+        settings.regularization.strength = std::clamp(settings.regularization.strength, 0.0f, 1.0f);
+        settings.regularization.max_displacement_fraction = std::clamp(settings.regularization.max_displacement_fraction, 0.0f, 0.25f);
         settings.density_metrics_interval_ticks = std::max<std::uint64_t>(1, settings.density_metrics_interval_ticks);
         return settings;
     }
