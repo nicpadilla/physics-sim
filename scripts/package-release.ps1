@@ -2,7 +2,7 @@ param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
 Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
-$version = '0.2.0-alpha.1'
+$version = '0.2.0-alpha.2'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildRoot = Join-Path $repoRoot 'build\windows-x64'
 $buildDir = Join-Path $buildRoot 'Release'
@@ -52,6 +52,7 @@ foreach ($replay in @('challenge_fill.replay', 'challenge_gate.replay', 'challen
     Copy-Item -LiteralPath (Join-Path $repoRoot "regression\replays\$replay") -Destination $packageReplays
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination $packageRoot
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\release-notes-0.2.0-alpha.2.md') -Destination $packageRoot
 
 $licenses = Join-Path $packageRoot 'licenses'
 New-Item -ItemType Directory -Path $licenses -Force | Out-Null
@@ -80,6 +81,19 @@ $verificationLog = Join-Path $buildRoot 'verification-bundle.log'
 if (Test-Path -LiteralPath $verificationLog)
 {
     Copy-Item -LiteralPath $verificationLog -Destination $evidenceDirectory
+}
+foreach ($evidence in @(
+    'audio-review\summary.json',
+    'challenge-review\summary.json',
+    'fluid-quality-suite\summary.json'
+))
+{
+    $source = Join-Path $buildRoot $evidence
+    if (Test-Path -LiteralPath $source)
+    {
+        $destination = Join-Path $evidenceDirectory ($evidence.Replace('\', '-'))
+        Copy-Item -LiteralPath $source -Destination $destination
+    }
 }
 
 $sandboxLog = Join-Path $evidenceDirectory 'packaged-sandbox.log'

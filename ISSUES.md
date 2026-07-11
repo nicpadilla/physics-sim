@@ -30,7 +30,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0110 | Done | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Done | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
 | PSIM-0112 | Done | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
-| PSIM-0113 | Open | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
+| PSIM-0113 | In Progress | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
 
 ## Epic 12: Recovery Foundation
 
@@ -1318,7 +1318,7 @@ Implementation notes:
 
 ### PSIM-0113: Accept and publish the complete prerelease
 
-Status: Open
+Status: In Progress
 
 Priority: P0
 
@@ -1361,4 +1361,8 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Prepared `0.2.0-alpha.2` release notes, README/control/limitation updates, current package documentation, curated content/evidence packaging, and an integrated package acceptance runner. Full verification now includes clean-package gallery, audio, accessibility-setting, fresh-launch, and challenge checks after the 40-test CTest gate.
+- Reconciled the accepted visual-effects output with late surface/density baselines after numeric gates and named visual review. Current hashes are `35F154A23630F55437C7942A362BA9F0D2D84A177AF7BC30EBFEE09CD035608C` and `2920310EE7B64B9D546A97AE1749E84F9F28F3110BF1D61D5803BDBF855E1A05`. Updated challenge replay scene identities after descriptive metadata changes; completion ticks/digests remain unchanged.
+- Named review `Codex integrated complete-water-sandbox review for PSIM-0113` accepted core, advanced tools, challenges, gallery, audio/accessibility feedback, and package coherence on 2026-07-11. Evidence: `docs/complete-sandbox-acceptance-2026-07-11.md`.
+- Clean local `verify-all.ps1` passed tracking, hygiene, Debug/Release builds, Full 40/40 in 242.618 seconds, package creation, and the clean-package matrix. A populated packaged omni scene ran 900.695 seconds and shut down normally at tick 26,542 with digest `E663918632928B66`.
+- Protected push, tag CI, GitHub prerelease publication, downloaded checksum verification, and final local launch remain pending external release steps.

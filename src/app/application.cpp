@@ -5029,7 +5029,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
     }
 
     static_cast<void>(persist_user_settings());
-    logger.log("shutdown: normal exit");
+    logger.log("shutdown: normal exit tick=" + std::to_string(simulation.simulation_tick()) + " state_digest=" + simulation.state_digest());
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
