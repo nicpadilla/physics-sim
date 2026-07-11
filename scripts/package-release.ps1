@@ -34,9 +34,16 @@ Get-ChildItem -LiteralPath $buildDir -Filter '*.dll' -File | ForEach-Object {
 
 $packageScenes = Join-Path $packageRoot 'scenes'
 New-Item -ItemType Directory -Path $packageScenes -Force | Out-Null
-foreach ($scene in @('starter_basin.pscene', 'tutorial_intro.pscene', 'objective_fill.pscene', 'challenge_gate.pscene', 'challenge_pump_valve.pscene'))
+foreach ($scene in @('tutorial_intro.pscene', 'starter_basin.pscene', 'hose_wall_impact.pscene', 'omni_spray.pscene', 'device_playground.pscene', 'objective_fill.pscene', 'challenge_gate.pscene', 'challenge_pump_valve.pscene'))
 {
     Copy-Item -LiteralPath (Join-Path $repoRoot "scenes\$scene") -Destination $packageScenes
+}
+$packageGallery = Join-Path $packageRoot 'gallery'
+$packageThumbnails = Join-Path $packageGallery 'thumbnails'
+New-Item -ItemType Directory -Path $packageThumbnails -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot 'gallery\gallery.manifest') -Destination $packageGallery
+Get-ChildItem -LiteralPath (Join-Path $repoRoot 'gallery\thumbnails') -Filter '*.bmp' -File | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination $packageThumbnails
 }
 $packageReplays = Join-Path $packageRoot 'replays'
 New-Item -ItemType Directory -Path $packageReplays -Force | Out-Null

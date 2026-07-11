@@ -31,6 +31,7 @@
 #include <physics_sim/debug_overlay.hpp>
 #include <physics_sim/feedback.hpp>
 #include <physics_sim/fixed_timestep.hpp>
+#include <physics_sim/gallery_manifest.hpp>
 #include <physics_sim/input_bindings.hpp>
 #include <physics_sim/math.hpp>
 #include <physics_sim/mode_switch.hpp>
@@ -1379,6 +1380,7 @@ void draw_tutorial_overlay(
         return {
             "SCENE BROWSER",
             "UP/DOWN SELECT",
+            "LEFT/RIGHT OR WHEEL FILTER",
             "ENTER LOADS SCENE",
             "ESC GOES BACK",
         };
@@ -1421,7 +1423,7 @@ void draw_tutorial_overlay(
 
 [[nodiscard]] std::vector<std::string> build_session_shell_option_lines(
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::GalleryEntry>& galleryEntries,
     const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
     const physics_sim::UserSettings& userSettings)
 {
@@ -1433,16 +1435,16 @@ void draw_tutorial_overlay(
         break;
     case physics_sim::SessionShellScreen::MainMenu:
         lines.reserve(6);
-        for (std::size_t index = 0; index < physics_sim::session_shell_option_count(shell.screen, galleryScenePaths.size()); ++index)
+        for (std::size_t index = 0; index < physics_sim::session_shell_option_count(shell.screen, galleryEntries.size()); ++index)
         {
             lines.emplace_back(physics_sim::session_shell_main_menu_label(index));
         }
         break;
     case physics_sim::SessionShellScreen::SceneBrowser:
-        lines.reserve(galleryScenePaths.size() + 1);
-        for (const auto& scene_path : galleryScenePaths)
+        lines.reserve(galleryEntries.size() + 1);
+        for (const auto& entry : galleryEntries)
         {
-            lines.emplace_back(scene_path.stem().string());
+            lines.emplace_back("[" + std::string{physics_sim::gallery_category_name(entry.category)} + "] " + entry.title);
         }
         lines.emplace_back("BACK");
         break;
@@ -1483,13 +1485,13 @@ void draw_session_shell(
     int window_width,
     int window_height,
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::GalleryEntry>& galleryEntries,
     const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
     const physics_sim::UserSettings& userSettings,
     const physics_sim::UiPalette& palette)
 {
     const auto body_lines = build_session_shell_body_lines(shell.screen);
-    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths, saveBrowserEntries, userSettings);
+    const auto option_lines = build_session_shell_option_lines(shell, galleryEntries, saveBrowserEntries, userSettings);
     std::vector<std::string> all_lines = body_lines;
     if (!option_lines.empty())
     {
@@ -1548,12 +1550,12 @@ void draw_session_shell(
     int window_width,
     int window_height,
     const physics_sim::SessionShellState& shell,
-    const std::array<fs::path, 6>& galleryScenePaths,
+    const std::vector<physics_sim::GalleryEntry>& galleryEntries,
     const std::vector<physics_sim::SaveBrowserEntry>& saveBrowserEntries,
     const physics_sim::UserSettings& userSettings)
 {
     const auto body_lines = build_session_shell_body_lines(shell.screen);
-    const auto option_lines = build_session_shell_option_lines(shell, galleryScenePaths, saveBrowserEntries, userSettings);
+    const auto option_lines = build_session_shell_option_lines(shell, galleryEntries, saveBrowserEntries, userSettings);
 
     if (option_lines.empty())
     {
@@ -2374,13 +2376,38 @@ int physics_sim::app::run_application(int argc, char* argv[])
     const fs::path autosaveScenePath = saveDirectory / "autosave.pscene";
     const fs::path logFilePath = options.logFilePath.value_or(fs::path{"physics-sim.log"});
     const fs::path startupScenePath = options.startupScenePath.has_value() ? resource_path(*options.startupScenePath) : starterScenePath;
-    const std::array<fs::path, 6> galleryScenePaths{
-        demoScenePath,
-        resource_path("scenes/free_fall.pscene"),
-        resource_path("scenes/hose_wall_impact.pscene"),
-        resource_path("scenes/omni_spray.pscene"),
-        resource_path("scenes/objective_fill.pscene"),
-        resource_path("scenes/future_device.pscene"),
+    physics_sim::GalleryManifest galleryManifest;
+    std::string galleryManifestError;
+    const fs::path galleryManifestPath = resource_path("gallery/gallery.manifest");
+    if (!physics_sim::load_gallery_manifest(galleryManifestPath, galleryManifest, &galleryManifestError))
+    {
+        galleryManifest.entries = {
+            {"tutorial-intro", "Pour and Build", "Learn pouring and wall editing.", physics_sim::GalleryCategory::Learn, tutorialScenePath, {}, {"tutorial"}, 10},
+            {"starter-basin", "Starter Basin", "A clean basin for freeform play.", physics_sim::GalleryCategory::Sandbox, starterScenePath, {}, {"pour", "walls"}, 20},
+        };
+    }
+    else
+    {
+        for (auto& entry : galleryManifest.entries)
+        {
+            entry.scene_path = resource_path(entry.scene_path);
+            entry.thumbnail_path = resource_path(entry.thumbnail_path);
+        }
+    }
+    const std::vector<physics_sim::GalleryEntry> allGalleryEntries = galleryManifest.entries;
+    std::vector<physics_sim::GalleryEntry> galleryEntries = allGalleryEntries;
+    int galleryCategoryFilter = 0;
+    const auto rebuild_gallery_filter = [&]()
+    {
+        galleryEntries.clear();
+        for (const auto& entry : allGalleryEntries)
+        {
+            const bool included = galleryCategoryFilter == 0
+                || (galleryCategoryFilter == 1 && entry.category == physics_sim::GalleryCategory::Learn)
+                || (galleryCategoryFilter == 2 && entry.category == physics_sim::GalleryCategory::Sandbox)
+                || (galleryCategoryFilter == 3 && entry.category == physics_sim::GalleryCategory::Challenges);
+            if (included) galleryEntries.push_back(entry);
+        }
     };
     const auto same_scene_path = [](const fs::path& lhs, const fs::path& rhs) -> bool
     {
@@ -2394,9 +2421,9 @@ int physics_sim::app::run_application(int argc, char* argv[])
     };
     const auto gallery_index_for_path = [&](const fs::path& path) -> std::optional<std::size_t>
     {
-        for (std::size_t index = 0; index < galleryScenePaths.size(); ++index)
+        for (std::size_t index = 0; index < galleryEntries.size(); ++index)
         {
-            if (same_scene_path(path, galleryScenePaths[index]))
+            if (same_scene_path(path, galleryEntries[index].scene_path))
             {
                 return index;
             }
@@ -2405,6 +2432,11 @@ int physics_sim::app::run_application(int argc, char* argv[])
         return std::nullopt;
     };
     AppLogger logger{logFilePath};
+
+    if (!galleryManifestError.empty())
+    {
+        logger.log(galleryManifestError + " Using the safe built-in gallery fallback.");
+    }
 
     {
         std::ostringstream stream;
@@ -3226,12 +3258,12 @@ int physics_sim::app::run_application(int argc, char* argv[])
     const auto load_gallery_scene = [&](std::size_t index) -> bool
     {
         stop_pointer_water();
-        if (index >= galleryScenePaths.size())
+        if (index >= galleryEntries.size())
         {
             return false;
         }
 
-        const fs::path& path = galleryScenePaths[index];
+        const fs::path& path = galleryEntries[index].scene_path;
         physics_sim::PlayerFeedback feedback;
         if (!load_scene_from_file(
                 path,
@@ -3985,6 +4017,19 @@ int physics_sim::app::run_application(int argc, char* argv[])
             return true;
         }
 
+        if (sessionShellState.screen == physics_sim::SessionShellScreen::SceneBrowser
+            && (keycode == SDLK_LEFT || keycode == SDLK_RIGHT || keycode == SDLK_TAB))
+        {
+            const int direction = keycode == SDLK_LEFT ? -1 : 1;
+            galleryCategoryFilter = (galleryCategoryFilter + direction + 4) % 4;
+            rebuild_gallery_filter();
+            sessionShellState.selection = 0;
+            const std::array<std::string_view, 4> filterNames{"ALL", "LEARN", "SANDBOX", "CHALLENGES"};
+            set_status_message("GALLERY FILTER " + std::string{filterNames[static_cast<std::size_t>(galleryCategoryFilter)]}, StatusMessageKind::Info);
+            play_audio(physics_sim::AudioCue::UiSelect);
+            return true;
+        }
+
         const auto option_count = [&]() -> std::size_t
         {
             if (sessionShellState.screen == physics_sim::SessionShellScreen::Settings)
@@ -3994,7 +4039,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
             return physics_sim::session_shell_option_count(
                 sessionShellState.screen,
-                galleryScenePaths.size(),
+                galleryEntries.size(),
                 saveBrowserEntries.size());
         };
 
@@ -4045,7 +4090,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
         }
 
         const auto previousShellState = sessionShellState;
-        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size(), saveBrowserEntries.size());
+        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryEntries.size(), saveBrowserEntries.size());
         static_cast<void>(execute_session_shell_command(command, previousShellState));
         complete_tutorial_if_needed();
         return true;
@@ -4074,7 +4119,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
             windowWidth,
             windowHeight,
             sessionShellState,
-            galleryScenePaths,
+            galleryEntries,
             saveBrowserEntries,
             userSettings);
         if (hovered_index.has_value())
@@ -4123,7 +4168,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
             windowWidth,
             windowHeight,
             sessionShellState,
-            galleryScenePaths,
+            galleryEntries,
             saveBrowserEntries,
             userSettings);
         if (!hovered_index.has_value())
@@ -4154,7 +4199,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
         }
 
         const auto previousShellState = sessionShellState;
-        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryScenePaths.size(), saveBrowserEntries.size());
+        const auto command = physics_sim::session_shell_activate(sessionShellState, galleryEntries.size(), saveBrowserEntries.size());
         static_cast<void>(execute_session_shell_command(command, previousShellState));
         complete_tutorial_if_needed();
         return true;
@@ -4354,22 +4399,15 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     break;
                 }
 
-                if (event.key.keysym.sym == SDLK_PAGEUP || event.key.keysym.sym == SDLK_PAGEDOWN)
-                {
-                    set_status_message("DEFERRED IN RECOVERY SANDBOX", StatusMessageKind::Warning);
-                    play_audio(physics_sim::AudioCue::InvalidAction);
-                    break;
-                }
-
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_PAGEUP:
                 {
-                    if (!galleryScenePaths.empty())
+                    if (!galleryEntries.empty())
                     {
                         const std::size_t nextIndex = currentGalleryIndex.has_value()
-                            ? ((*currentGalleryIndex + galleryScenePaths.size() - 1) % galleryScenePaths.size())
-                            : (galleryScenePaths.size() - 1);
+                            ? ((*currentGalleryIndex + galleryEntries.size() - 1) % galleryEntries.size())
+                            : (galleryEntries.size() - 1);
                         static_cast<void>(load_gallery_scene(nextIndex));
                     }
                     complete_tutorial_if_needed();
@@ -4377,10 +4415,10 @@ int physics_sim::app::run_application(int argc, char* argv[])
                 }
                 case SDLK_PAGEDOWN:
                 {
-                    if (!galleryScenePaths.empty())
+                    if (!galleryEntries.empty())
                     {
                         const std::size_t nextIndex = currentGalleryIndex.has_value()
-                            ? ((*currentGalleryIndex + 1) % galleryScenePaths.size())
+                            ? ((*currentGalleryIndex + 1) % galleryEntries.size())
                             : 0;
                         static_cast<void>(load_gallery_scene(nextIndex));
                     }
@@ -4748,6 +4786,16 @@ int physics_sim::app::run_application(int argc, char* argv[])
             {
                 if (sessionShellState.screen != physics_sim::SessionShellScreen::Playing)
                 {
+                    if (sessionShellState.screen == physics_sim::SessionShellScreen::SceneBrowser && event.wheel.y != 0)
+                    {
+                        const int direction = event.wheel.y > 0 ? -1 : 1;
+                        galleryCategoryFilter = (galleryCategoryFilter + direction + 4) % 4;
+                        rebuild_gallery_filter();
+                        sessionShellState.selection = 0;
+                        const std::array<std::string_view, 4> filterNames{"ALL", "LEARN", "SANDBOX", "CHALLENGES"};
+                        set_status_message("GALLERY FILTER " + std::string{filterNames[static_cast<std::size_t>(galleryCategoryFilter)]}, StatusMessageKind::Info);
+                        play_audio(physics_sim::AudioCue::UiSelect);
+                    }
                     break;
                 }
 
@@ -4896,7 +4944,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
         if (sessionShellVisible)
         {
-            draw_session_shell(renderer, windowWidth, windowHeight, sessionShellState, galleryScenePaths, saveBrowserEntries, userSettings, palette);
+            draw_session_shell(renderer, windowWidth, windowHeight, sessionShellState, galleryEntries, saveBrowserEntries, userSettings, palette);
         }
 
         SDL_SetWindowTitle(

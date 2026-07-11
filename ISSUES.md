@@ -28,7 +28,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0108 | Done | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
 | PSIM-0109 | Done | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
 | PSIM-0110 | Done | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
-| PSIM-0111 | Open | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
+| PSIM-0111 | Done | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
 | PSIM-0112 | Open | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
 | PSIM-0113 | Open | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
 
@@ -1214,7 +1214,7 @@ Implementation notes:
 
 ### PSIM-0111: Ship the curated scene gallery
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -1258,7 +1258,11 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added the validated version-1 curated gallery manifest with stable IDs, title, description, Learn/Sandbox/Challenges category, relative scene/thumbnail paths, required features, and deterministic sort order. The parser rejects unsupported versions, malformed fields, absolute/traversal paths, missing metadata, and duplicate IDs; the app falls back to a two-scene safe gallery when the packaged manifest cannot load.
+- Restored the custom SDL Scene Gallery from main and pause menus, keyboard and pointer selection, keyboard and pointer-wheel category filtering, failure-safe return to the browser, load confirmation, and PageUp/PageDown cycling. The gallery contains eight reviewed entries: tutorial, starter basin, hose impact, omni pool, flow-control playground, and all three PSIM-0110 challenges.
+- Authored `device_playground.pscene`, refreshed challenge notes, and generated eight deterministic 1280x720 current-renderer thumbnails. Packaging now contains only the curated scenes plus the manifest, thumbnails, challenge replay evidence, and licenses. `scripts/verify-gallery.ps1` validated and launched every entry from both the repository and clean package directories.
+- Named review `Codex curated gallery review for PSIM-0111` accepted ordering, descriptions, category coherence, water/device composition, challenge readability, and navigation on 2026-07-11. Evidence: `docs/gallery-acceptance-2026-07-11.md` and `gallery/thumbnails/*.bmp`.
+- Verification on 2026-07-11: Debug and Release builds passed; Fast passed 28/28 in 4.215 seconds; Standard passed 30/30 in 30.083 seconds; repository and clean-package gallery verification each passed all 8 entries; release packaging and packaged sandbox/lab smoke passed.
 
 ### PSIM-0112: Polish water and device audio
 

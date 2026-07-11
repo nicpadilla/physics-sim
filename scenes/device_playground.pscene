@@ -1,13 +1,12 @@
 physics-sim-scene 2
 solver-profile balanced
-title Open the Gate
-description Open the center gate and hold water in the target chamber.
+title Flow Control Playground
+description Route a live water stream through a gate, pump, valve, sensor, and drain.
 author Physics Sim Recovery
-tag challenge
-tag gate
-note Open the highlighted gate to release water into the objective region.
-note This scene validates gate timing, containment, and sustained sensor activation.
-challenge 1 120 2000000 500000 Open Gate
+tag gallery
+tag devices
+note A compact engineering playground containing every restored flow-control device.
+note Toggle fixtures or reshape the channel, then watch the sensor and mass ledger respond.
 grid 40 24 24
 wall 2 21
 wall 3 21
@@ -45,48 +44,38 @@ wall 34 21
 wall 35 21
 wall 36 21
 wall 37 21
-wall 2 5
-wall 37 5
-wall 2 6
-wall 37 6
-wall 2 7
-wall 37 7
 wall 2 8
-wall 37 8
 wall 2 9
-wall 37 9
 wall 2 10
-wall 37 10
 wall 2 11
-wall 37 11
 wall 2 12
-wall 37 12
 wall 2 13
-wall 37 13
 wall 2 14
-wall 37 14
 wall 2 15
-wall 37 15
 wall 2 16
-wall 37 16
 wall 2 17
-wall 37 17
 wall 2 18
-wall 37 18
 wall 2 19
-wall 37 19
 wall 2 20
-wall 37 20
-wall 20 10
-wall 20 11
-wall 20 12
 wall 20 13
 wall 20 14
 wall 20 15
-wall 20 17
+wall 20 16
 wall 20 18
 wall 20 19
 wall 20 20
-gate 20 16 0
-emitter directional 240 360 1 0 12 70 1
-sensor 25 15 9 5 1 0 1 Target chamber
+wall 37 12
+wall 37 13
+wall 37 14
+wall 37 15
+wall 37 16
+wall 37 17
+wall 37 18
+wall 37 19
+wall 37 20
+gate 20 17 1
+valve 27 20 1
+pump 13 16 4 4 1 1 0 10
+sensor 24 15 8 5 1 0 0 Channel sensor
+drain 34 19 2 2 1
+emitter directional 168 216 0 1 8 70 1

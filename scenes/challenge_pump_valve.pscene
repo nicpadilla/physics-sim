@@ -6,6 +6,8 @@ author Physics Sim Recovery
 tag challenge
 tag pump
 tag valve
+note Enable the pump and open the valve to move water into the right-side target.
+note This scene validates powered flow, valve control, and sustained sensor activation.
 challenge 1 120 2000000 500000 Power Crossing
 grid 40 24 24
 wall 2 21

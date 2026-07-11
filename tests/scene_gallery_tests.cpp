@@ -1,12 +1,12 @@
 #include <physics_sim/scene_document.hpp>
+#include <physics_sim/gallery_manifest.hpp>
 #include <physics_sim/water_simulation.hpp>
 
-#include <array>
 #include <cstdlib>
 #include <cstdio>
 #include <filesystem>
-#include <string_view>
-#include <utility>
+#include <fstream>
+#include <set>
 
 namespace fs = std::filesystem;
 
@@ -44,38 +44,41 @@ int main()
         REQUIRE(simulation.grid().solid(40, 36), "starter basin should keep the basin floor");
     }
 
-    const std::array<std::pair<std::string_view, std::string_view>, 6> scenes{
-        std::make_pair(std::string_view{"scenes/demo_scene.pscene"}, std::string_view{"U-Container Demo"}),
-        std::make_pair(std::string_view{"scenes/free_fall.pscene"}, std::string_view{"Free Fall"}),
-        std::make_pair(std::string_view{"scenes/hose_wall_impact.pscene"}, std::string_view{"Hose Wall Impact"}),
-        std::make_pair(std::string_view{"scenes/omni_spray.pscene"}, std::string_view{"Omni Spray"}),
-        std::make_pair(std::string_view{"scenes/objective_fill.pscene"}, std::string_view{"Objective Fill"}),
-        std::make_pair(std::string_view{"scenes/future_device.pscene"}, std::string_view{"Future Device Placeholder"}),
-    };
-
-    for (const auto& [relative_path, expected_title] : scenes)
+    physics_sim::GalleryManifest manifest;
+    std::string manifest_error;
+    REQUIRE(physics_sim::load_gallery_manifest(repo_root / "gallery/gallery.manifest", manifest, &manifest_error), "curated gallery manifest failed to load");
+    REQUIRE(manifest.version == 1, "gallery manifest version mismatch");
+    REQUIRE(manifest.entries.size() >= 8, "gallery must contain at least eight reviewed entries");
+    std::set<physics_sim::GalleryCategory> categories;
+    int previous_order = -1;
+    for (const auto& entry : manifest.entries)
     {
+        REQUIRE(entry.sort_order > previous_order, "gallery entries must have unique ascending sort orders");
+        previous_order = entry.sort_order;
+        categories.insert(entry.category);
+        REQUIRE(!entry.required_features.empty(), "gallery entry is missing required features");
         physics_sim::WaterSimulation2D simulation;
         physics_sim::SceneMetadata metadata;
-        const fs::path path = repo_root / fs::path{relative_path};
+        const fs::path path = repo_root / entry.scene_path;
         REQUIRE(physics_sim::load_scene(path, simulation, &metadata), "gallery scene failed to load");
-        REQUIRE(metadata.title == expected_title, "gallery scene title mismatch");
+        REQUIRE(!metadata.title.empty(), "gallery scene title is missing");
         REQUIRE(!metadata.notes.empty(), "gallery scene is missing purpose notes");
         REQUIRE(!metadata.description.empty(), "gallery scene is missing a description");
-        REQUIRE(fs::exists(path.parent_path() / (path.stem().string() + ".thumb.bmp")), "gallery scene is missing its thumbnail sidecar");
-
-        if (relative_path == std::string_view{"scenes/demo_scene.pscene"})
-        {
-            REQUIRE(!simulation.emitters().empty(), "hose-fed demo scene should keep its persistent emitter");
-        }
-
-        if (relative_path == std::string_view{"scenes/objective_fill.pscene"})
-        {
-            REQUIRE(!simulation.sensors().empty(), "objective gallery scene is missing its sensor");
-            REQUIRE(simulation.metrics().objective_sensors == 1, "objective gallery scene did not expose an objective sensor");
-            REQUIRE(!simulation.metrics().objective_completed, "objective gallery scene should start incomplete");
-        }
+        REQUIRE(fs::exists(repo_root / entry.thumbnail_path), "gallery scene is missing its curated thumbnail");
     }
+    REQUIRE(categories.size() == 3, "gallery must contain Learn, Sandbox, and Challenges categories");
+
+    const fs::path malformed_path = fs::temp_directory_path() / "physics-sim-duplicate-gallery.manifest";
+    {
+        std::ofstream malformed(malformed_path);
+        malformed << "physics-sim-gallery\t1\n"
+                  << "entry\tduplicate\tlearn\t1\tscenes/a.pscene\tgallery/a.bmp\tpour\tA\tDescription\n"
+                  << "entry\tduplicate\tsandbox\t2\tscenes/b.pscene\tgallery/b.bmp\twalls\tB\tDescription\n";
+    }
+    physics_sim::GalleryManifest rejected;
+    REQUIRE(!physics_sim::load_gallery_manifest(malformed_path, rejected, &manifest_error), "duplicate gallery ids must be rejected");
+    std::error_code ec;
+    fs::remove(malformed_path, ec);
 
     return 0;
 }

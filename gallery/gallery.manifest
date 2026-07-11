@@ -1,0 +1,9 @@
+physics-sim-gallery	1
+entry	tutorial-intro	learn	10	scenes/tutorial_intro.pscene	gallery/thumbnails/tutorial_intro.bmp	pour,walls,tutorial	Pour and Build	Learn pouring, wall editing, pausing, and resetting in a guided basin.
+entry	starter-basin	sandbox	20	scenes/starter_basin.pscene	gallery/thumbnails/starter_basin.bmp	pour,walls	Starter Basin	A clean contained basin for freeform pouring and construction.
+entry	hose-impact	sandbox	30	scenes/hose_wall_impact.pscene	gallery/thumbnails/hose_wall_impact.bmp	directional-emitter	Hose Wall Impact	Watch a steady jet hit a wall, sheet downward, and break into spray.
+entry	omni-pool	sandbox	40	scenes/omni_spray.pscene	gallery/thumbnails/omni_spray.bmp	omni-emitter	Omni Pool	A radial source fills a shallow pool with crossing currents.
+entry	device-playground	sandbox	50	scenes/device_playground.pscene	gallery/thumbnails/device_playground.bmp	gate,drain,pump,valve,sensor	Flow Control Playground	Route water through a gate, pump, valve, drain, and live sensor.
+entry	fill-goal	challenges	60	scenes/objective_fill.pscene	gallery/thumbnails/objective_fill.bmp	sensor,objective	Fill Goal	Fill and hold the highlighted sensor region without exceeding the water budget.
+entry	open-gate	challenges	70	scenes/challenge_gate.pscene	gallery/thumbnails/challenge_gate.bmp	gate,sensor,objective	Open Gate	Release the reservoir and sustain flow through the target zone.
+entry	power-crossing	challenges	80	scenes/challenge_pump_valve.pscene	gallery/thumbnails/challenge_pump_valve.bmp	pump,valve,sensor,objective	Power Crossing	Use the pump and valve system to feed the objective sensor.
