@@ -9,10 +9,13 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <iomanip>
+#include <sstream>
 #include <span>
 #include <string>
 #include <utility>
@@ -107,6 +110,17 @@ struct ParticleResamplingSettings
     float min_split_particle_mass = 1.0e-6f;
 };
 
+struct ParticleRegularizationSettings
+{
+    bool enabled = false;
+    std::size_t minimum_particle_count = 8;
+    std::uint64_t interval_ticks = 4;
+    int iterations = 1;
+    float support_radius_cells = 0.45f;
+    float strength = 0.20f;
+    float max_displacement_fraction = 0.01f;
+};
+
 struct FluidSolverSettings
 {
     FluidSolverProfile profile = FluidSolverProfile::Balanced;
@@ -129,6 +143,7 @@ struct FluidSolverSettings
     float surface_tension_coefficient = 0.0f;
     float max_surface_velocity_delta_fraction = 0.15f;
     ParticleResamplingSettings resampling{};
+    ParticleRegularizationSettings regularization{};
     std::uint64_t density_metrics_interval_ticks = 120;
 };
 
@@ -305,6 +320,48 @@ public:
         return metrics_;
     }
 
+    [[nodiscard]] std::uint64_t simulation_tick() const noexcept
+    {
+        return simulation_tick_;
+    }
+
+    [[nodiscard]] std::string state_digest() const
+    {
+        std::uint64_t hash = 14695981039346656037ULL;
+        const auto mix = [&hash](std::uint64_t value)
+        {
+            for (int byte = 0; byte < 8; ++byte)
+            {
+                hash ^= static_cast<std::uint8_t>((value >> (byte * 8)) & 0xffU);
+                hash *= 1099511628211ULL;
+            }
+        };
+        const auto mix_float = [&mix](float value) { mix(std::bit_cast<std::uint32_t>(value)); };
+        mix(simulation_tick_); mix(grid_.width()); mix(grid_.height()); mix_float(grid_.cell_size());
+        for (const auto& particle : particles_)
+        {
+            mix_float(particle.position.x); mix_float(particle.position.y);
+            mix_float(particle.velocity.x); mix_float(particle.velocity.y);
+            mix_float(particle.mass); mix_float(particle.volume); mix_float(particle.density); mix(particle.neighbor_count);
+        }
+        for (const float fraction : cell_volume_fractions_) mix_float(fraction);
+        for (std::size_t y = 0; y < grid_.height(); ++y)
+            for (std::size_t x = 0; x < grid_.width(); ++x) mix(grid_.solid(x, y) ? 1U : 0U);
+        for (const auto& emitter : emitters_)
+        {
+            mix(static_cast<std::uint64_t>(emitter.kind)); mix_float(emitter.position.x); mix_float(emitter.position.y);
+            mix_float(emitter.direction.x); mix_float(emitter.direction.y); mix_float(emitter.speed); mix_float(emitter.emission_rate); mix(emitter.enabled);
+        }
+        for (const auto& gate : gates_) { mix(gate.x); mix(gate.y); mix(gate.open); }
+        for (const auto& sensor : sensors_) { mix(sensor.x); mix(sensor.y); mix(sensor.width); mix(sensor.height); mix(sensor.enabled); mix(sensor.active); mix(sensor.objective); }
+        for (const auto& drain : drains_) { mix(drain.x); mix(drain.y); mix(drain.width); mix(drain.height); mix(drain.enabled); }
+        for (const auto& pump : pumps_) { mix(pump.x); mix(pump.y); mix(pump.width); mix(pump.height); mix(pump.enabled); mix_float(pump.direction.x); mix_float(pump.direction.y); mix_float(pump.strength); }
+        for (const auto& valve : valves_) { mix(valve.x); mix(valve.y); mix(valve.open); }
+        std::ostringstream stream;
+        stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
+        return stream.str();
+    }
+
     [[nodiscard]] static FluidSolverSettings solver_settings_for_profile(FluidSolverProfile profile) noexcept
     {
         FluidSolverSettings settings;
@@ -341,19 +398,26 @@ public:
             settings.density_correction_iterations = 1;
             settings.max_density_correction_fraction = 0.025f;
             settings.density_correction_velocity_ratio = 0.10f;
-            settings.flip_blend = 0.55f;
+            settings.flip_blend = 0.78f;
             settings.velocity_retention = 0.0f;
-            settings.apic_affine_ratio = 0.0f;
+            settings.apic_affine_ratio = 0.10f;
             settings.viscosity_coefficient = 0.035f;
             settings.surface_tension_coefficient = 0.0f;
             settings.max_surface_velocity_delta_fraction = 0.12f;
             settings.resampling.enabled = true;
-            settings.resampling.min_particles_per_fluid_cell = 1;
+            settings.resampling.min_particles_per_fluid_cell = 2;
             settings.resampling.target_particles_per_fluid_cell = 4;
             settings.resampling.max_particles_per_fluid_cell = 8;
             settings.resampling.max_resampling_operations_per_step = 48;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
+            settings.regularization.enabled = true;
+            settings.regularization.minimum_particle_count = 8;
+            settings.regularization.interval_ticks = 4;
+            settings.regularization.iterations = 1;
+            settings.regularization.support_radius_cells = 0.50f;
+            settings.regularization.strength = 0.25f;
+            settings.regularization.max_displacement_fraction = 0.010f;
             settings.density_metrics_interval_ticks = 60;
             break;
 
@@ -367,19 +431,26 @@ public:
             settings.density_correction_iterations = 6;
             settings.max_density_correction_fraction = 0.025f;
             settings.density_correction_velocity_ratio = 0.10f;
-            settings.flip_blend = 0.55f;
+            settings.flip_blend = 0.71f;
             settings.velocity_retention = 0.0f;
-            settings.apic_affine_ratio = 0.0f;
+            settings.apic_affine_ratio = 0.10f;
             settings.viscosity_coefficient = 0.035f;
             settings.surface_tension_coefficient = 0.0f;
             settings.max_surface_velocity_delta_fraction = 0.10f;
             settings.resampling.enabled = true;
-            settings.resampling.min_particles_per_fluid_cell = 1;
+            settings.resampling.min_particles_per_fluid_cell = 2;
             settings.resampling.target_particles_per_fluid_cell = 4;
             settings.resampling.max_particles_per_fluid_cell = 8;
             settings.resampling.max_resampling_operations_per_step = 96;
             settings.resampling.split_offset_fraction = 0.16f;
             settings.resampling.min_split_particle_mass = 1.0e-6f;
+            settings.regularization.enabled = true;
+            settings.regularization.minimum_particle_count = 8;
+            settings.regularization.interval_ticks = 1;
+            settings.regularization.iterations = 2;
+            settings.regularization.support_radius_cells = 0.45f;
+            settings.regularization.strength = 0.25f;
+            settings.regularization.max_displacement_fraction = 0.010f;
             settings.density_metrics_interval_ticks = 30;
             break;
         }
@@ -667,7 +738,7 @@ public:
         }
 
         const float step_seconds = static_cast<float>(dt);
-        const float gravity = solver_settings_.gravity_acceleration;
+        const float gravity = solver_settings_.gravity_acceleration * grid_.cell_size();
         const float inv_cell_size = 1.0f / grid_.cell_size();
 
         sync_gate_cells();
@@ -745,6 +816,13 @@ public:
         {
             refresh_cell_classification();
             resample_particles();
+            remove_particles_in_drains();
+            cull_out_of_domain_particles();
+            refresh_cell_classification();
+        }
+        if (solver_settings_.regularization.enabled)
+        {
+            regularize_particle_distribution();
             remove_particles_in_drains();
             cull_out_of_domain_particles();
             refresh_cell_classification();
@@ -1316,7 +1394,6 @@ private:
             return;
         }
 
-        constexpr float active_fraction_threshold = 1.0e-5f;
         constexpr bool use_full_halo = false;
         const auto activate_cell = [&](int x, int y)
         {
@@ -1338,7 +1415,8 @@ private:
             for (size_type x = 0; x < grid_.width(); ++x)
             {
                 const size_type idx = safe_cell_index(x, y);
-                if (!grid_.solid(x, y) && cell_volume_fractions_[idx] > active_fraction_threshold)
+                if (!grid_.solid(x, y) && cell_states_.size() == grid_.cell_count()
+                    && cell_states_[idx] == FluidCellState::Fluid)
                 {
                     const int ix = static_cast<int>(x);
                     const int iy = static_cast<int>(y);
@@ -1607,42 +1685,6 @@ private:
         grid_.u_raw().swap(next_u);
         grid_.v_raw().swap(next_v);
 
-        if (particles_.size() > 1)
-        {
-            const Vec2 center = particle_center_of_mass(particles_);
-            const float particle_delta_limit = max_velocity_delta * 0.25f;
-            const float cohesion_delta = solver_settings_.surface_tension_coefficient * step_seconds * 0.01f;
-            for (auto& particle : particles_)
-            {
-                const Vec2 to_center = center - particle.position;
-                const float distance = length(to_center);
-                if (distance <= 1.0e-6f)
-                {
-                    continue;
-                }
-
-                const size_type cell_x = static_cast<size_type>(std::floor(particle.position.x / cell_size));
-                const size_type cell_y = static_cast<size_type>(std::floor(particle.position.y / cell_size));
-                if (!grid_.contains(cell_x, cell_y))
-                {
-                    continue;
-                }
-
-                const int ix = static_cast<int>(cell_x);
-                const int iy = static_cast<int>(cell_y);
-                const bool exposed_surface = sample_volume_fraction(ix - 1, iy) <= 0.0f
-                    || sample_volume_fraction(ix + 1, iy) <= 0.0f
-                    || sample_volume_fraction(ix, iy - 1) <= 0.0f
-                    || sample_volume_fraction(ix, iy + 1) <= 0.0f;
-                if (!exposed_surface)
-                {
-                    continue;
-                }
-
-                const float applied_delta = std::min(particle_delta_limit, cohesion_delta);
-                particle.velocity = particle.velocity + (to_center / distance) * applied_delta;
-            }
-        }
     }
 
     [[nodiscard]] PressureSolveResult project_pressures(float step_seconds)
@@ -2567,7 +2609,7 @@ private:
 
                 prune_removed(bucket);
                 const float fluid_fraction = cell_volume_fractions_.size() == cell_count ? cell_volume_fractions_[cell_index] : 0.0f;
-                while (bucket.size() < min_particles && fluid_fraction >= 0.5f && operations < max_operations)
+                while (bucket.size() < min_particles && fluid_fraction >= 0.10f && operations < max_operations)
                 {
                     size_type best_candidate = cell_count;
                     float best_mass = -1.0f;
@@ -2642,6 +2684,139 @@ private:
         refresh_cell_classification();
     }
 
+    void regularize_particle_distribution()
+    {
+        if (!solver_settings_.regularization.enabled
+            || particles_.size() < solver_settings_.regularization.minimum_particle_count
+            || simulation_tick_ % solver_settings_.regularization.interval_ticks != 0
+            || grid_.width() == 0
+            || grid_.height() == 0)
+        {
+            return;
+        }
+
+        const float cell_size = grid_.cell_size();
+        const float support_radius = solver_settings_.regularization.support_radius_cells * cell_size;
+        const float support_radius_squared = support_radius * support_radius;
+        const float maximum_displacement = solver_settings_.regularization.max_displacement_fraction * cell_size;
+        if (support_radius <= 0.0f || maximum_displacement <= 0.0f || solver_settings_.regularization.strength <= 0.0f)
+        {
+            return;
+        }
+
+        const auto particle_mass = [&](const FluidParticle& particle) noexcept
+        {
+            if (particle.mass > 0.0f)
+            {
+                return particle.mass;
+            }
+            const float volume = particle.volume > 0.0f ? particle.volume : density_settings().particle_volume;
+            return std::max(1.0e-8f, solver_settings_.rest_density * volume);
+        };
+
+        for (int iteration = 0; iteration < solver_settings_.regularization.iterations; ++iteration)
+        {
+            std::vector<std::vector<size_type>> buckets(grid_.cell_count());
+            for (size_type index = 0; index < particles_.size(); ++index)
+            {
+                const FluidParticle& particle = particles_[index];
+                if (particle.position.x < 0.0f || particle.position.y < 0.0f)
+                {
+                    continue;
+                }
+                const size_type x = static_cast<size_type>(std::floor(particle.position.x / cell_size));
+                const size_type y = static_cast<size_type>(std::floor(particle.position.y / cell_size));
+                if (grid_.contains(x, y) && !grid_.solid(x, y))
+                {
+                    buckets[grid_.cell_index(x, y)].push_back(index);
+                }
+            }
+
+            std::vector<Vec2> corrections(particles_.size(), Vec2{});
+            for (size_type first = 0; first < particles_.size(); ++first)
+            {
+                const FluidParticle& first_particle = particles_[first];
+                if (first_particle.position.x < 0.0f || first_particle.position.y < 0.0f)
+                {
+                    continue;
+                }
+                const int cell_x = static_cast<int>(std::floor(first_particle.position.x / cell_size));
+                const int cell_y = static_cast<int>(std::floor(first_particle.position.y / cell_size));
+                for (int offset_y = -1; offset_y <= 1; ++offset_y)
+                {
+                    const int neighbor_y = cell_y + offset_y;
+                    if (neighbor_y < 0 || neighbor_y >= static_cast<int>(grid_.height()))
+                    {
+                        continue;
+                    }
+                    for (int offset_x = -1; offset_x <= 1; ++offset_x)
+                    {
+                        const int neighbor_x = cell_x + offset_x;
+                        if (neighbor_x < 0 || neighbor_x >= static_cast<int>(grid_.width()))
+                        {
+                            continue;
+                        }
+                        const auto& bucket = buckets[grid_.cell_index(static_cast<size_type>(neighbor_x), static_cast<size_type>(neighbor_y))];
+                        for (const size_type second : bucket)
+                        {
+                            if (second <= first)
+                            {
+                                continue;
+                            }
+                            Vec2 separation = first_particle.position - particles_[second].position;
+                            const float distance_squared = length_squared(separation);
+                            if (distance_squared >= support_radius_squared)
+                            {
+                                continue;
+                            }
+                            float distance = 0.0f;
+                            Vec2 direction{};
+                            if (distance_squared <= 1.0e-12f)
+                            {
+                                direction = ((first + second) & 1U) == 0U ? Vec2{1.0f, 0.0f} : Vec2{0.0f, 1.0f};
+                            }
+                            else
+                            {
+                                distance = std::sqrt(distance_squared);
+                                direction = separation / distance;
+                            }
+                            const float overlap = support_radius - distance;
+                            if (overlap <= 0.0f)
+                            {
+                                continue;
+                            }
+                            const float first_mass = particle_mass(first_particle);
+                            const float second_mass = particle_mass(particles_[second]);
+                            const float total_mass = first_mass + second_mass;
+                            if (total_mass <= 0.0f)
+                            {
+                                continue;
+                            }
+                            const float pair_shift = overlap * solver_settings_.regularization.strength;
+                            corrections[first] = corrections[first] + direction * (pair_shift * second_mass / total_mass);
+                            corrections[second] = corrections[second] - direction * (pair_shift * first_mass / total_mass);
+                        }
+                    }
+                }
+            }
+
+            float correction_scale = 1.0f;
+            for (const Vec2 correction : corrections)
+            {
+                const float correction_length = length(correction);
+                if (correction_length > maximum_displacement)
+                {
+                    correction_scale = std::min(correction_scale, maximum_displacement / correction_length);
+                }
+            }
+            for (size_type index = 0; index < particles_.size(); ++index)
+            {
+                particles_[index].position = particles_[index].position + corrections[index] * correction_scale;
+                resolve_particle_out_of_solids(particles_[index]);
+            }
+        }
+    }
+
     [[nodiscard]] std::vector<float> collect_u() const
     {
         return grid_.u_values();
@@ -2711,6 +2886,12 @@ private:
         settings.resampling.max_resampling_operations_per_step = std::max<std::size_t>(1, settings.resampling.max_resampling_operations_per_step);
         settings.resampling.split_offset_fraction = std::clamp(settings.resampling.split_offset_fraction, 0.0f, 0.5f);
         settings.resampling.min_split_particle_mass = std::max(0.0f, settings.resampling.min_split_particle_mass);
+        settings.regularization.iterations = std::max(0, settings.regularization.iterations);
+        settings.regularization.minimum_particle_count = std::max<std::size_t>(2, settings.regularization.minimum_particle_count);
+        settings.regularization.interval_ticks = std::max<std::uint64_t>(1, settings.regularization.interval_ticks);
+        settings.regularization.support_radius_cells = std::max(0.0f, settings.regularization.support_radius_cells);
+        settings.regularization.strength = std::clamp(settings.regularization.strength, 0.0f, 1.0f);
+        settings.regularization.max_displacement_fraction = std::clamp(settings.regularization.max_displacement_fraction, 0.0f, 0.25f);
         settings.density_metrics_interval_ticks = std::max<std::uint64_t>(1, settings.density_metrics_interval_ticks);
         return settings;
     }

@@ -2,7 +2,10 @@
 
 #include <SDL.h>
 
+#include <physics_sim/audio_mixer.hpp>
+
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -204,6 +207,8 @@ public:
     {
         shutdown();
         settings_ = settings;
+        force_disabled_ = force_disabled;
+        continuous_mixer_.reset();
 
         if (force_disabled)
         {
@@ -248,6 +253,11 @@ public:
     void apply_settings(const AudioSettings& settings) noexcept
     {
         settings_ = settings;
+        if (device_ != 0 && (settings_.muted || settings_.master_volume <= 0 || settings_.effects_volume <= 0))
+        {
+            SDL_ClearQueuedAudio(device_);
+            continuous_mixer_.reset();
+        }
     }
 
     [[nodiscard]] bool available() const noexcept
@@ -276,10 +286,55 @@ public:
         return true;
     }
 
+    [[nodiscard]] bool update_continuous(const AudioLoopSignals& signals) noexcept
+    {
+        if (!available()) return false;
+        if (settings_.muted || settings_.master_volume <= 0 || settings_.effects_volume <= 0)
+        {
+            SDL_ClearQueuedAudio(device_);
+            continuous_mixer_.reset();
+            last_diagnostics_ = {};
+            return true;
+        }
+        constexpr std::size_t block_samples = 960; // 20 ms at 48 kHz
+        const Uint32 queued_bytes = SDL_GetQueuedAudioSize(device_);
+        const double queued_seconds = static_cast<double>(queued_bytes) / (sample_rate_ * sizeof(float));
+        if (queued_seconds >= 0.080) return true;
+        std::array<float, block_samples> block{};
+        const float volume = std::clamp(
+            static_cast<float>(settings_.master_volume) / 100.0f * static_cast<float>(settings_.effects_volume) / 100.0f,
+            0.0f,
+            1.0f);
+        last_diagnostics_ = continuous_mixer_.render(signals, block, sample_rate_, volume);
+        if (SDL_QueueAudio(device_, block.data(), static_cast<Uint32>(block.size() * sizeof(float))) != 0)
+        {
+            disabled_ = true;
+            return false;
+        }
+        return true;
+    }
+
+    void handle_device_removed(SDL_AudioDeviceID removed_device) noexcept
+    {
+        if (device_ != 0 && removed_device == device_) shutdown();
+    }
+
+    [[nodiscard]] bool recover(std::string* error_out = nullptr)
+    {
+        if (available()) return true;
+        if (force_disabled_) return false;
+        return initialize(settings_, false, error_out);
+    }
+
+    [[nodiscard]] AudioMixerDiagnostics diagnostics() const noexcept { return last_diagnostics_; }
+
 private:
     SDL_AudioDeviceID device_ = 0;
     AudioSettings settings_{};
     double sample_rate_ = 48000.0;
     bool disabled_ = true;
+    bool force_disabled_ = false;
+    ContinuousAudioMixer continuous_mixer_{};
+    AudioMixerDiagnostics last_diagnostics_{};
 };
 } // namespace physics_sim

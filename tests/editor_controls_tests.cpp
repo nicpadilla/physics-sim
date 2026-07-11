@@ -184,6 +184,30 @@ int main()
         REQUIRE(simulation.sensors().front().active, "sensor did not become active when water entered");
         REQUIRE(!controller.place_sensor(physics_sim::Vec2{528.0f, 160.0f}), "overlapping sensor placement was not rejected");
 
+        controller.set_tool(physics_sim::SceneTool::Drain);
+        REQUIRE(controller.place_drain({160.0f, 320.0f}), "drain placement failed");
+        REQUIRE(controller.has_selected_drain(), "placed drain was not selected");
+        REQUIRE(controller.toggle_selected_drain_enabled(), "drain toggle failed");
+        REQUIRE(!simulation.drains().front().enabled, "drain toggle did not change state");
+        REQUIRE(controller.select_drain_at({168.0f, 328.0f}), "drain selection failed");
+        REQUIRE(controller.delete_selected_drain(), "drain deletion failed");
+        REQUIRE(simulation.drains().empty(), "drain deletion left the device");
+        REQUIRE(controller.undo_scene_edit(), "drain deletion undo failed");
+        REQUIRE(simulation.drains().size() == 1, "drain undo did not restore device");
+
+        controller.set_tool(physics_sim::SceneTool::Pump);
+        REQUIRE(controller.place_pump({320.0f, 320.0f}), "pump placement failed");
+        REQUIRE(controller.has_selected_pump(), "placed pump was not selected");
+        const float initial_strength = simulation.pumps().front().strength;
+        REQUIRE(controller.adjust_selected_pump_strength(2.0f), "pump strength edit failed");
+        REQUIRE(nearly_equal(simulation.pumps().front().strength, initial_strength + 2.0f), "pump strength did not change");
+        REQUIRE(controller.rotate_selected_pump(3.1415926f * 0.5f), "pump rotation failed");
+        REQUIRE(controller.toggle_selected_pump_enabled(), "pump toggle failed");
+        REQUIRE(!simulation.pumps().front().enabled, "pump toggle did not change state");
+        REQUIRE(controller.select_pump_at({328.0f, 328.0f}), "pump selection failed");
+        REQUIRE(controller.delete_selected_pump(), "pump deletion failed");
+        REQUIRE(simulation.pumps().empty(), "pump deletion left the device");
+
         controller.reset_scene();
         REQUIRE(simulation.emitters().empty(), "reset_scene did not clear emitters");
         REQUIRE(simulation.gates().empty(), "reset_scene did not clear gates");

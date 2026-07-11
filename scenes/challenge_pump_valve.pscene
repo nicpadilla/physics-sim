@@ -1,0 +1,92 @@
+physics-sim-scene 2
+solver-profile balanced
+title Power the Crossing
+description Use the pump and valve to move water into the right target.
+author Physics Sim Recovery
+tag challenge
+tag pump
+tag valve
+note Enable the pump and open the valve to move water into the right-side target.
+note This scene validates powered flow, valve control, and sustained sensor activation.
+challenge 1 120 2000000 500000 Power Crossing
+grid 40 24 24
+wall 2 21
+wall 3 21
+wall 4 21
+wall 5 21
+wall 6 21
+wall 7 21
+wall 8 21
+wall 9 21
+wall 10 21
+wall 11 21
+wall 12 21
+wall 13 21
+wall 14 21
+wall 15 21
+wall 16 21
+wall 17 21
+wall 18 21
+wall 19 21
+wall 20 21
+wall 21 21
+wall 22 21
+wall 23 21
+wall 24 21
+wall 25 21
+wall 26 21
+wall 27 21
+wall 28 21
+wall 29 21
+wall 30 21
+wall 31 21
+wall 32 21
+wall 33 21
+wall 34 21
+wall 35 21
+wall 36 21
+wall 37 21
+wall 2 5
+wall 37 5
+wall 2 6
+wall 37 6
+wall 2 7
+wall 37 7
+wall 2 8
+wall 37 8
+wall 2 9
+wall 37 9
+wall 2 10
+wall 37 10
+wall 2 11
+wall 37 11
+wall 2 12
+wall 37 12
+wall 2 13
+wall 37 13
+wall 2 14
+wall 37 14
+wall 2 15
+wall 37 15
+wall 2 16
+wall 37 16
+wall 2 17
+wall 37 17
+wall 2 18
+wall 37 18
+wall 2 19
+wall 37 19
+wall 2 20
+wall 37 20
+wall 20 12
+wall 20 13
+wall 20 14
+wall 20 15
+wall 20 16
+wall 20 18
+wall 20 19
+wall 20 20
+valve 20 17 0
+pump 14 16 4 4 1 1 0 12
+emitter directional 264 192 0 1 8 70 1
+sensor 25 16 9 4 1 0 1 Powered target

@@ -32,15 +32,15 @@ int main()
     {
         physics_sim::SessionShellState state;
         REQUIRE(state.screen == SessionShellScreen::MainMenu, "session shell did not start on the main menu");
-        REQUIRE(physics_sim::session_shell_option_count(state.screen, 6) == 5, "main menu option count was incorrect");
+        REQUIRE(physics_sim::session_shell_option_count(state.screen, 6) == 6, "main menu option count was incorrect");
         REQUIRE(physics_sim::session_shell_main_menu_label(0) == std::string_view{"Continue Sandbox"}, "main menu label 0 was incorrect");
         REQUIRE(physics_sim::session_shell_main_menu_label(1) == std::string_view{"Tutorial"}, "main menu label 1 was incorrect");
         REQUIRE(physics_sim::session_shell_screen_title(SessionShellScreen::PauseMenu) == std::string_view{"PAUSE MENU"}, "pause menu title was incorrect");
 
-        physics_sim::session_shell_wrap_selection(state, 5, -1);
-        REQUIRE(state.selection == 4, "main menu selection did not wrap upward");
+        physics_sim::session_shell_wrap_selection(state, 6, -1);
+        REQUIRE(state.selection == 5, "main menu selection did not wrap upward");
 
-        state.selection = 4;
+        state.selection = 5;
         const auto quit = physics_sim::session_shell_activate(state, 6);
         REQUIRE(quit.kind == SessionShellCommandKind::Quit, "main menu quit did not map to the quit command");
 
@@ -58,7 +58,7 @@ int main()
 
     {
         physics_sim::SessionShellState state;
-        state.selection = 2;
+        state.selection = 3;
         const auto lab = physics_sim::session_shell_activate(state, 6);
         REQUIRE(lab.kind == SessionShellCommandKind::SwitchToLab, "laboratory entry was not mapped correctly");
 
@@ -107,7 +107,7 @@ int main()
         REQUIRE(state.screen == SessionShellScreen::Playing, "pause menu resume did not return to playing");
 
         state.screen = SessionShellScreen::PauseMenu;
-        state.selection = 4;
+        state.selection = 5;
         const auto settings = physics_sim::session_shell_activate(state, 6);
         REQUIRE(settings.kind == SessionShellCommandKind::OpenSettings, "pause menu settings did not map correctly");
         REQUIRE(state.screen == SessionShellScreen::Settings, "pause menu settings did not open the settings screen");
@@ -121,11 +121,11 @@ int main()
         REQUIRE(state.return_screen == SessionShellScreen::PauseMenu, "pause menu load did not remember the return screen");
 
         state.screen = SessionShellScreen::PauseMenu;
-        state.selection = 5;
+        state.selection = 6;
         const auto lab = physics_sim::session_shell_activate(state, 6);
         REQUIRE(lab.kind == SessionShellCommandKind::SwitchToLab, "pause menu laboratory entry was not mapped correctly");
 
-        state.selection = 6;
+        state.selection = 7;
         state.screen = SessionShellScreen::PauseMenu;
         const auto return_to_menu = physics_sim::session_shell_activate(state, 6);
         REQUIRE(return_to_menu.kind == SessionShellCommandKind::ReturnToMainMenu, "pause menu return-to-menu did not map correctly");

@@ -16,7 +16,7 @@ Required records:
 - one `solver-profile fast|balanced|quality` record;
 - one positive `grid <width> <height> <cell-size>` record.
 
-Optional metadata records are `title`, `description`, `author`, repeated `tag`, and repeated `note`. Authored state records are `wall`, `emitter`, `gate`, `sensor`, `drain`, `pump`, and `valve`. Secondary devices remain serializable for laboratory and deferred-content work even though they are not part of the first recovered sandbox UI.
+Optional metadata records are `title`, `description`, `author`, repeated `tag`, repeated `note`, and an optional `challenge` contract. Authored state records are `wall`, `emitter`, `gate`, `sensor`, `drain`, `pump`, and `valve`; all are available in the recovered sandbox Advanced Tools palette.
 
 Player saves use atomic replacement:
 

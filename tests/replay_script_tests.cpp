@@ -21,6 +21,9 @@ int main()
             "tick 20 action reset\n"
             "tick 10 tool directional\n"
             "tick 30 place 640 160\n"
+            "tick 31 toggle-selected\n"
+            "tick 31 select 640 160\n"
+            "tick 32 delete-selected\n"
             "tick 1200 clear-emitters\n");
 
         assert(script.has_value());
@@ -36,7 +39,7 @@ int main()
             "FFFFFFFFFFFFFFFF",
             1.0 / 120.0,
             physics_sim::FluidSolverProfile::Balanced));
-        assert(script->events.size() == 4);
+        assert(script->events.size() == 7);
         assert(script->events[0].tick == 10);
         assert(script->events[0].command == "tool");
         assert(script->events[0].arguments.size() == 1);
@@ -50,9 +53,12 @@ int main()
         assert(script->events[2].arguments.size() == 2);
         assert(script->events[2].arguments[0] == "640");
         assert(script->events[2].arguments[1] == "160");
-        assert(script->events[3].tick == 1200);
-        assert(script->events[3].command == "clear-emitters");
-        assert(script->events[3].arguments.empty());
+        assert(script->events[3].command == "toggle-selected");
+        assert(script->events[4].command == "select");
+        assert(script->events[5].command == "delete-selected");
+        assert(script->events[6].tick == 1200);
+        assert(script->events[6].command == "clear-emitters");
+        assert(script->events[6].arguments.empty());
     }
 
     {

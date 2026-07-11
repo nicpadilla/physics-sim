@@ -26,6 +26,27 @@ namespace
 int main()
 {
     {
+        auto build_repeated = []
+        {
+            physics_sim::WaterSimulation2D simulation{24, 24, 1.0f};
+            simulation.add_gate({10, 10, true});
+            simulation.add_sensor({5, 5, 3, 3, true, false, true, "goal"});
+            simulation.add_drain({2, 18, 2, 2, false});
+            simulation.add_pump({5, 5, 3, 3, true, {1.0f, 0.0f}, 8.0f});
+            simulation.add_valve({14, 10, true});
+            physics_sim::WaterEmitter emitter;
+            emitter.position = {8.0f, 3.0f}; emitter.emission_rate = 12.0f;
+            simulation.add_emitter(emitter);
+            for (int tick = 0; tick < 120; ++tick) simulation.step(1.0 / 120.0);
+            return simulation;
+        };
+        const auto first = build_repeated();
+        const auto second = build_repeated();
+        REQUIRE(first.state_digest() == second.state_digest(), "identical device command sequences produced different state digests");
+        REQUIRE(first.metrics().active_particles == second.metrics().active_particles, "identical device runs produced different particle metrics");
+        REQUIRE(first.metrics().total_removed_mass == second.metrics().total_removed_mass, "identical device runs produced different mass metrics");
+    }
+    {
         physics_sim::WaterSimulation2D simulation{24, 24, 1.0f};
         simulation.add_gate(physics_sim::WaterGate{10, 10, false});
         REQUIRE(simulation.grid().solid(10, 10), "closed gate did not mark the grid solid");
@@ -55,7 +76,12 @@ int main()
         simulation.add_particle({physics_sim::Vec2{15.5f, 15.5f}, physics_sim::Vec2{0.0f, 0.0f}});
         simulation.step(0.016);
 
-        REQUIRE(simulation.particles().size() == 1, "drain did not remove water in its region");
+        for (const auto& particle : simulation.particles())
+        {
+            REQUIRE(particle.position.x < 5.0f || particle.position.x >= 8.0f
+                    || particle.position.y < 5.0f || particle.position.y >= 8.0f,
+                "drain left water in its region");
+        }
         REQUIRE(simulation.metrics().total_removed == 1, "drain removal was not visible in metrics");
     }
 

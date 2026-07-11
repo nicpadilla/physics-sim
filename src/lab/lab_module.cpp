@@ -3,6 +3,7 @@
 
 #include <physics_sim/simulation.hpp>
 #include <physics_sim/surface_reconstruction.hpp>
+#include <physics_sim/water_visual_effects.hpp>
 
 #include <SDL.h>
 #include <imgui.h>
@@ -355,17 +356,42 @@ bool write_capture_bundle(const std::filesystem::path &directory, int scenario_i
     const SimulationConfig &config = simulation.config();
     const SimulationSnapshot snapshot = simulation.snapshot();
     const bool basin = scenario_index == 1 || scenario_index == 9;
+    const ParticleSurfaceField particle_field =
+        build_particle_surface_field(snapshot.particles, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, 4);
+    const float surface_threshold = particle_surface_threshold(particle_field);
+    std::vector<float> surface_cells(particle_field.width * particle_field.height, 0.0f);
+    for (std::size_t y = 0; y < particle_field.height; ++y)
+    {
+        for (std::size_t x = 0; x < particle_field.width; ++x)
+        {
+            const std::size_t top = y * (particle_field.width + 1) + x;
+            const std::size_t bottom = (y + 1) * (particle_field.width + 1) + x;
+            surface_cells[y * particle_field.width + x] = 0.25f * (particle_field.vertex_values[top] + particle_field.vertex_values[top + 1] +
+                                                                   particle_field.vertex_values[bottom] + particle_field.vertex_values[bottom + 1]);
+        }
+    }
+    constexpr std::size_t subdivisions = 4;
     const SurfaceSemantics semantics =
-        analyze_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, 0.25f, basin ? config.grid_width / 4 : 0,
-                        basin ? config.grid_width * 3 / 4 : config.grid_width - 1, 0, basin ? config.grid_height * 4 / 5 : config.grid_height - 1);
+        analyze_surface(surface_cells, particle_field.solid_cells, particle_field.width, particle_field.height, surface_threshold,
+                        basin ? config.grid_width * subdivisions / 4 : 0, basin ? config.grid_width * subdivisions * 3 / 4 : particle_field.width - 1, 0,
+                        basin ? config.grid_height * subdivisions * 4 / 5 : particle_field.height - 1);
+    const double reconstructed_area = surface_area(reconstruct_particle_surface(particle_field, surface_threshold));
+    const double area_error =
+        particle_field.particle_area > 0.0 ? std::abs(reconstructed_area - particle_field.particle_area) / particle_field.particle_area : 0.0;
+    const WaterVisualEffects visual_effects =
+        build_water_visual_effects(snapshot.particles, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, metrics.tick);
     std::ofstream json{directory / "metrics.json", std::ios::trunc};
     json << "{\n  \"scenario\": \"" << scenario << "\",\n  \"tick\": " << metrics.tick << ",\n  \"state_digest\": \"" << simulation.state_digest()
          << "\",\n  \"fixed_timestep\": " << config.fixed_timestep << ",\n  \"gravity\": " << config.gravity_acceleration << ",\n  \"solver_profile\": \""
          << (config.solver_profile == FluidSolverProfile::Quality ? "quality" : "balanced")
          << "\",\n  \"surface_components\": " << semantics.connected_components << ",\n  \"isolated_surface_cells\": " << semantics.isolated_cells
          << ",\n  \"surface_cells_outside_allowed_region\": " << semantics.outside_allowed_cells << ",\n  \"active_particles\": " << metrics.active_particles
-         << ",\n  \"active_cells\": " << metrics.active_cells << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual
-         << ",\n  \"average_density_error\": " << metrics.average_density_error << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << "\n}\n";
+         << ",\n  \"particle_area\": " << particle_field.particle_area << ",\n  \"reconstructed_surface_area\": " << reconstructed_area
+         << ",\n  \"surface_area_relative_error\": " << area_error << ",\n  \"active_cells\": " << metrics.active_cells
+         << ",\n  \"pressure_residual\": " << metrics.pressure_relative_residual << ",\n  \"average_density_error\": " << metrics.average_density_error
+         << ",\n  \"kinetic_energy\": " << metrics.kinetic_energy << ",\n  \"foam_points\": " << visual_effects.foam.size()
+         << ",\n  \"spray_streaks\": " << visual_effects.spray.size() << ",\n  \"impact_accents\": " << visual_effects.impacts.size()
+         << ",\n  \"visual_effects_digest\": \"" << water_visual_effects_digest(visual_effects) << "\"\n}\n";
 
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
     if (surface == nullptr)
@@ -405,6 +431,11 @@ int run_lab_application(int argc, char *argv[])
     ImGui::StyleColorsDark();
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // Surface reconstruction can exceed the 16-bit per-draw-list vertex range.
+    // The renderer already honors ImDrawCmd::VtxOffset; advertise that support so
+    // ImGui starts a new vertex range instead of wrapping indices into older UI
+    // geometry and producing long, unrelated triangles across the field view.
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
     SDL_Texture *font_texture = create_font_texture(renderer);
     if (font_texture == nullptr)
     {
@@ -519,12 +550,21 @@ int run_lab_application(int argc, char *argv[])
                 if ((scenario == 1 || scenario == 9) && simulation->metrics().tick == 1200)
                 {
                     simulation->apply(ClearEmittersCommand{});
-                    balanced_comparison->apply(ClearEmittersCommand{});
-                    quality_comparison->apply(ClearEmittersCommand{});
+                    if (!options.capture_bundle)
+                    {
+                        balanced_comparison->apply(ClearEmittersCommand{});
+                        quality_comparison->apply(ClearEmittersCommand{});
+                    }
                 }
                 simulation->step();
-                balanced_comparison->step();
-                quality_comparison->step();
+                // Automated captures validate the selected deterministic run.
+                // Advancing both interactive comparison simulations here triples
+                // long-run capture cost without changing the captured artifact.
+                if (!options.capture_bundle)
+                {
+                    balanced_comparison->step();
+                    quality_comparison->step();
+                }
             }
         }
         const SimulationMetrics metrics = simulation->metrics();
@@ -591,13 +631,33 @@ int run_lab_application(int argc, char *argv[])
                     draw_list->AddRectFilled(minimum, maximum, IM_COL32(78, 88, 108, 255));
                 }
             }
-            const auto surface =
-                reconstruct_surface(snapshot.volume_fractions, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, 0.25f);
+            const auto particle_field =
+                build_particle_surface_field(snapshot.particles, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height, snapshot.cell_size, 4);
+            const auto surface = reconstruct_particle_surface(particle_field);
             for (const SurfaceTriangle &triangle : surface)
             {
                 const auto point = [&](const SurfacePoint &source)
                 { return ImVec2{canvas_position.x + source.x * view_scale, canvas_position.y + source.y * view_scale}; };
                 draw_list->AddTriangleFilled(point(triangle.a), point(triangle.b), point(triangle.c), IM_COL32(45, 184, 225, 220));
+            }
+            const auto effects = build_water_visual_effects(snapshot.particles, snapshot.solid_cells, snapshot.grid_width, snapshot.grid_height,
+                                                            snapshot.cell_size, metrics.tick);
+            const auto effect_point = [&](Vec2 position)
+            { return ImVec2{canvas_position.x + position.x * view_scale, canvas_position.y + position.y * view_scale}; };
+            for (const FoamPoint &foam : effects.foam)
+            {
+                draw_list->AddCircleFilled(effect_point(foam.position), std::max(1.0f, foam.radius * view_scale),
+                                           IM_COL32(224, 244, 255, static_cast<int>(90.0f + foam.intensity * 125.0f)));
+            }
+            for (const SprayStreak &spray : effects.spray)
+            {
+                draw_list->AddLine(effect_point(spray.start), effect_point(spray.end),
+                                   IM_COL32(205, 238, 255, static_cast<int>(75.0f + spray.intensity * 145.0f)), std::max(1.0f, spray.width * view_scale));
+            }
+            for (const ImpactAccent &impact : effects.impacts)
+            {
+                draw_list->AddCircle(effect_point(impact.position), std::max(1.0f, impact.radius * view_scale),
+                                     IM_COL32(214, 242, 255, static_cast<int>(45.0f + impact.intensity * 90.0f)), 10, 1.0f);
             }
         }
         else if (field_view == 2)

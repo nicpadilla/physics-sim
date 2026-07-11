@@ -82,3 +82,30 @@ Completion markers:
 - Restored features have an isolated interface, automated evidence, human acceptance, persistence representation, and performance budget.
 - Restored features do not regress the pour/build/reset/save vertical slice.
 - Final recovery acceptance has no open P0 or P1 issues and reconciles roadmap, evidence, package, and release notes.
+
+## 20. Convincing Water Motion
+
+Goal: make pouring, spreading, merging, splashing, sloshing, and settling read as real water to a user rather than a stable grid-based gel.
+
+Completion markers:
+
+- Deterministic feel scenarios measure leveling, footprint growth, stream continuity, slosh decay, wall-sheet flow, merging, breakup, vorticity, and particle sampling quality.
+- Particle volume contributes smoothly to a sub-cell free-surface representation, and tiny fluid volumes render at approximately their conserved area instead of expanding into coarse polygons.
+- Balanced and quality transfer and free-surface pressure behavior preserve believable shear and lateral flow while retaining conservation, bounded energy, and deterministic results.
+- Conservative particle regularization prevents holes and clumps without introducing center-of-mass drift, unexplained mass changes, or global cohesion.
+- Real-time sandbox water passes numeric, semantic, and named human review for pouring, spreading, grouping, sloshing, and settling before replacement goldens are accepted.
+
+## 21. Complete Water Sandbox
+
+Goal: finish the remaining simulation, presentation, creative-tool, challenge, content, audio, and release work as one coherent product rather than leaving recovered systems dormant.
+
+Completion markers:
+
+- Conservative neighborhood regularization reduces active-pour sampling variation and suppresses implausible tiny breakup without hiding or deleting physically supported droplets.
+- Deterministic derived foam, spray, highlights, and impact accents enrich water motion without changing solver mass, state digests, reduced-motion behavior, or area accounting.
+- Directional/omni emitters, gates, sensors, drains, pumps, and valves are restored through an accessible advanced sandbox palette with command, replay, persistence, performance, and usability evidence.
+- Objectives return only as explicit challenge-scene contracts with visible progress, restart, completion feedback, deterministic state, and no hidden solver coupling.
+- A curated gallery exposes only reviewed sandbox and challenge scenes with thumbnails, keyboard navigation, safe load failure, and package coverage.
+- Layered water/device/objective audio is responsive, bounded, mute/volume aware, reduced-motion compatible, and resilient to missing or lost audio devices.
+- The complete sandbox passes numeric, visual, audio, accessibility, tutorial, keyboard, package-directory, and extended-play human acceptance without regressing the pour/build loop.
+- A versioned prerelease is committed, pushed through protected GitHub CI, tagged, checksummed, published with release artifacts, and verified from the downloadable package.

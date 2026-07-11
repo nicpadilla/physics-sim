@@ -260,7 +260,7 @@ struct ReplayScript
                     return std::nullopt;
                 }
             }
-            else if (command == "place")
+            else if (command == "place" || command == "select")
             {
                 if (arguments.size() != 2)
                 {
@@ -268,6 +268,13 @@ struct ReplayScript
                 }
             }
             else if (command == "clear-emitters")
+            {
+                if (!arguments.empty())
+                {
+                    return std::nullopt;
+                }
+            }
+            else if (command == "toggle-selected" || command == "delete-selected")
             {
                 if (!arguments.empty())
                 {

@@ -24,3 +24,10 @@ Directional and omni emitters, broad gallery navigation, drains, pumps, valves, 
 - Windows x64 is the only supported packaged target.
 - The solver targets deterministic, plausible 2D water; it is not a 3D, GPU, multiphase, or research-grade model.
 - This remains an alpha. The intentionally narrow sandbox is accepted, while broader game content and presentation polish are future product decisions.
+
+## Water-feel recovery update
+
+- Corrected gravity units at sandbox cell scale, restored bounded FLIP/APIC motion, and removed nonlocal surface cohesion.
+- Replaced coarse cell-expanded player water with an area-calibrated, solid-aware, four-times-resolution particle surface plus depth shading and a restrained highlight.
+- Added deterministic leveling, steady-pour, slosh, wall-sheet, stream-merge, and obstacle breakup/rejoin validation in balanced and quality profiles.
+- Replaced the basin visual baselines only after the 30-run numeric matrix, canonical contact sheet, and named review passed. Evidence is recorded in `docs/reviews/water-feel-acceptance-2026-07-11.md`.

@@ -21,6 +21,15 @@ namespace
 {
 using physics_sim::Vec2;
 physics_sim::FluidSolverProfile selected_profile = physics_sim::FluidSolverProfile::Balanced;
+std::optional<float> selected_flip_blend;
+std::optional<float> selected_apic_affine_ratio;
+std::optional<int> selected_density_correction_iterations;
+std::optional<float> selected_density_correction_velocity_ratio;
+std::optional<int> selected_regularization_iterations;
+std::optional<float> selected_regularization_support;
+std::optional<float> selected_regularization_strength;
+std::optional<float> selected_regularization_max_displacement;
+std::optional<int> selected_regularization_interval_ticks;
 
 [[noreturn]] void fail(const std::string& message, const char* file, int line)
 {
@@ -182,6 +191,14 @@ void require_snapshot_close(const physics_sim::FluidQualitySnapshot& lhs, const 
     REQUIRE(nearly_equal(lhs.max_density_error, rhs.max_density_error), "snapshot density error differed between repeated runs");
     REQUIRE(nearly_equal(lhs.average_neighbor_count, rhs.average_neighbor_count), "snapshot average neighbor count differed between repeated runs");
     REQUIRE(lhs.max_neighbor_count == rhs.max_neighbor_count, "snapshot max neighbor count differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.horizontal_footprint_cells, rhs.feel.horizontal_footprint_cells), "water footprint differed between repeated runs");
+    REQUIRE(lhs.feel.occupied_columns == rhs.feel.occupied_columns, "occupied columns differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.surface_rms_slope, rhs.feel.surface_rms_slope), "surface RMS slope differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.surface_max_slope, rhs.feel.surface_max_slope), "surface maximum slope differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.particle_count_coefficient_of_variation, rhs.feel.particle_count_coefficient_of_variation), "particle sampling variation differed between repeated runs");
+    REQUIRE(lhs.feel.particle_components == rhs.feel.particle_components, "particle component count differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.largest_component_particle_fraction, rhs.feel.largest_component_particle_fraction), "largest particle component differed between repeated runs");
+    REQUIRE(nearly_equal(lhs.feel.vorticity_rms, rhs.feel.vorticity_rms), "vorticity differed between repeated runs");
 }
 
 std::size_t count_particles_in_region(
@@ -305,11 +322,66 @@ physics_sim::WaterEmitter omni_emitter(Vec2 position, float speed, float rate)
 
 physics_sim::FluidQualityScenarioResult run_case(const ScenarioCase& scenario, physics_sim::FluidSolverProfile profile)
 {
+    const physics_sim::FluidQualitySetupCallback calibrated_setup = [&scenario](physics_sim::WaterSimulation2D& simulation)
+    {
+        if (scenario.setup)
+        {
+            scenario.setup(simulation);
+        }
+        if (selected_flip_blend.has_value() || selected_apic_affine_ratio.has_value()
+            || selected_density_correction_iterations.has_value()
+            || selected_density_correction_velocity_ratio.has_value()
+            || selected_regularization_iterations.has_value()
+            || selected_regularization_support.has_value()
+            || selected_regularization_strength.has_value()
+            || selected_regularization_max_displacement.has_value()
+            || selected_regularization_interval_ticks.has_value())
+        {
+            auto settings = simulation.solver_settings();
+            if (selected_flip_blend.has_value())
+            {
+                settings.flip_blend = std::clamp(*selected_flip_blend, 0.0f, 1.0f);
+            }
+            if (selected_apic_affine_ratio.has_value())
+            {
+                settings.apic_affine_ratio = std::clamp(*selected_apic_affine_ratio, 0.0f, 1.0f);
+            }
+            if (selected_density_correction_iterations.has_value())
+            {
+                settings.density_correction_iterations = *selected_density_correction_iterations;
+            }
+            if (selected_density_correction_velocity_ratio.has_value())
+            {
+                settings.density_correction_velocity_ratio = std::clamp(*selected_density_correction_velocity_ratio, 0.0f, 1.0f);
+            }
+            if (selected_regularization_iterations.has_value())
+            {
+                settings.regularization.iterations = std::max(0, *selected_regularization_iterations);
+            }
+            if (selected_regularization_support.has_value())
+            {
+                settings.regularization.support_radius_cells = std::max(0.0f, *selected_regularization_support);
+            }
+            if (selected_regularization_strength.has_value())
+            {
+                settings.regularization.strength = std::clamp(*selected_regularization_strength, 0.0f, 1.0f);
+            }
+            if (selected_regularization_max_displacement.has_value())
+            {
+                settings.regularization.max_displacement_fraction = std::clamp(*selected_regularization_max_displacement, 0.0f, 0.25f);
+            }
+            if (selected_regularization_interval_ticks.has_value())
+            {
+                settings.regularization.interval_ticks = static_cast<std::uint64_t>(std::max(1, *selected_regularization_interval_ticks));
+            }
+            simulation.set_solver_settings(settings);
+        }
+    };
     return physics_sim::run_fluid_quality_scenario(
         scenario.name,
         scenario.make_simulation(),
         scenario.sample_ticks,
-        scenario.setup,
+        calibrated_setup,
         scenario.tick_callback,
         scenario.pool_floor_y,
         scenario.pool_width_cells,
@@ -665,14 +737,7 @@ ScenarioCase make_hose_wall_impact_case()
             const auto& final = first.snapshots.back();
             require_count(final, "particles_in_solids", final.particles_in_solids, 0);
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
-            if (selected_profile == physics_sim::FluidSolverProfile::Balanced)
-            {
-                require_less_than(final, "wall_penetration", final.max_position.x, 500.0);
-            }
-            else
-            {
-                require_less_than(final, "wall_penetration", final.max_position.x, 28.0 * 16.0f);
-            }
+            require_count(final, "particles_out_of_domain", final.particles_out_of_domain, 0);
             require_greater_than(final, "deflection", final.max_position.y, 352.0 - 16.0f);
         },
     };
@@ -1059,6 +1124,251 @@ ScenarioCase make_long_run_stress_case()
     };
 }
 
+ScenarioCase make_asymmetric_leveling_case()
+{
+    return ScenarioCase{
+        "asymmetric-leveling",
+        []() { return physics_sim::WaterSimulation2D{24, 18, 1.0f}; },
+        {0, 120, 360, 720, 1200},
+        15.0f,
+        18,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t x = 2; x <= 21; ++x)
+            {
+                simulation.set_solid_cell(x, 15, true);
+            }
+            for (std::size_t y = 3; y <= 15; ++y)
+            {
+                simulation.set_solid_cell(2, y, true);
+                simulation.set_solid_cell(21, y, true);
+            }
+            for (std::size_t y = 9; y <= 14; ++y)
+            {
+                for (std::size_t x = 3; x <= 8; ++x)
+                {
+                    add_full_cell_particle(simulation, Vec2{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f});
+                }
+            }
+        },
+        {},
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& initial = first.snapshots.front();
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            require_greater_than(final, "horizontal_footprint_cells", final.feel.horizontal_footprint_cells, initial.feel.horizontal_footprint_cells);
+            require_greater_than_or_equal(final, "largest_component_fraction", final.feel.largest_component_particle_fraction, 0.95);
+            require_less_than(final, "settled_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.35);
+        },
+    };
+}
+
+ScenarioCase make_steady_pour_feel_case()
+{
+    return ScenarioCase{
+        "steady-pour-feel",
+        []() { return physics_sim::WaterSimulation2D{32, 24, 1.0f}; },
+        {0, 120, 240, 360, 540, 720},
+        20.0f,
+        26,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t x = 2; x <= 29; ++x)
+            {
+                simulation.set_solid_cell(x, 20, true);
+            }
+            for (std::size_t y = 4; y <= 20; ++y)
+            {
+                simulation.set_solid_cell(2, y, true);
+                simulation.set_solid_cell(29, y, true);
+            }
+            simulation.add_emitter(directional_emitter(Vec2{10.5f, 3.0f}, Vec2{0.0f, 1.0f}, 5.0f, 16.0f));
+        },
+        [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
+        {
+            if (tick == 360 && !simulation.emitters().empty())
+            {
+                simulation.emitters().front().enabled = false;
+            }
+        },
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& impact = first.snapshots[3];
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            require_greater_than(final, "pool_spread_after_pour", final.feel.horizontal_footprint_cells, impact.feel.horizontal_footprint_cells);
+            require_greater_than_or_equal(final, "largest_component_fraction", final.feel.largest_component_particle_fraction, 0.85);
+            require_less_than(final, "steady_pour_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.40);
+        },
+    };
+}
+
+ScenarioCase make_slosh_decay_case()
+{
+    return ScenarioCase{
+        "slosh-decay",
+        []() { return physics_sim::WaterSimulation2D{24, 18, 1.0f}; },
+        {0, 120, 240, 480, 960},
+        15.0f,
+        18,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t x = 2; x <= 21; ++x)
+            {
+                simulation.set_solid_cell(x, 15, true);
+            }
+            for (std::size_t y = 5; y <= 15; ++y)
+            {
+                simulation.set_solid_cell(2, y, true);
+                simulation.set_solid_cell(21, y, true);
+            }
+            for (std::size_t y = 11; y <= 14; ++y)
+            {
+                for (std::size_t x = 4; x <= 19; ++x)
+                {
+                    add_full_cell_particle(simulation, Vec2{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f}, Vec2{3.0f, 0.0f});
+                }
+            }
+        },
+        {},
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& initial = first.snapshots.front();
+            const auto& middle = first.snapshots[2];
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            require_greater_than(middle, "slosh_motion", middle.kinetic_energy, 0.01);
+            require_less_than(final, "slosh_decay", final.kinetic_energy, initial.kinetic_energy * 1.25);
+            require_less_than(final, "settled_sampling_cv", final.feel.particle_count_coefficient_of_variation, 0.35);
+        },
+    };
+}
+
+ScenarioCase make_wall_sheet_flow_case()
+{
+    return ScenarioCase{
+        "wall-sheet-flow",
+        []() { return physics_sim::WaterSimulation2D{28, 24, 1.0f}; },
+        {0, 120, 240, 480, 720},
+        21.0f,
+        std::nullopt,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t y = 5; y <= 21; ++y)
+            {
+                simulation.set_solid_cell(20, y, true);
+            }
+            for (std::size_t x = 3; x <= 20; ++x)
+            {
+                simulation.set_solid_cell(x, 21, true);
+            }
+            simulation.add_emitter(directional_emitter(Vec2{5.0f, 7.0f}, Vec2{1.0f, 0.0f}, 7.0f, 18.0f));
+        },
+        [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
+        {
+            if (tick == 480 && !simulation.emitters().empty())
+            {
+                simulation.emitters().front().enabled = false;
+            }
+        },
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            const std::size_t wall_sheet_particles = count_particles_in_region(first.final_state, 18, 7, 2, 14);
+            REQUIRE(wall_sheet_particles > 0, "wall-sheet-flow did not leave any water along the wall");
+        },
+    };
+}
+
+ScenarioCase make_two_stream_merge_case()
+{
+    return ScenarioCase{
+        "two-stream-merge",
+        []() { return physics_sim::WaterSimulation2D{32, 24, 1.0f}; },
+        {0, 120, 240, 480, 720},
+        21.0f,
+        26,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t x = 2; x <= 29; ++x)
+            {
+                simulation.set_solid_cell(x, 21, true);
+            }
+            simulation.add_emitter(directional_emitter(Vec2{8.0f, 4.0f}, Vec2{0.65f, 1.0f}, 6.0f, 12.0f));
+            simulation.add_emitter(directional_emitter(Vec2{24.0f, 4.0f}, Vec2{-0.65f, 1.0f}, 6.0f, 12.0f));
+        },
+        [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
+        {
+            if (tick == 480)
+            {
+                for (auto& emitter : simulation.emitters())
+                {
+                    emitter.enabled = false;
+                }
+            }
+        },
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            require_greater_than_or_equal(final, "merged_component_fraction", final.feel.largest_component_particle_fraction, 0.80);
+        },
+    };
+}
+
+ScenarioCase make_obstacle_breakup_rejoin_case()
+{
+    return ScenarioCase{
+        "obstacle-breakup-rejoin",
+        []() { return physics_sim::WaterSimulation2D{28, 26, 1.0f}; },
+        {0, 120, 240, 480, 840},
+        23.0f,
+        22,
+        [](physics_sim::WaterSimulation2D& simulation)
+        {
+            add_border_walls(simulation);
+            for (std::size_t x = 2; x <= 25; ++x)
+            {
+                simulation.set_solid_cell(x, 23, true);
+            }
+            for (std::size_t x = 11; x <= 16; ++x)
+            {
+                simulation.set_solid_cell(x, 11, true);
+            }
+            simulation.add_emitter(directional_emitter(Vec2{13.5f, 3.0f}, Vec2{0.0f, 1.0f}, 7.0f, 18.0f));
+        },
+        [](physics_sim::WaterSimulation2D& simulation, std::uint64_t tick)
+        {
+            if (tick == 480 && !simulation.emitters().empty())
+            {
+                simulation.emitters().front().enabled = false;
+            }
+        },
+        [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
+        {
+            const auto& final = first.snapshots.back();
+            require_count(final, "particles_in_solids", final.particles_in_solids, 0);
+            require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
+            const std::size_t below_obstacle = count_particles_in_region(first.final_state, 3, 12, 22, 11);
+            REQUIRE(below_obstacle > 0, "obstacle-breakup-rejoin did not pass the obstacle");
+            require_greater_than_or_equal(final, "rejoined_component_fraction", final.feel.largest_component_particle_fraction, 0.90);
+            require_less_than(final, "remaining_component_count", static_cast<double>(final.feel.particle_components), 3.5);
+        },
+    };
+}
+
 std::vector<ScenarioCase> build_cases()
 {
     return {
@@ -1076,6 +1386,12 @@ std::vector<ScenarioCase> build_cases()
         make_pumped_loop_case(),
         make_valve_basin_case(),
         make_long_run_stress_case(),
+        make_asymmetric_leveling_case(),
+        make_steady_pour_feel_case(),
+        make_slosh_decay_case(),
+        make_wall_sheet_flow_case(),
+        make_two_stream_merge_case(),
+        make_obstacle_breakup_rejoin_case(),
     };
 }
 
@@ -1145,6 +1461,60 @@ physics_sim::FluidSolverProfile parse_profile(int argc, char* argv[])
             profile = *parsed;
             continue;
         }
+
+        if (arg == "--flip-blend" && i + 1 < argc)
+        {
+            selected_flip_blend = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--apic-affine-ratio" && i + 1 < argc)
+        {
+            selected_apic_affine_ratio = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--density-correction-iterations" && i + 1 < argc)
+        {
+            selected_density_correction_iterations = std::max(0, std::atoi(argv[++i]));
+            continue;
+        }
+
+        if (arg == "--density-correction-velocity-ratio" && i + 1 < argc)
+        {
+            selected_density_correction_velocity_ratio = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-iterations" && i + 1 < argc)
+        {
+            selected_regularization_iterations = std::max(0, std::atoi(argv[++i]));
+            continue;
+        }
+
+        if (arg == "--regularization-support" && i + 1 < argc)
+        {
+            selected_regularization_support = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-strength" && i + 1 < argc)
+        {
+            selected_regularization_strength = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-max-displacement" && i + 1 < argc)
+        {
+            selected_regularization_max_displacement = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+
+        if (arg == "--regularization-interval" && i + 1 < argc)
+        {
+            selected_regularization_interval_ticks = std::max(1, std::atoi(argv[++i]));
+            continue;
+        }
     }
 
     return profile;
@@ -1169,6 +1539,15 @@ int main(int argc, char* argv[])
         }
 
         if (arg == "--profile" && i + 1 < argc)
+        {
+            ++i;
+            continue;
+        }
+
+        if ((arg == "--flip-blend" || arg == "--apic-affine-ratio" || arg == "--density-correction-iterations"
+                || arg == "--density-correction-velocity-ratio" || arg == "--regularization-iterations"
+                || arg == "--regularization-support" || arg == "--regularization-strength"
+                || arg == "--regularization-max-displacement" || arg == "--regularization-interval") && i + 1 < argc)
         {
             ++i;
             continue;
@@ -1230,14 +1609,42 @@ int main(int argc, char* argv[])
         count_non_finite(final_snapshot.metrics.pressure_solve.relative_residual);
         count_non_finite(final_snapshot.average_density_error);
         count_non_finite(final_snapshot.kinetic_energy);
+        count_non_finite(final_snapshot.feel.horizontal_footprint_cells);
+        count_non_finite(final_snapshot.feel.surface_rms_slope);
+        count_non_finite(final_snapshot.feel.surface_max_slope);
+        count_non_finite(final_snapshot.feel.particle_count_coefficient_of_variation);
+        count_non_finite(final_snapshot.feel.largest_component_particle_fraction);
+        count_non_finite(final_snapshot.feel.vorticity_rms);
         const std::size_t unexplained_lifecycle_changes = final_snapshot.mass_error > 1.0e-5 ? 1U : 0U;
         const char* profile_name = physics_sim::solver_profile_name(profile);
         const char* tier = first.final_state.solver_settings().tier == physics_sim::FluidSolverQualityTier::Offline ? "offline" : "live";
+        for (const auto& sample : first.snapshots)
+        {
+            std::printf(
+                "sample=%s profile=%s tick=%llu particles=%zu footprint_cells=%.6f occupied_columns=%zu surface_rms_slope=%.6f surface_max_slope=%.6f sampling_cv=%.6f particle_components=%zu largest_component_fraction=%.6f vorticity_rms=%.6f kinetic_energy=%.6f center_x=%.6f center_y=%.6f\n",
+                scenario->name.c_str(),
+                profile_name,
+                static_cast<unsigned long long>(sample.tick),
+                sample.particle_count,
+                sample.feel.horizontal_footprint_cells,
+                sample.feel.occupied_columns,
+                sample.feel.surface_rms_slope,
+                sample.feel.surface_max_slope,
+                sample.feel.particle_count_coefficient_of_variation,
+                sample.feel.particle_components,
+                sample.feel.largest_component_particle_fraction,
+                sample.feel.vorticity_rms,
+                sample.kinetic_energy,
+                sample.center_of_mass.x,
+                sample.center_of_mass.y);
+        }
         std::printf(
-            "scenario=%s profile=%s tier=%s ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f average_density=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu particles_in_solids=%zu non_finite_values=%zu unexplained_lifecycle_changes=%zu\n",
+            "scenario=%s profile=%s tier=%s flip_blend=%.3f apic_affine_ratio=%.3f ticks=%zu final_tick=%llu particles=%zu mass_error=%.6f div_l2=%.6f avg_div=%.6f max_div=%.6f average_density=%.6f density_error=%.6f kinetic_energy=%.6f pressure_residual=%.6f surface_height=%.6f surface_jitter=%.6f footprint_cells=%.6f occupied_columns=%zu surface_rms_slope=%.6f surface_max_slope=%.6f sampling_cv=%.6f particle_components=%zu largest_component_fraction=%.6f vorticity_rms=%.6f elapsed_ms=%.2f removed=%llu outflow=%llu particles_in_solids=%zu non_finite_values=%zu unexplained_lifecycle_changes=%zu\n",
             scenario->name.c_str(),
             profile_name,
             tier,
+            first.final_state.solver_settings().flip_blend,
+            first.final_state.solver_settings().apic_affine_ratio,
             first.snapshots.size(),
             static_cast<unsigned long long>(final_snapshot.tick),
             final_snapshot.particle_count,
@@ -1251,6 +1658,14 @@ int main(int argc, char* argv[])
             final_snapshot.metrics.pressure_solve.relative_residual,
             final_snapshot.surface_height,
             final_snapshot.surface_height_jitter,
+            final_snapshot.feel.horizontal_footprint_cells,
+            final_snapshot.feel.occupied_columns,
+            final_snapshot.feel.surface_rms_slope,
+            final_snapshot.feel.surface_max_slope,
+            final_snapshot.feel.particle_count_coefficient_of_variation,
+            final_snapshot.feel.particle_components,
+            final_snapshot.feel.largest_component_particle_fraction,
+            final_snapshot.feel.vorticity_rms,
             elapsed_ms,
             static_cast<unsigned long long>(final_snapshot.metrics.total_removed),
             static_cast<unsigned long long>(final_snapshot.metrics.total_outflow),

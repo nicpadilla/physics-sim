@@ -48,7 +48,8 @@ $steps = @(
     @{ Name = 'repository hygiene'; Script = (Join-Path $PSScriptRoot 'check-hygiene.ps1') },
     @{ Name = 'build'; Script = (Join-Path $PSScriptRoot 'build.ps1') },
     @{ Name = 'tests'; Script = (Join-Path $PSScriptRoot 'test.ps1'); Arguments = @{ Tier = 'Full' } },
-    @{ Name = 'release package'; Script = (Join-Path $PSScriptRoot 'package-release.ps1'); Arguments = @{ SkipBuild = $true } }
+    @{ Name = 'release package'; Script = (Join-Path $PSScriptRoot 'package-release.ps1'); Arguments = @{ SkipBuild = $true } },
+    @{ Name = 'packaged integrated acceptance'; Script = (Join-Path $PSScriptRoot 'verify-packaged-acceptance.ps1'); Arguments = @{ PackageRoot = (Join-Path $repoRoot 'dist\physics-sim-0.2.0-alpha.2-windows-x64') } }
 )
 
 foreach ($step in $steps)

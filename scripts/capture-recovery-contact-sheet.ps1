@@ -74,7 +74,15 @@ try
         $captureImage = [System.Drawing.Image]::FromFile($captures[$index].image)
         try
         {
-            $graphics.DrawImage($captureImage, $x, $y + 34, $cellWidth, $cellHeight - 34)
+            $destination = New-Object System.Drawing.Rectangle $x, ($y + 34), $cellWidth, ($cellHeight - 34)
+            $graphics.DrawImage(
+                $captureImage,
+                $destination,
+                0,
+                0,
+                $captureImage.Width,
+                $captureImage.Height,
+                [System.Drawing.GraphicsUnit]::Pixel)
         }
         finally { $captureImage.Dispose() }
         $label = "$($captures[$index].scenario) | tick $($captures[$index].tick) | $($captures[$index].profile)"

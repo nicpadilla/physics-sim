@@ -13,11 +13,15 @@ namespace physics_sim
 [[nodiscard]] inline std::vector<std::string> build_help_overlay_lines(const InputBindings& bindings)
 {
     std::vector<std::string> lines;
-    lines.reserve(13);
+    lines.reserve(17);
     lines.emplace_back("HELP");
     lines.emplace_back("Pointer water: hold LMB to pour");
     lines.emplace_back("LMB draws or erases with the selected wall tool");
     lines.emplace_back("0 pour, 1 draw wall, 2 erase wall");
+    lines.emplace_back("A opens Advanced Tools; 3-9 select devices");
+    lines.emplace_back("3 hose, 4 omni, 5 gate, 6 sensor");
+    lines.emplace_back("7 drain, 8 pump, 9 valve");
+    lines.emplace_back("T toggles selected devices; Delete removes them");
     lines.emplace_back(keycode_label(bindings.tool_prev) + "/" + keycode_label(bindings.tool_next) + " cycle sandbox tools");
     lines.emplace_back(keycode_label(bindings.toggle_help) + " toggle help");
     lines.emplace_back("Esc opens pause menu / backs out");
