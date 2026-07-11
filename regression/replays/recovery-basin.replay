@@ -1,0 +1,10 @@
+physics-sim-replay 2
+scene-digest 835E921A0CB0B3E2
+fixed-timestep 0.008333333333333333
+solver-profile balanced
+tick 0 tool directional
+tick 0 direction 0 1
+tick 0 speed 1
+tick 0 rate 5
+tick 0 place 640 160
+tick 1200 clear-emitters

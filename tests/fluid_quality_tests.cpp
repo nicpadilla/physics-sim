@@ -797,7 +797,7 @@ ScenarioCase make_narrow_channel_case()
         {
             return physics_sim::WaterSimulation2D{32, 24, 1.0f};
         },
-        {0, 120, 360},
+        {0, 120, 600},
         18.0f,
         std::nullopt,
         [](physics_sim::WaterSimulation2D& simulation)
@@ -805,14 +805,14 @@ ScenarioCase make_narrow_channel_case()
             add_border_walls(simulation);
             for (std::size_t y = 1; y <= 22; ++y)
             {
-                if (y != 10 && y != 11)
+                if (y != 18 && y != 19)
                 {
                     simulation.set_solid_cell(14, y, true);
                     simulation.set_solid_cell(17, y, true);
                 }
             }
 
-            simulation.add_emitter(directional_emitter(Vec2{4.5f, 5.5f}, Vec2{0.0f, 1.0f}, 4.0f, 28.0f));
+            simulation.add_emitter(directional_emitter(Vec2{4.5f, 18.5f}, Vec2{1.0f, 0.0f}, 10.0f, 28.0f));
         },
         {},
         [](const physics_sim::FluidQualityScenarioResult& first, const physics_sim::FluidQualityScenarioResult&)
@@ -820,8 +820,12 @@ ScenarioCase make_narrow_channel_case()
             const auto& final = first.snapshots.back();
             require_count(final, "particles_in_solids", final.particles_in_solids, 0);
             require_less_than(final, "mass_error", final.mass_error, 1.0e-6);
-            require_greater_than(final, "channel_progress", final.center_of_mass.y, 8.0);
-            require_greater_than(final, "throughput", final.max_position.y, 12.0);
+            require_greater_than(final, "channel_progress", final.max_position.x, 18.0);
+            const std::size_t downstream_particles = count_particles_in_region(first.final_state, 18, 1, 13, 22);
+            std::ostringstream stream;
+            stream << snapshot_label(final)
+                   << " metric=downstream_particles expected>=1 actual=" << downstream_particles;
+            REQUIRE(downstream_particles >= 1, stream.str());
         },
     };
 }

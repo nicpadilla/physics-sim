@@ -267,6 +267,13 @@ struct ReplayScript
                     return std::nullopt;
                 }
             }
+            else if (command == "clear-emitters")
+            {
+                if (!arguments.empty())
+                {
+                    return std::nullopt;
+                }
+            }
             else
             {
                 return std::nullopt;

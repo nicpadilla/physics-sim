@@ -3412,6 +3412,14 @@ int physics_sim::app::run_application(int argc, char* argv[])
                 continue;
             }
 
+            if (event.command == "clear-emitters")
+            {
+                simulation.emitters().clear();
+                controller.clear_selection();
+                logger.log("replay cleared emitters");
+                continue;
+            }
+
             logger.log("fatal replay command not recognized: " + event.command);
             running = false;
             return false;

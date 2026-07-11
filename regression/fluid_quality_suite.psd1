@@ -53,7 +53,7 @@
         @{
             Name = 'narrow-channel'
             Profile = 'balanced'
-            SampleTicks = @(0, 120, 360)
+            SampleTicks = @(0, 120, 600)
         },
         @{
             Name = 'obstacle-field'
