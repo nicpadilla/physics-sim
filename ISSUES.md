@@ -30,7 +30,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0110 | Done | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Done | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
 | PSIM-0112 | Done | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
-| PSIM-0113 | In Progress | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
+| PSIM-0113 | Done | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
 
 ## Epic 12: Recovery Foundation
 
@@ -1318,7 +1318,7 @@ Implementation notes:
 
 ### PSIM-0113: Accept and publish the complete prerelease
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -1365,4 +1365,5 @@ Implementation notes:
 - Reconciled the accepted visual-effects output with portable software-renderer early/surface/density baselines after numeric gates and named visual review. Current hashes are `0F0E76225C1838F5E25522C113DB2186D18072F7A03A0C3DC3DAB515A14A4D9D`, `833E62C4E77607D8BE196C22143F876051F8DE226C177845DAAF4AE253C3AA5D`, and `BD07D6D324F8E3F0245D07C16829CF024A30B34DB62DAABE61EED8DAD34B47EB`. Updated challenge replay scene identities after descriptive metadata changes; completion ticks/digests remain unchanged.
 - Named review `Codex integrated complete-water-sandbox review for PSIM-0113` accepted core, advanced tools, challenges, gallery, audio/accessibility feedback, and package coherence on 2026-07-11. Evidence: `docs/complete-sandbox-acceptance-2026-07-11.md`.
 - Clean local `verify-all.ps1` passed tracking, hygiene, Debug/Release builds, Full 40/40 in 242.618 seconds, package creation, and the clean-package matrix. A populated packaged omni scene ran 900.695 seconds and shut down normally at tick 26,542 with digest `E663918632928B66`.
-- Protected push, tag CI, GitHub prerelease publication, downloaded checksum verification, and final local launch remain pending external release steps.
+- PR #6 passed required Windows run `29170121771` and merged the accepted feature set to protected `main`; PR #7 passed run `29170800936` and merged portable software-renderer goldens. Annotated tag `v0.2.0-alpha.2` resolves to protected-main commit `a93fab07af97ec4a88b1c577a29255a27e2fbac9`.
+- Tag workflow `29170942371` passed hosted Full, package creation, and artifact upload in 16m13s. The published prerelease is `https://github.com/nicpadilla/physics-sim/releases/tag/v0.2.0-alpha.2`; its CI-produced ZIP and public re-download both match SHA-256 `614876c734df825f4d91c698963a672532c5f28c159ba095ec69ad5e93a8d4dd`, and the downloaded package passed all 8 gallery entries, 3 challenges, accessibility settings, missing-audio fallback, and fresh launch.

@@ -19,3 +19,7 @@ Keyboard and pointer paths cover menus, gallery, core tools, advanced tools, dev
 - Component reviews remain recorded in `docs/particle-regularization-2026-07-11.md`, `docs/gallery-acceptance-2026-07-11.md`, `docs/challenge-acceptance-2026-07-11.md`, `docs/device-restoration-acceptance-2026-07-11.md`, and `docs/audio-acceptance-2026-07-11.md`.
 
 No accepted feature bypasses the deterministic simulation command/snapshot/metrics boundaries, and audio/visual derivation does not alter state digests. No local P0/P1 implementation defect remains after this review.
+
+## Publication evidence
+
+Protected PR runs `29170121771` and `29170800936` passed before merge. Annotated tag `v0.2.0-alpha.2` resolves to protected-main commit `a93fab07af97ec4a88b1c577a29255a27e2fbac9`. Tag workflow `29170942371` passed hosted Full, packaging, and artifact upload in 16m13s. The [published prerelease](https://github.com/nicpadilla/physics-sim/releases/tag/v0.2.0-alpha.2) contains the CI-produced ZIP and checksum sidecar. A fresh public re-download matched SHA-256 `614876c734df825f4d91c698963a672532c5f28c159ba095ec69ad5e93a8d4dd` and passed the complete clean-package matrix.
