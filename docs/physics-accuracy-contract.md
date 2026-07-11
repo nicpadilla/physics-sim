@@ -122,7 +122,7 @@ All three profiles use the same governing equations and deterministic ordering. 
 
 - `fast` preserves the legacy live-budget path and is allowed to keep relaxed density behavior.
 - `balanced` is the default app profile and should remain inside the documented runtime density budget.
-- `quality` uses the strictest pressure target and offline scenario checks. Runtime APIC affine feedback is disabled until it can pass the recovery energy/containment gates.
+- `quality` uses the strictest pressure target and offline scenario checks. Balanced and quality use a bounded APIC contribution (`0.10`) after the water-feel matrix demonstrated stable energy, containment, and determinism.
 
 The current target scale remains `80 x 45` cells, `16` world units per cell, fixed `1 / 120` second simulation tick, 60 FPS interaction target. The live/offline benchmark tiers are retained only as compatibility labels for the benchmark and scripts.
 
@@ -133,12 +133,12 @@ The solver now includes the physical state and bounded correction passes needed 
 - Particle mass, volume, density, neighbor counts, and affine velocity are part of `FluidParticle`.
 - Fluid, air, and solid cell classification uses deterministic volume fractions and cell density diagnostics.
 - Transfer uses mass-weighted APIC scatter helpers, PIC/FLIP blending, and deterministic affine state support.
-- Runtime APIC affine feedback is disabled in recovered profiles for stability; isolated APIC transfer primitives remain tested.
+- Balanced uses a `0.78` FLIP blend and quality uses `0.71`; both add a bounded `0.10` APIC affine contribution. These values retain shear and lateral motion while remaining inside the profile energy and pressure gates.
 - Pressure projection reports matrix-free PCG iterations, residuals, convergence, and active pressure cells.
 - Pressure projection also reports visible fluid cells, pressure-active cells, overreach ratio, RHS norm, solution norm, `dt`, and rest density for diagnostics.
 - Local density correction is implemented as a bounded deterministic pass with mass and center-of-mass diagnostics.
 - Boundary interaction is documented as a near-free-slip no-penetration material model using deterministic swept-sample and cell-face contact. A damped material setting can reduce tangential velocity, but scene-authored wall materials are not exposed yet.
-- Viscosity and surface tension are implemented as bounded deterministic forces with zero-effect defaults.
+- Viscosity is a bounded deterministic local force. Surface tension remains disabled by default; the former nonlocal center-of-mass attraction path was removed, and any future surface tension must use only the local curvature force.
 - Particle resampling preserves physical mass and volume and keeps rendering tied to volume fraction rather than particle size.
 
 Accepted scope constraints and remaining approximation notes are documented in [physics-known-limitations.md](physics-known-limitations.md).

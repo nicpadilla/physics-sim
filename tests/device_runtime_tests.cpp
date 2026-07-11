@@ -55,7 +55,12 @@ int main()
         simulation.add_particle({physics_sim::Vec2{15.5f, 15.5f}, physics_sim::Vec2{0.0f, 0.0f}});
         simulation.step(0.016);
 
-        REQUIRE(simulation.particles().size() == 1, "drain did not remove water in its region");
+        for (const auto& particle : simulation.particles())
+        {
+            REQUIRE(particle.position.x < 5.0f || particle.position.x >= 8.0f
+                    || particle.position.y < 5.0f || particle.position.y >= 8.0f,
+                "drain left water in its region");
+        }
         REQUIRE(simulation.metrics().total_removed == 1, "drain removal was not visible in metrics");
     }
 

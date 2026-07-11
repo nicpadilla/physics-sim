@@ -20,10 +20,10 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Done | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
 | PSIM-0102 | Done | P0 | Convincing Water Motion | R20.01 | Add deterministic water-feel validation |
-| PSIM-0103 | Open | P0 | Convincing Water Motion | R20.02 | Build an area-faithful particle free surface |
-| PSIM-0104 | Open | P0 | Convincing Water Motion | R20.03 | Restore believable transfer and free-surface flow |
-| PSIM-0105 | Open | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
-| PSIM-0106 | Open | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
+| PSIM-0103 | Done | P0 | Convincing Water Motion | R20.02 | Build an area-faithful particle free surface |
+| PSIM-0104 | Done | P0 | Convincing Water Motion | R20.03 | Restore believable transfer and free-surface flow |
+| PSIM-0105 | Done | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
+| PSIM-0106 | Done | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
 
 ## Epic 12: Recovery Foundation
 
@@ -787,7 +787,7 @@ Implementation notes:
 
 ### PSIM-0103: Build an area-faithful particle free surface
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -832,11 +832,15 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added deterministic normalized bilinear particle-volume rasterization for smooth diagnostics while retaining center-occupied pressure topology so low-volume tails do not become full pressure cells.
+- Added a four-times-resolution quadratic particle surface field with automatic area-calibrated contour selection, solid-aware visibility, sub-cell translation, and explicit particle/reconstructed area metrics.
+- Sandbox rendering now interpolates the high-resolution field and draws continuous depth-colored water with a restrained top-surface highlight; lab captures use the same truthful particle-derived surface.
+- Added isolated-droplet, area, translation, shallow-pool, solid-wall, and deterministic geometry tests. The accepted U-container surface is one component, has no isolated/escaped cells, and reconstructs within about `0.045%` of particle area.
+- Replaced the three basin baselines only after numeric and named visual review. Full verification passed 36/36 in 169.6 seconds on 2026-07-11.
 
 ### PSIM-0104: Restore believable transfer and free-surface flow
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -879,11 +883,15 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Corrected gravity integration to convert world acceleration by `cell_size`, fixing the 16-times-too-slow sandbox-scale fall while preserving cell-relative behavior across grid scales with a focused regression test.
+- Calibrated balanced to FLIP `0.78` / APIC `0.10` and quality to FLIP `0.71` / APIC `0.10` through bounded scenario sweeps; added command-line calibration overrides for repeatable experiments.
+- Kept pressure activation center-occupied while exposing conservatively smoothed volume, avoiding artificial pressure support from raster tails.
+- The balanced asymmetric-leveling RMS slope improved from `0.365` to `0.117`; the settled U-container spreads roughly 34 cells with zero penetration, mass error, or non-finite values.
+- `verify-fluid-quality-suite.ps1` passed all 30 balanced/quality runs in 299.1 seconds; Full passed the profile matrix, 6000-tick stress, benchmark, determinism, and package gates on 2026-07-11.
 
 ### PSIM-0105: Regularize particles and remove artificial cohesion
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -926,11 +934,15 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Removed the nonlocal center-of-mass surface-tension attraction path. Default surface tension remains zero; any future restoration is restricted to the local curvature force.
+- Raised the balanced/quality minimum local sampling target to two particles per occupied fluid cell while keeping split/merge mass, momentum, volume, lifecycle, and bounded-operation contracts.
+- Reworked focused viscosity, surface-force, drain, and finite-wall tests to assert physical invariants rather than fragile particle counts or an invalid global-contraction expectation.
+- Sampling CV improved to `0.325` for balanced slosh and `0.303` for quality; obstacle largest-component fraction improved from `0.765` to `0.895` in balanced without recursive splitting or particle-count explosion.
+- All invariant, feel, long-run, determinism, recovery visual, and Full gates passed on 2026-07-11. Remaining active-pour sampling variation and small separated impact droplets are documented limitations, not hidden by rendering cohesion.
 
 ### PSIM-0106: Tune, review, and accept real-time water feel
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -975,4 +987,7 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Numeric, semantic, canonical-capture, visual-baseline, replay, package, and named review gates pass. Evidence and accepted limitations are recorded in `docs/reviews/water-feel-acceptance-2026-07-11.md`.
+- Fixed large-surface lab corruption by advertising the renderer's `ImDrawCmd::VtxOffset` support; automated capture now advances only the selected run, reducing the 10-scenario canonical matrix to 18.4 seconds and eliminating the prior parallel timeout.
+- `verify-all.ps1` passed 36/36 plus tracking, hygiene, packaging, replay, and visual verification in 169.6 seconds on 2026-07-11.
+- A populated balanced sandbox replay soak ran from 10:27:06 through 10:42:06 on 2026-07-11, emitted through tick 1200, continuously rendered the settled surface, saved settings, and exited normally at the configured 900 seconds. Log: `build/windows-x64/water-feel-soak.log`.

@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <optional>
 #include <system_error>
 #include <sstream>
@@ -755,8 +756,6 @@ void draw_fluid_surface(
         return;
     }
 
-    constexpr float visible_threshold = 0.25f;
-    std::vector<float> fractions(grid.cell_count(), 0.0f);
     std::vector<std::uint8_t> solids(grid.cell_count(), 0);
     for (std::size_t y = 0; y < grid.height(); ++y)
     {
@@ -764,9 +763,10 @@ void draw_fluid_surface(
         {
             const std::size_t index = y * grid.width() + x;
             solids[index] = grid.solid(x, y) ? 1 : 0;
-            fractions[index] = solids[index] == 0 ? simulation.cell_volume_fraction(x, y) : 0.0f;
         }
     }
+    physics_sim::ParticleSurfaceField field = physics_sim::build_particle_surface_field(
+        simulation.particles(), solids, grid.width(), grid.height(), grid.cell_size(), 4);
 
     struct SurfaceHistory
     {
@@ -776,31 +776,52 @@ void draw_fluid_surface(
         std::vector<float> current{};
     };
     static SurfaceHistory history;
-    if (history.width != grid.width() || history.height != grid.height() || history.current.size() != fractions.size())
+    if (history.width != field.width || history.height != field.height || history.current.size() != field.vertex_values.size())
     {
-        history = {grid.width(), grid.height(), fractions, fractions};
+        history = {field.width, field.height, field.vertex_values, field.vertex_values};
     }
-    else if (history.current != fractions)
+    else if (history.current != field.vertex_values)
     {
         history.previous = std::move(history.current);
-        history.current = fractions;
+        history.current = field.vertex_values;
     }
     interpolation_alpha = std::clamp(interpolation_alpha, 0.0f, 1.0f);
-    std::vector<float> interpolated(fractions.size(), 0.0f);
-    for (std::size_t index = 0; index < interpolated.size(); ++index)
+    for (std::size_t index = 0; index < field.vertex_values.size(); ++index)
     {
-        interpolated[index] = history.previous[index] + (history.current[index] - history.previous[index]) * interpolation_alpha;
+        field.vertex_values[index] = history.previous[index] + (history.current[index] - history.previous[index]) * interpolation_alpha;
     }
 
-    const auto surface = physics_sim::reconstruct_surface(
-        interpolated, solids, grid.width(), grid.height(), grid.cell_size(), visible_threshold);
+    const float surface_threshold = physics_sim::particle_surface_threshold(field);
+    const auto surface = physics_sim::reconstruct_particle_surface(field, surface_threshold);
     std::vector<SDL_Vertex> vertices;
     vertices.reserve(surface.size() * 3);
+    float surface_min_y = std::numeric_limits<float>::max();
+    float surface_max_y = std::numeric_limits<float>::lowest();
     for (const auto& triangle : surface)
     {
-        const SDL_Color color{palette.water.r, palette.water.g, palette.water.b, 220};
         for (const auto& point : {triangle.a, triangle.b, triangle.c})
         {
+            surface_min_y = std::min(surface_min_y, point.y);
+            surface_max_y = std::max(surface_max_y, point.y);
+        }
+    }
+    for (const auto& triangle : surface)
+    {
+        for (const auto& point : {triangle.a, triangle.b, triangle.c})
+        {
+            const float depth = surface_max_y > surface_min_y
+                ? std::clamp((point.y - surface_min_y) / (surface_max_y - surface_min_y), 0.0f, 1.0f)
+                : 0.0f;
+            const float lighten = (1.0f - depth) * 0.28f;
+            const float darken = depth * 0.12f;
+            const auto shade = [&](std::uint8_t channel)
+            {
+                const float value = static_cast<float>(channel)
+                    + (255.0f - static_cast<float>(channel)) * lighten
+                    - static_cast<float>(channel) * darken;
+                return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 255.0f));
+            };
+            const SDL_Color color{shade(palette.water.r), shade(palette.water.g), shade(palette.water.b), 224};
             const physics_sim::Vec2 window = viewport.world_to_window({point.x, point.y});
             vertices.push_back({{window.x, window.y}, color, {0.0f, 0.0f}});
         }
@@ -808,6 +829,41 @@ void draw_fluid_surface(
     if (!vertices.empty())
     {
         SDL_RenderGeometry(renderer, nullptr, vertices.data(), static_cast<int>(vertices.size()), nullptr, 0);
+    }
+
+    SDL_SetRenderDrawColor(
+        renderer,
+        static_cast<std::uint8_t>(std::min(255, static_cast<int>(palette.water.r) + 70)),
+        static_cast<std::uint8_t>(std::min(255, static_cast<int>(palette.water.g) + 28)),
+        static_cast<std::uint8_t>(std::min(255, static_cast<int>(palette.water.b) + 12)),
+        190);
+    bool have_previous = false;
+    physics_sim::Vec2 previous{};
+    for (std::size_t x = 0; x <= field.width; ++x)
+    {
+        std::size_t top_y = field.height + 1;
+        for (std::size_t y = 0; y <= field.height; ++y)
+        {
+            if (field.vertex_values[y * (field.width + 1) + x] >= surface_threshold)
+            {
+                top_y = y;
+                break;
+            }
+        }
+        if (top_y > field.height)
+        {
+            have_previous = false;
+            continue;
+        }
+        const physics_sim::Vec2 current = viewport.world_to_window({
+            static_cast<float>(x) * field.sample_spacing,
+            static_cast<float>(top_y) * field.sample_spacing});
+        if (have_previous && std::abs(current.y - previous.y) <= grid.cell_size() * viewport.scale())
+        {
+            SDL_RenderDrawLineF(renderer, previous.x, previous.y, current.x, current.y);
+        }
+        previous = current;
+        have_previous = true;
     }
 }
 

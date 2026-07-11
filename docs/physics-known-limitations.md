@@ -10,8 +10,9 @@ This document records accepted scope constraints for the current physics model. 
 - The solver does not guarantee 3D splash behavior, foam, mist, or molecular-scale particle physics.
 - The default wall material is the documented near-free-slip no-penetration boundary model.
 - Runtime solver profiles are `fast`, `balanced`, and `quality`. `balanced` is the default app profile and main runtime quality gate. `fast` preserves legacy compatibility and performance behavior and may keep large density-error values. `quality` is the strict offline/reference profile used for regression checks.
-- Viscosity, surface tension, density correction, APIC, and particle resampling are bounded deterministic passes. They are profile-dependent and designed to stay inside the documented budgets rather than emulate a full multiphase or free-surface research solver.
-- Volume-fraction-based rendering is an approximation for density and surface occupancy. The default surface view reconstructs filled cells and exposed edges from the volume grid; it is intended for stable visual feedback, not a full geometric free-surface mesh.
+- Viscosity, density correction, APIC, and particle resampling are bounded deterministic passes. Surface tension is disabled by default. These systems are profile-dependent and designed to stay inside the documented budgets rather than emulate a full multiphase or research solver.
+- Player rendering uses a deterministic four-times-resolution compact-kernel particle field, area-calibrated contour threshold, solid-aware support clipping, and triangle reconstruction. It is a convincing 2D visual surface, not a research-grade signed-distance or 3D free-surface mesh.
+- Sparse fast impacts can still form a few small secondary droplets, and particle-count variation remains higher in active pours than in settled pools. The renderer does not artificially merge physically separated support or add hidden volume to conceal that limitation.
 - The benchmark and fluid-quality harness still emit the legacy `tier` label for compatibility, but the governing contract is expressed through the solver profile.
 
 ## Verification Boundary
