@@ -16,9 +16,9 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0096 | Done | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Done | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
 | PSIM-0098 | Done | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
-| PSIM-0099 | In Progress | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
+| PSIM-0099 | Done | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
-| PSIM-0101 | Open | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
+| PSIM-0101 | In Progress | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
 
 ## Epic 12: Recovery Foundation
 
@@ -562,7 +562,7 @@ Implementation notes:
 
 ### PSIM-0099: Add CI, hygiene, and prerelease packaging
 
-Status: In Progress
+Status: Done
 
 Priority: P1
 
@@ -613,6 +613,8 @@ Implementation notes:
 - Verification on 2026-07-10: Release build and packaged sandbox/lab smoke passed in 83.6 seconds; archive SHA-256 was `46c5bfcaf2cc6da28bad48b88cf8cb73d8c5f655f931e1933e8ad7116de95fc6`. Final Full/CI evidence and remote protection remain open.
 - Replaced machine-specific vcpkg configuration with `VCPKG_ROOT` plus a Visual Studio local fallback after the first clean GitHub runner exposed the absolute toolchain path. Fixed the versioned pre-push hook to accept Git's remote-name/URL arguments and added that invocation to the hook contract test.
 - Hardened `verify-all.ps1` parameter/exit-code forwarding and made it the intended Full alias instead of redundantly rerunning every long suite. The final local bundle passed in 108.3 seconds and regenerated the package ZIP with SHA-256 `d1e0d9e1b2c139d54849eb3149e811b8853b68c24dcc01bc2aff0a7e85abdefa`.
+- Created public repository `nicpadilla/physics-sim`, set `main` as the default, and protected it with strict required `verify` status, required pull requests, admin enforcement, conversation resolution, and force-push/deletion bans. Pull request #1 merged only after Windows run `29141676905` passed clean configure/build, tracking/hygiene, and Fast in 3m36s.
+- Clean CI exposed and verified fixes for CRLF tracking input and excluding untracked dependency checkouts from repository path hygiene. The initial failing runs remain available as evidence rather than being hidden.
 
 ## Epic 18: Selective Restoration
 
@@ -668,7 +670,7 @@ Implementation notes:
 
 ### PSIM-0101: Complete recovery release acceptance
 
-Status: Open
+Status: In Progress
 
 Priority: P0
 
@@ -716,4 +718,6 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Reconciled the recovery dependencies: PSIM-0094 through PSIM-0100 are Done; every active roadmap marker except this final release marker is Automated or Human Accepted.
+- `verify-all.ps1` passed locally in 108.3 seconds with Full 35/35 in 76.0 seconds; the Release package ZIP SHA-256 is `d1e0d9e1b2c139d54849eb3149e811b8853b68c24dcc01bc2aff0a7e85abdefa`.
+- Owner-delegated sandbox acceptance and visual acceptance are recorded in the dated review files. Protected pull request #1 and required Windows CI passed. The remaining action is tagging the protected main release commit and recording that tag.
