@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.25)
 
 project(physics_sim VERSION 0.1.0 LANGUAGES CXX)
 
+find_program(PHYSICS_SIM_POWERSHELL_EXECUTABLE NAMES pwsh.exe powershell.exe REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -93,7 +95,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME physics_sim_surface_reconstruction_tests COMMAND physics_sim_surface_reconstruction_tests)
     add_test(NAME physics_sim_dependency_check
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-dependencies.ps1
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-dependencies.ps1
     )
 
     add_executable(physics_sim_tests
@@ -540,30 +542,30 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_solver_benchmark COMMAND physics_sim_solver_benchmark)
 
     add_test(NAME physics_sim_recovery_basin_regression
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin.ps1
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin.ps1
     )
 
     add_test(NAME physics_sim_recovery_basin_regression_density
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-density.ps1
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-density.ps1
     )
 
     add_test(NAME physics_sim_recovery_basin_regression_surface
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-surface.ps1
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-surface.ps1
     )
     add_test(NAME physics_sim_replay_regression
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-replay-suite.ps1
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-replay-suite.ps1
     )
     add_test(NAME physics_sim_smoke
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
     )
     add_test(NAME physics_sim_lab_smoke
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild
     )
     add_test(NAME physics_sim_lab_canonical
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild -Canonical
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lab-smoke.ps1 -SkipBuild -Canonical
     )
     add_test(NAME physics_sim_package
-        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
     )
 
     set_tests_properties(
