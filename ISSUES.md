@@ -13,9 +13,9 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0093 | Done | P0 | Validated Water | R15.02, R15.03, R15.04 | Rebuild invariant and scenario validation |
 | PSIM-0094 | Done | P0 | Validated Water | R15.05 | Correct solver behavior against recovery gates |
 | PSIM-0095 | Done | P0 | Water Presentation | R16.01, R16.02, R16.04, R16.05 | Reconstruct cohesive water and semantic visual gates |
-| PSIM-0096 | In Progress | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
+| PSIM-0096 | Done | P0 | Product Experiences | R17.01, R17.02, R17.03, R17.06 | Deliver narrow sandbox vertical slice |
 | PSIM-0097 | Done | P0 | Product Experiences | R16.03, R17.04, R17.05 | Deliver Dear ImGui laboratory mode |
-| PSIM-0098 | In Progress | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
+| PSIM-0098 | Done | P1 | Verification And Release | R18.01, R18.02, R18.03 | Introduce tiered structured verification |
 | PSIM-0099 | In Progress | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Open | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
@@ -338,6 +338,7 @@ Implementation notes:
 - Root-cause correction on 2026-07-10 removed the artificial pressure-cell air halo, applied the complete projected PIC/FLIP transfer instead of discarding 90% of it, and limited density-correction velocity injection. The corrected U scenario now also freezes pool height and settled kinetic-energy thresholds; balanced/quality ended at 27,961/12,844 energy with zero penetration and full containment.
 - Aligned the Quality particle/resampling discretization and corrected the long-run density kernel calibration. `verify-fluid-quality-suite.ps1` passed the complete balanced/quality matrix in 111.1 seconds; `test.ps1 -Tier Standard` passed 27/27 in 24.9 seconds.
 - Verification on 2026-07-10: `test.ps1 -Tier Standard` passed 25/25 in 78.2 seconds; `verify-fluid-quality-suite.ps1` passed 18/18 in about 303 seconds; `measure-water-solver.ps1 -Profile All` passed in Release with balanced and quality demo averages of 0.5028 ms and 0.6951 ms; `check-tracking.ps1` passed after tracking reconciliation.
+- Final release audit found the clean all-profile Quality demo exceeded the frozen maximum-density gate. Quality now uses six density-correction iterations while preserving the 2.5% cell displacement cap per iteration; demo maximum density error fell from 4.285411 to 0.546378 without changing the 1.25 threshold. The final clean `verify-all.ps1` run passed all 35 tests, including canonical Quality coverage, on 2026-07-10.
 
 ## Epic 15: Water Presentation
 
@@ -400,7 +401,7 @@ Implementation notes:
 
 ### PSIM-0096: Deliver narrow sandbox vertical slice
 
-Status: In Progress
+Status: Done
 
 Priority: P0
 
@@ -449,6 +450,8 @@ Implementation notes:
 - Rebuilt first-run guidance as a six-step interactive pour/draw/erase/pause/reset/save loop and removed device, objective, and gallery instructions from player help.
 - Removed the engineering metrics overlay from ordinary sandbox launches; it is now explicitly opt-in with `--debug-overlay`, while player action feedback remains in the custom SDL UI.
 - Verification on 2026-07-10: `build.ps1`, sandbox smoke, lab smoke, dependency validation, tracking validation, and `test.ps1 -Tier Fast` (25/25 in 3.3 seconds) passed. The full manual acceptance matrix and named usability review remain open.
+- Corrected packaged relative-resource resolution after an arbitrary-working-directory launch exposed a missing tutorial. The executable now resolves bundled content from its own directory while preserving caller-relative paths that already exist.
+- Owner-delegated acceptance is recorded in `docs/reviews/recovery-sandbox-acceptance-2026-07-10.md`. The Release package passed fresh/returning launch, pointer onboarding, fullscreen/window transition, arbitrary-working-directory launch, and an 1,129-second soak ending at 133,297 ticks with finite metrics and clean close. Focused input, menu, persistence, failure, accessibility, and audio tests cover the remainder of the matrix.
 
 ### PSIM-0097: Deliver Dear ImGui laboratory mode
 
@@ -506,7 +509,7 @@ Implementation notes:
 
 ### PSIM-0098: Introduce tiered structured verification
 
-Status: In Progress
+Status: Done
 
 Priority: P1
 
@@ -554,6 +557,8 @@ Implementation notes:
 - Full completed in 157.7 seconds on 2026-07-10: 30/33 tests passed, including the complete canonical solver suite, benchmark, package, smoke, and all non-visual coverage. The three expected legacy image-hash comparisons failed and preserved captures; their baselines remain unchanged pending PSIM-0095 named human acceptance.
 - After solver and canonical Lab reconciliation, Fast passed 25/25 in 4.1 seconds and Full completed 31/34 in 71.8 seconds on 2026-07-10. The only failures remain the three intentionally stale visual hashes; Full now includes the 10-scenario acceptance-tick Lab matrix as a stress test.
 - Fluid-quality, lab, and legacy visual failures now retain structured JSON/image/log artifacts; successful visual captures are cleaned only after their hashes match. The 2026-07-10 forced mismatch check preserved both the BMP and result JSON with baseline/capture hashes and artifact paths. This issue remains open until accepted recovered baselines make Full green.
+- Registered the replay suite as a first-class visual CTest so Full cannot omit it. Quality benchmark failures now report actual average/maximum density errors and both limits.
+- Final 2026-07-10 timing: Fast 25/25 in 4.1 seconds, Standard 27/27 in 25.7 seconds, and clean Full 35/35 in 76.0 seconds. All tiers are inside their 30/90/480-second budgets; exact recovered visuals, replay, package, smoke, canonical Lab, long-run solver, and structured failure contracts are part of Full.
 
 ### PSIM-0099: Add CI, hygiene, and prerelease packaging
 
@@ -606,6 +611,8 @@ Implementation notes:
 - Enabled `/W4 /WX` for project targets and added non-rewriting clang-format, focused core clang-tidy, dependency direction, tracked secret, and absolute-path validation. `check-hygiene.ps1` passed on 2026-07-10.
 - Rebuilt Release packaging as `0.2.0-alpha.1` with only the recovery basin/tutorial content, SDL runtime, ImGui/SDL licenses, version/commit manifest, per-file and ZIP SHA-256, verification evidence, and sandbox/lab smoke from the package directory.
 - Verification on 2026-07-10: Release build and packaged sandbox/lab smoke passed in 83.6 seconds; archive SHA-256 was `46c5bfcaf2cc6da28bad48b88cf8cb73d8c5f655f931e1933e8ad7116de95fc6`. Final Full/CI evidence and remote protection remain open.
+- Replaced machine-specific vcpkg configuration with `VCPKG_ROOT` plus a Visual Studio local fallback after the first clean GitHub runner exposed the absolute toolchain path. Fixed the versioned pre-push hook to accept Git's remote-name/URL arguments and added that invocation to the hook contract test.
+- Hardened `verify-all.ps1` parameter/exit-code forwarding and made it the intended Full alias instead of redundantly rerunning every long suite. The final local bundle passed in 108.3 seconds and regenerated the package ZIP with SHA-256 `d1e0d9e1b2c139d54849eb3149e811b8853b68c24dcc01bc2aff0a7e85abdefa`.
 
 ## Epic 18: Selective Restoration
 
