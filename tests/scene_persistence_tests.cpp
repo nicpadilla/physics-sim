@@ -74,8 +74,11 @@ int main()
         metadata.author = "Nic";
         metadata.tags = {"demo", "water", "basin"};
         metadata.notes = {"Use this for regression captures.", "The thumbnail lives next to the scene file."};
+        metadata.challenge = physics_sim::SceneChallenge{"Hold the goal", 1, 120, 500.0, 10.0};
+        auto metadata_simulation = original;
+        metadata_simulation.add_sensor({1, 1, 2, 2, true, false, true, "Goal"});
 
-        REQUIRE(physics_sim::save_scene(metadata_path, original, metadata), "save_scene failed for metadata snapshot");
+        REQUIRE(physics_sim::save_scene(metadata_path, metadata_simulation, metadata), "save_scene failed for metadata snapshot");
 
         physics_sim::WaterSimulation2D metadata_restored;
         physics_sim::SceneMetadata loaded_metadata;
@@ -89,6 +92,9 @@ int main()
         REQUIRE(loaded_metadata.notes.size() == 2, "load_scene lost scene notes");
         REQUIRE(loaded_metadata.notes[0] == "Use this for regression captures.", "load_scene lost the first note");
         REQUIRE(loaded_metadata.notes[1] == "The thumbnail lives next to the scene file.", "load_scene lost the second note");
+        REQUIRE(loaded_metadata.challenge.has_value(), "load_scene lost challenge metadata");
+        REQUIRE(loaded_metadata.challenge->hold_ticks == 120, "load_scene lost challenge hold duration");
+        REQUIRE(loaded_metadata.challenge->maximum_emitted_mass == 500.0, "load_scene lost challenge emitted budget");
         REQUIRE(metadata_restored.grid().width() == 12, "load_scene lost grid width in metadata overload");
         REQUIRE(metadata_restored.emitters().size() == 2, "load_scene lost emitters in metadata overload");
         REQUIRE(metadata_restored.solver_settings().profile == physics_sim::FluidSolverProfile::Quality, "load_scene lost solver profile in metadata overload");
@@ -234,6 +240,12 @@ int main()
             "grid 8 8 1\n"
             "emitter directional 9 2 1 0 5 10 1\n");
         REQUIRE(!invalid_emitter.has_value(), "parse_scene_text accepted an out-of-bounds emitter");
+        const auto invalid_challenge = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 0 -1 -1 Invalid\n");
+        REQUIRE(!invalid_challenge.has_value(), "parse_scene_text accepted a zero-duration challenge");
+        const auto missing_objective = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 10 -1 -1 Missing target\n");
+        REQUIRE(!missing_objective.has_value(), "parse_scene_text accepted a challenge without objective sensors");
     }
 
     {

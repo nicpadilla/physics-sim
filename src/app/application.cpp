@@ -27,6 +27,7 @@
 
 #include <physics_sim/action.hpp>
 #include <physics_sim/audio_feedback.hpp>
+#include <physics_sim/challenge_objective.hpp>
 #include <physics_sim/debug_overlay.hpp>
 #include <physics_sim/feedback.hpp>
 #include <physics_sim/fixed_timestep.hpp>
@@ -651,6 +652,43 @@ void draw_tool_palette(
 [[nodiscard]] bool tool_palette_toggle_hit(int mouse_x, int mouse_y) noexcept
 {
     return mouse_x >= 12 && mouse_x < 200 && mouse_y >= 0 && mouse_y < 60;
+}
+
+void draw_challenge_overlay(
+    SDL_Renderer* renderer,
+    int window_width,
+    const std::optional<physics_sim::SceneChallenge>& challenge,
+    const physics_sim::ChallengeProgress& progress,
+    const physics_sim::UiPalette& palette)
+{
+    if (!challenge.has_value()) return;
+    constexpr int width = 350;
+    constexpr int height = 118;
+    const int x = std::max(12, window_width - width - 12);
+    const int y = 12;
+    SDL_Rect panel{x, y, width, height};
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 6, 10, 18, 225);
+    SDL_RenderFillRect(renderer, &panel);
+    const auto& border = progress.status == physics_sim::ChallengeStatus::Complete ? palette.success
+        : progress.status == physics_sim::ChallengeStatus::Failed ? palette.error : palette.objective;
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, 255);
+    SDL_RenderDrawRect(renderer, &panel);
+    physics_sim::draw_text(renderer, x + 10, y + 8, 2, "CHALLENGE: " + challenge->title);
+    const std::uint64_t held = std::min(progress.held_ticks, challenge->hold_ticks);
+    physics_sim::draw_text(renderer, x + 10, y + 34, 2,
+        "TARGETS " + std::to_string(challenge->required_objective_sensors) + "  HOLD "
+        + std::to_string(held) + "/" + std::to_string(challenge->hold_ticks));
+    std::string status = "RUNNING - F10 RESTART";
+    if (progress.status == physics_sim::ChallengeStatus::Complete) status = "COMPLETE - F10 REPLAY";
+    if (progress.status == physics_sim::ChallengeStatus::Failed) status = std::string{"FAILED: "} + progress.failure_reason;
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, 255);
+    physics_sim::draw_text(renderer, x + 10, y + 60, 2, status);
+    std::string budgets = "BUDGET ";
+    budgets += challenge->maximum_emitted_mass ? "EMIT " + std::to_string(static_cast<int>(*challenge->maximum_emitted_mass)) : "EMIT OPEN";
+    budgets += challenge->maximum_outflow_mass ? "  LOSS " + std::to_string(static_cast<int>(*challenge->maximum_outflow_mass)) : "  LOSS OPEN";
+    SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, 255);
+    physics_sim::draw_text(renderer, x + 10, y + 87, 1, budgets);
 }
 
 [[nodiscard]] std::string scene_label(const fs::path& path, const physics_sim::SceneMetadata& metadata)
@@ -2580,6 +2618,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
     physics_sim::SceneController controller{simulation};
     physics_sim::SceneViewport viewport;
     physics_sim::SceneMetadata sceneMetadata;
+    physics_sim::ChallengeEvaluator challengeEvaluator;
     const auto sync_solver_profile_from_simulation = [&]()
     {
         userSettings.solver_profile = simulation.solver_settings().profile;
@@ -2850,6 +2889,8 @@ int physics_sim::app::run_application(int argc, char* argv[])
         const auto metrics = simulation.metrics();
         previousActiveSensors = metrics.active_sensors;
         previousObjectiveCompleted = metrics.objective_completed;
+        challengeEvaluator.reset();
+        static_cast<void>(challengeEvaluator.update(sceneMetadata.challenge, metrics, simulation.simulation_tick()));
     };
 
     const auto update_scene_feedback_audio = [&]()
@@ -2859,7 +2900,25 @@ int physics_sim::app::run_application(int argc, char* argv[])
         {
             play_audio(physics_sim::AudioCue::DeviceTrigger);
         }
-        if (metrics.objective_completed && !previousObjectiveCompleted)
+        const auto previousChallengeStatus = challengeEvaluator.progress().status;
+        const auto& challengeProgress = challengeEvaluator.update(sceneMetadata.challenge, metrics, simulation.simulation_tick());
+        if (sceneMetadata.challenge.has_value() && challengeProgress.status == physics_sim::ChallengeStatus::Complete
+            && previousChallengeStatus != physics_sim::ChallengeStatus::Complete)
+        {
+            play_audio(physics_sim::AudioCue::ObjectiveComplete);
+            set_status_message("CHALLENGE COMPLETE", StatusMessageKind::Success);
+            logger.log("challenge complete: tick=" + std::to_string(simulation.simulation_tick())
+                + " state_digest=" + simulation.state_digest());
+        }
+        else if (sceneMetadata.challenge.has_value() && challengeProgress.status == physics_sim::ChallengeStatus::Failed
+            && previousChallengeStatus != physics_sim::ChallengeStatus::Failed)
+        {
+            play_audio(physics_sim::AudioCue::InvalidAction);
+            set_status_message(challengeProgress.failure_reason, StatusMessageKind::Error);
+            logger.log("challenge failed: tick=" + std::to_string(simulation.simulation_tick())
+                + " reason=" + challengeProgress.failure_reason);
+        }
+        else if (!sceneMetadata.challenge.has_value() && metrics.objective_completed && !previousObjectiveCompleted)
         {
             play_audio(physics_sim::AudioCue::ObjectiveComplete);
         }
@@ -3661,6 +3720,29 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     running = false;
                     return false;
                 }
+                continue;
+            }
+
+            if (event.command == "select")
+            {
+                const auto x = parse_float_token(event.arguments[0]);
+                const auto y = parse_float_token(event.arguments[1]);
+                if (!x.has_value() || !y.has_value()) { logger.log("fatal replay select failed to parse"); running = false; return false; }
+                const physics_sim::Vec2 point{*x, *y};
+                const float radius = simulation.grid().cell_size() * 0.65f;
+                bool selected = false;
+                switch (controller.tool())
+                {
+                case physics_sim::SceneTool::DirectionalEmitter:
+                case physics_sim::SceneTool::OmniEmitter: selected = controller.select_fixture_at(point, radius); break;
+                case physics_sim::SceneTool::Gate: selected = controller.select_gate_at(point, radius); break;
+                case physics_sim::SceneTool::Sensor: selected = controller.select_sensor_at(point); break;
+                case physics_sim::SceneTool::Drain: selected = controller.select_drain_at(point); break;
+                case physics_sim::SceneTool::Pump: selected = controller.select_pump_at(point); break;
+                case physics_sim::SceneTool::Valve: selected = controller.select_valve_at(point); break;
+                default: break;
+                }
+                if (!selected) { logger.log("fatal replay select missed device"); running = false; return false; }
                 continue;
             }
 
@@ -4781,6 +4863,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
             }
             draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen), palette);
             draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y), palette);
+            draw_challenge_overlay(renderer, windowWidth, sceneMetadata.challenge, challengeEvaluator.progress(), palette);
         }
         const double averageFps = realElapsed.count() > 0.0 ? static_cast<double>(frameCount) / realElapsed.count() : 0.0;
         if (options.debugOverlay && !cleanCaptureFrame && !sessionShellVisible)

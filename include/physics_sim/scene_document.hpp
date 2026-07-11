@@ -18,6 +18,15 @@
 
 namespace physics_sim
 {
+struct SceneChallenge
+{
+    std::string title{};
+    std::size_t required_objective_sensors = 1;
+    std::uint64_t hold_ticks = 1;
+    std::optional<double> maximum_emitted_mass{};
+    std::optional<double> maximum_outflow_mass{};
+};
+
 struct SceneMetadata
 {
     std::string title{};
@@ -25,6 +34,7 @@ struct SceneMetadata
     std::string author{};
     std::vector<std::string> tags{};
     std::vector<std::string> notes{};
+    std::optional<SceneChallenge> challenge{};
 };
 
 struct SceneEmitter
@@ -509,6 +519,28 @@ inline void apply_scene(
             continue;
         }
 
+        if (keyword == "challenge")
+        {
+            SceneChallenge challenge;
+            double maximum_emitted = -1.0;
+            double maximum_outflow = -1.0;
+            if (!(line_stream >> challenge.required_objective_sensors >> challenge.hold_ticks >> maximum_emitted >> maximum_outflow))
+            {
+                return std::nullopt;
+            }
+            challenge.title = read_value(line_stream);
+            if (challenge.required_objective_sensors == 0 || challenge.hold_ticks == 0 || challenge.title.empty()
+                || !std::isfinite(maximum_emitted) || !std::isfinite(maximum_outflow)
+                || maximum_emitted < -1.0 || maximum_outflow < -1.0)
+            {
+                return std::nullopt;
+            }
+            if (maximum_emitted >= 0.0) challenge.maximum_emitted_mass = maximum_emitted;
+            if (maximum_outflow >= 0.0) challenge.maximum_outflow_mass = maximum_outflow;
+            document.metadata.challenge = std::move(challenge);
+            continue;
+        }
+
         if (keyword == "drain")
         {
             SceneDrain drain;
@@ -596,6 +628,12 @@ inline void apply_scene(
             || emitter.position.x >= world_width || emitter.position.y >= world_height
             || emitter.speed < 0.0f || emitter.emission_rate < 0.0f) return std::nullopt;
     }
+    if (document.metadata.challenge.has_value())
+    {
+        const auto objective_count = static_cast<std::size_t>(std::count_if(
+            document.sensors.begin(), document.sensors.end(), [](const SceneSensor& sensor) { return sensor.objective && sensor.enabled; }));
+        if (objective_count < document.metadata.challenge->required_objective_sensors) return std::nullopt;
+    }
 
     return document;
 }
@@ -659,6 +697,13 @@ inline void apply_scene(
     for (const auto& note : document.metadata.notes)
     {
         file << "note " << note << "\n";
+    }
+    if (document.metadata.challenge.has_value())
+    {
+        const auto& challenge = *document.metadata.challenge;
+        file << "challenge " << challenge.required_objective_sensors << ' ' << challenge.hold_ticks << ' '
+             << challenge.maximum_emitted_mass.value_or(-1.0) << ' '
+             << challenge.maximum_outflow_mass.value_or(-1.0) << ' ' << challenge.title << "\n";
     }
     file << "grid " << document.grid_width << ' ' << document.grid_height << ' ' << document.cell_size << "\n";
     for (const auto& cell : document.solid_cells)

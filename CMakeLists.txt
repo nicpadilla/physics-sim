@@ -116,6 +116,15 @@ if(BUILD_TESTING)
         target_compile_definitions(physics_sim_water_visual_effects_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
     add_test(NAME physics_sim_water_visual_effects_tests COMMAND physics_sim_water_visual_effects_tests)
+    add_executable(physics_sim_challenge_objective_tests tests/challenge_objective_tests.cpp)
+    target_link_libraries(physics_sim_challenge_objective_tests PRIVATE physics_sim_content physics_sim_core SDL2::SDL2)
+    target_compile_features(physics_sim_challenge_objective_tests PRIVATE cxx_std_20)
+    target_compile_definitions(physics_sim_challenge_objective_tests PRIVATE PHYSICS_SIM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(MSVC)
+        target_compile_options(physics_sim_challenge_objective_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_challenge_objective_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_challenge_objective_tests COMMAND physics_sim_challenge_objective_tests)
     add_test(NAME physics_sim_dependency_check
         COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check-dependencies.ps1
     )
@@ -602,12 +611,16 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_package
         COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package-release.ps1 -SkipBuild
     )
+    add_test(NAME physics_sim_challenges
+        COMMAND ${PHYSICS_SIM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-challenges.ps1 -Configuration Debug -SkipBuild
+    )
 
     set_tests_properties(
         physics_sim_simulation_api_tests
         physics_sim_water_feel_metrics_tests
         physics_sim_surface_reconstruction_tests
         physics_sim_water_visual_effects_tests
+        physics_sim_challenge_objective_tests
         physics_sim_dependency_check
         physics_sim_tests
         physics_sim_wall_tests
@@ -643,6 +656,7 @@ if(BUILD_TESTING)
     set_tests_properties(physics_sim_solver_benchmark physics_sim_device_overhead_benchmark PROPERTIES LABELS "benchmark")
     set_tests_properties(physics_sim_smoke physics_sim_lab_smoke PROPERTIES LABELS "smoke")
     set_tests_properties(physics_sim_lab_canonical PROPERTIES LABELS "integration;stress")
+    set_tests_properties(physics_sim_challenges PROPERTIES LABELS "integration;stress")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")
     set_tests_properties(
         physics_sim_recovery_basin_regression

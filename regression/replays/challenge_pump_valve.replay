@@ -1,0 +1,8 @@
+physics-sim-replay 2
+scene-digest B16BE5F9C68BE78E
+fixed-timestep 0.008333333333333333
+solver-profile balanced
+tick 0 tool valve
+tick 1 select 492 420
+tick 2 toggle-selected
+tick 632 clear-emitters

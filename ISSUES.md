@@ -27,7 +27,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0107 | Done | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
 | PSIM-0108 | Done | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
 | PSIM-0109 | Done | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
-| PSIM-0110 | Open | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
+| PSIM-0110 | Done | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Open | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
 | PSIM-0112 | Open | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
 | PSIM-0113 | Open | P0 | Complete Water Sandbox | R21.07, R21.08 | Accept and publish the complete prerelease |
@@ -1161,7 +1161,7 @@ Implementation notes:
 
 ### PSIM-0110: Restore challenge objectives
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -1205,7 +1205,12 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added scene-v2 challenge metadata for title, required objective-sensor count, deterministic hold ticks, and optional emitted/outflow mass budgets. Validation rejects empty/zero criteria, non-finite budgets, and challenge documents without enough enabled objective sensors; runtime completion remains outside saves.
+- Added `ChallengeEvaluator`, driven only by tick-indexed sensor metrics and mass ledgers, with deterministic Running/Complete/Failed states, reset behavior, exact completion tick, and no solver mutation. Sandbox displays a custom SDL criteria/progress/budget panel with restart, completion, and failure feedback.
+- Added replay-v2 device selection plus three authored challenges and success replays: Fill Goal, Open Gate, and Power Crossing. `scripts/verify-challenges.ps1` runs each twice and enforces completion tick/state digest equality: `273/D18349166749EEDB`, `553/7EE30B971D89ADCD`, and `679/E826B7B93FAAD25E`.
+- Packaged all three challenge scenes and replays. A clean packaged Open Gate run completed at tick 553 with digest `7EE30B971D89ADCD`.
+- Named review `Codex challenge usability review for PSIM-0110` accepted the visible criteria, hold progress, budgets, completion/restart message, target highlighting, contained water presentation, and device context on 2026-07-11. Evidence: `build/windows-x64/challenge-review/fill-run1.bmp`, `gate-run1.bmp`, `pump-valve-run1.bmp`, and `summary.json`.
+- Verification on 2026-07-11: build passed; Fast passed 28/28 in 4.083 seconds; Standard passed 30/30 in 29.293 seconds; Release challenge verifier passed all three twice in 6.1 seconds; package creation and packaged challenge playback passed.
 
 ### PSIM-0111: Ship the curated scene gallery
 

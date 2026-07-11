@@ -260,7 +260,7 @@ struct ReplayScript
                     return std::nullopt;
                 }
             }
-            else if (command == "place")
+            else if (command == "place" || command == "select")
             {
                 if (arguments.size() != 2)
                 {

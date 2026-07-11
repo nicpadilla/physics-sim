@@ -8,6 +8,7 @@ tag challenge
 tag basin
 note Keep playing creative scenes in the gallery for sandbox mode.
 note The sensor marks the objective target.
+challenge 1 120 1000000 500000 Fill Goal
 grid 80 45 16
 wall 20 24
 wall 60 24
