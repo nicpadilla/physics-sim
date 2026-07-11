@@ -15,7 +15,7 @@ $testExe = Join-Path $releaseDir 'physics_sim_audio_feedback_tests.exe'
 $rawPath = Join-Path $evidenceDir 'all-layers.f32'
 $wavPath = Join-Path $evidenceDir 'all-layers.wav'
 $testOutput = Join-Path $evidenceDir 'audio-test.txt'
-& $testExe --dump-raw-f32 $rawPath | Tee-Object -FilePath $testOutput
+& $testExe --enforce-cpu-budget --dump-raw-f32 $rawPath | Tee-Object -FilePath $testOutput
 if ($LASTEXITCODE -ne 0) { throw "Audio test failed with exit $LASTEXITCODE." }
 
 $raw = [System.IO.File]::ReadAllBytes($rawPath)
