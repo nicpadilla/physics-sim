@@ -287,7 +287,7 @@ for ($i = 0; $i -lt $issueHeadingMatches.Count; ++$i)
 
 $summaryMatches = [regex]::Matches(
     $issuesText,
-    '(?m)^\|\s+(PSIM-\d{4})\s+\|\s+(Open|In Progress|Blocked|Done|Deferred)\s+\|\s+(P[0-2])\s+\|\s+([^|]+?)\s+\|\s+([^|]+?)\s+\|\s+(.+?)\s+\|$'
+    '(?m)^\|\s+(PSIM-\d{4})\s+\|\s+(Open|In Progress|Blocked|Done|Deferred)\s+\|\s+(P[0-2])\s+\|\s+([^|]+?)\s+\|\s+([^|]+?)\s+\|\s+(.+?)\s+\|\r?$'
 )
 if ($summaryMatches.Count -eq 0)
 {
