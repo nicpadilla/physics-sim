@@ -550,6 +550,9 @@ if(BUILD_TESTING)
     add_test(NAME physics_sim_recovery_basin_regression_surface
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-recovery-basin-surface.ps1
     )
+    add_test(NAME physics_sim_replay_regression
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-replay-suite.ps1
+    )
     add_test(NAME physics_sim_smoke
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-smoke.ps1 -SkipBuild
     )
@@ -606,6 +609,7 @@ if(BUILD_TESTING)
         physics_sim_recovery_basin_regression
         physics_sim_recovery_basin_regression_density
         physics_sim_recovery_basin_regression_surface
+        physics_sim_replay_regression
         PROPERTIES LABELS "visual"
     )
 endif()
