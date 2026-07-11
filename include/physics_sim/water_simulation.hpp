@@ -9,10 +9,13 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <iomanip>
+#include <sstream>
 #include <span>
 #include <string>
 #include <utility>
@@ -320,6 +323,43 @@ public:
     [[nodiscard]] std::uint64_t simulation_tick() const noexcept
     {
         return simulation_tick_;
+    }
+
+    [[nodiscard]] std::string state_digest() const
+    {
+        std::uint64_t hash = 14695981039346656037ULL;
+        const auto mix = [&hash](std::uint64_t value)
+        {
+            for (int byte = 0; byte < 8; ++byte)
+            {
+                hash ^= static_cast<std::uint8_t>((value >> (byte * 8)) & 0xffU);
+                hash *= 1099511628211ULL;
+            }
+        };
+        const auto mix_float = [&mix](float value) { mix(std::bit_cast<std::uint32_t>(value)); };
+        mix(simulation_tick_); mix(grid_.width()); mix(grid_.height()); mix_float(grid_.cell_size());
+        for (const auto& particle : particles_)
+        {
+            mix_float(particle.position.x); mix_float(particle.position.y);
+            mix_float(particle.velocity.x); mix_float(particle.velocity.y);
+            mix_float(particle.mass); mix_float(particle.volume); mix_float(particle.density); mix(particle.neighbor_count);
+        }
+        for (const float fraction : cell_volume_fractions_) mix_float(fraction);
+        for (std::size_t y = 0; y < grid_.height(); ++y)
+            for (std::size_t x = 0; x < grid_.width(); ++x) mix(grid_.solid(x, y) ? 1U : 0U);
+        for (const auto& emitter : emitters_)
+        {
+            mix(static_cast<std::uint64_t>(emitter.kind)); mix_float(emitter.position.x); mix_float(emitter.position.y);
+            mix_float(emitter.direction.x); mix_float(emitter.direction.y); mix_float(emitter.speed); mix_float(emitter.emission_rate); mix(emitter.enabled);
+        }
+        for (const auto& gate : gates_) { mix(gate.x); mix(gate.y); mix(gate.open); }
+        for (const auto& sensor : sensors_) { mix(sensor.x); mix(sensor.y); mix(sensor.width); mix(sensor.height); mix(sensor.enabled); mix(sensor.active); mix(sensor.objective); }
+        for (const auto& drain : drains_) { mix(drain.x); mix(drain.y); mix(drain.width); mix(drain.height); mix(drain.enabled); }
+        for (const auto& pump : pumps_) { mix(pump.x); mix(pump.y); mix(pump.width); mix(pump.height); mix(pump.enabled); mix_float(pump.direction.x); mix_float(pump.direction.y); mix_float(pump.strength); }
+        for (const auto& valve : valves_) { mix(valve.x); mix(valve.y); mix(valve.open); }
+        std::ostringstream stream;
+        stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
+        return stream.str();
     }
 
     [[nodiscard]] static FluidSolverSettings solver_settings_for_profile(FluidSolverProfile profile) noexcept

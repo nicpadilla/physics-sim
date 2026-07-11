@@ -551,6 +551,17 @@ if(BUILD_TESTING)
         tests/water_solver_benchmark.cpp
     )
 
+    add_executable(physics_sim_device_overhead_benchmark
+        tests/device_overhead_benchmark.cpp
+    )
+    target_link_libraries(physics_sim_device_overhead_benchmark PRIVATE physics_sim_core)
+    target_compile_features(physics_sim_device_overhead_benchmark PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(physics_sim_device_overhead_benchmark PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_device_overhead_benchmark PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_device_overhead_benchmark COMMAND physics_sim_device_overhead_benchmark)
+
     target_link_libraries(physics_sim_solver_benchmark
         PRIVATE
             physics_sim_core
@@ -629,7 +640,7 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "solver"
     )
     set_tests_properties(physics_sim_fluid_quality_full PROPERTIES LABELS "solver;stress")
-    set_tests_properties(physics_sim_solver_benchmark PROPERTIES LABELS "benchmark")
+    set_tests_properties(physics_sim_solver_benchmark physics_sim_device_overhead_benchmark PROPERTIES LABELS "benchmark")
     set_tests_properties(physics_sim_smoke physics_sim_lab_smoke PROPERTIES LABELS "smoke")
     set_tests_properties(physics_sim_lab_canonical PROPERTIES LABELS "integration;stress")
     set_tests_properties(physics_sim_package PROPERTIES LABELS "release")

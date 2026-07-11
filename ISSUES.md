@@ -26,7 +26,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0106 | Done | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
 | PSIM-0107 | Done | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
 | PSIM-0108 | Done | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
-| PSIM-0109 | Open | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
+| PSIM-0109 | Done | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
 | PSIM-0110 | Open | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Open | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
 | PSIM-0112 | Open | P1 | Complete Water Sandbox | R21.06 | Polish water and device audio |
@@ -1108,7 +1108,7 @@ Implementation notes:
 
 ### PSIM-0109: Restore advanced water tools and devices
 
-Status: Open
+Status: Done
 
 Priority: P0
 
@@ -1152,7 +1152,12 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Restored tools 3-9 through a compact-by-default custom SDL palette that expands by `A` or pointer activation, supports direct number shortcuts and full Tab cycling, and keeps sandbox free of ImGui. Added help text and visible selection/state/direction treatment for every device family.
+- Completed missing drain/pump selection, toggling, deletion, pump rotation/strength editing, undo/redo, and autosave behavior through `SceneController`. Replay v2 `place` now dispatches all device tools and supports deterministic `toggle-selected` and `delete-selected` commands.
+- Added exact device-inclusive `WaterSimulation2D::state_digest()`, repeated-run digest/metric tests, strict finite/bounds validation for all scene-v2 devices and emitters, and exact save/load coverage. Malformed or out-of-domain records now fail before application.
+- Added `physics_sim_device_overhead_benchmark` and `scripts/measure-device-overhead.ps1`; Release median cost was 3.368246 ms without devices and 3.375441 ms with all device bookkeeping, a 0.214% overhead against the 10% limit.
+- Named usability review `Codex device usability review for PSIM-0109` passed on 2026-07-11 using the current packaged build. The compact and expanded palettes, pointer activation, pump placement, selection outline, and direction feedback were inspected live; the fixed capture is `build/windows-x64/device-ui-review/advanced-tools.bmp`.
+- Verification on 2026-07-11: build passed; Fast passed 27/27 in 4.118 seconds; Standard passed 29/29 in 30.736 seconds; the 40-case fluid-quality suite passed in 369.4 seconds including drain-basin, pumped-loop, and valve-basin; recovery-basin regression passed; package smoke passed; the device overhead benchmark passed at 0.214%.
 
 ### PSIM-0110: Restore challenge objectives
 

@@ -274,6 +274,13 @@ struct ReplayScript
                     return std::nullopt;
                 }
             }
+            else if (command == "toggle-selected" || command == "delete-selected")
+            {
+                if (!arguments.empty())
+                {
+                    return std::nullopt;
+                }
+            }
             else
             {
                 return std::nullopt;

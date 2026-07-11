@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -566,6 +567,34 @@ inline void apply_scene(
     if (!saw_header || !saw_grid || file_version != SceneFormatVersion || !document.solver_profile.has_value())
     {
         return std::nullopt;
+    }
+
+    const auto region_valid = [&](std::size_t x, std::size_t y, std::size_t width, std::size_t height)
+    {
+        return x < document.grid_width && y < document.grid_height
+            && width > 0 && height > 0
+            && width <= document.grid_width - x && height <= document.grid_height - y;
+    };
+    for (const auto& cell : document.solid_cells) if (!region_valid(cell.x, cell.y, 1, 1)) return std::nullopt;
+    for (const auto& gate : document.gates) if (!region_valid(gate.x, gate.y, 1, 1)) return std::nullopt;
+    for (const auto& sensor : document.sensors) if (!region_valid(sensor.x, sensor.y, sensor.width, sensor.height)) return std::nullopt;
+    for (const auto& drain : document.drains) if (!region_valid(drain.x, drain.y, drain.width, drain.height)) return std::nullopt;
+    for (const auto& pump : document.pumps)
+    {
+        if (!region_valid(pump.x, pump.y, pump.width, pump.height) || !std::isfinite(pump.strength)
+            || !std::isfinite(pump.direction.x) || !std::isfinite(pump.direction.y)) return std::nullopt;
+    }
+    for (const auto& valve : document.valves) if (!region_valid(valve.x, valve.y, 1, 1)) return std::nullopt;
+    const float world_width = static_cast<float>(document.grid_width) * document.cell_size;
+    const float world_height = static_cast<float>(document.grid_height) * document.cell_size;
+    for (const auto& emitter : document.emitters)
+    {
+        if (!std::isfinite(emitter.position.x) || !std::isfinite(emitter.position.y)
+            || !std::isfinite(emitter.direction.x) || !std::isfinite(emitter.direction.y)
+            || !std::isfinite(emitter.speed) || !std::isfinite(emitter.emission_rate)
+            || emitter.position.x < 0.0f || emitter.position.y < 0.0f
+            || emitter.position.x >= world_width || emitter.position.y >= world_height
+            || emitter.speed < 0.0f || emitter.emission_rate < 0.0f) return std::nullopt;
     }
 
     return document;

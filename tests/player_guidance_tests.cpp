@@ -70,7 +70,8 @@ int main()
     REQUIRE(contains_line(help_lines, "[/] cycle sandbox tools"), "help overlay did not use the active tool-cycle bindings");
     REQUIRE(contains_line(help_lines, "Pointer water: hold LMB to pour"), "help overlay did not describe pointer-water hold behavior");
     REQUIRE(contains_line(help_lines, "U undo, R redo"), "help overlay did not use the active undo/redo bindings");
-    REQUIRE(!contains_line(help_lines, "Gate tool places a door"), "help overlay exposed a deferred device");
+    REQUIRE(contains_line(help_lines, "A opens Advanced Tools; 3-9 select devices"), "help overlay did not expose the advanced palette");
+    REQUIRE(contains_line(help_lines, "3 hose, 4 omni, 5 gate, 6 sensor"), "help overlay omitted advanced device shortcuts");
 
     physics_sim::TutorialProgress progress;
     const auto tutorial_lines = physics_sim::build_tutorial_overlay_lines(progress, bindings);

@@ -100,9 +100,9 @@ int main()
         const fs::path device_path = fs::temp_directory_path() / "physics-sim-scene-devices.pscene";
         physics_sim::SceneDocument device_document = physics_sim::capture_scene(original);
         device_document.gates.push_back({4, 5, true});
-        device_document.sensors.push_back({6, 7, 3, 3, true, true, true, "Goal"});
+        device_document.sensors.push_back({6, 5, 3, 3, true, true, true, "Goal"});
         device_document.drains.push_back({7, 4, 3, 3, true});
-        device_document.pumps.push_back({2, 8, 3, 3, true, physics_sim::Vec2{1.0f, 0.0f}, 11.0f});
+        device_document.pumps.push_back({2, 5, 3, 3, true, physics_sim::Vec2{1.0f, 0.0f}, 11.0f});
         device_document.valves.push_back({9, 5, false});
 
         REQUIRE(physics_sim::save_scene(device_path, device_document), "save_scene failed for device snapshot");
@@ -219,6 +219,21 @@ int main()
             "physics-sim-scene not-a-number\n"
             "grid 2 2 1\n");
         REQUIRE(!malformed.has_value(), "parse_scene_text accepted malformed version token");
+    }
+
+    {
+        const auto out_of_bounds_device = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\n"
+            "solver-profile balanced\n"
+            "grid 8 8 1\n"
+            "pump 7 7 3 3 1 1 0 8\n");
+        REQUIRE(!out_of_bounds_device.has_value(), "parse_scene_text accepted an out-of-bounds device region");
+        const auto invalid_emitter = physics_sim::parse_scene_text(
+            "physics-sim-scene 2\n"
+            "solver-profile balanced\n"
+            "grid 8 8 1\n"
+            "emitter directional 9 2 1 0 5 10 1\n");
+        REQUIRE(!invalid_emitter.has_value(), "parse_scene_text accepted an out-of-bounds emitter");
     }
 
     {

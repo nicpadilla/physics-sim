@@ -159,6 +159,23 @@ public:
         return selected_valve_index_.has_value();
     }
 
+    [[nodiscard]] bool has_selected_drain() const noexcept { return selected_drain_index_.has_value(); }
+    [[nodiscard]] bool has_selected_pump() const noexcept { return selected_pump_index_.has_value(); }
+    [[nodiscard]] std::optional<std::size_t> selected_drain_index() const noexcept { return selected_drain_index_; }
+    [[nodiscard]] std::optional<std::size_t> selected_pump_index() const noexcept { return selected_pump_index_; }
+
+    [[nodiscard]] WaterDrain* selected_drain() noexcept
+    {
+        return simulation_ != nullptr && selected_drain_index_ && *selected_drain_index_ < simulation_->drains().size()
+            ? &simulation_->drains()[*selected_drain_index_] : nullptr;
+    }
+
+    [[nodiscard]] WaterPump* selected_pump() noexcept
+    {
+        return simulation_ != nullptr && selected_pump_index_ && *selected_pump_index_ < simulation_->pumps().size()
+            ? &simulation_->pumps()[*selected_pump_index_] : nullptr;
+    }
+
     [[nodiscard]] std::optional<std::size_t> selected_gate_index() const noexcept
     {
         return selected_gate_index_;
@@ -304,6 +321,38 @@ public:
         selected_gate_index_.reset();
         selected_sensor_index_.reset();
         selected_valve_index_.reset();
+        selected_drain_index_.reset();
+        selected_pump_index_.reset();
+    }
+
+    [[nodiscard]] bool select_drain_at(Vec2 world_position) noexcept
+    {
+        selected_drain_index_.reset();
+        if (simulation_ == nullptr) return false;
+        const float cell = simulation_->grid().cell_size();
+        for (std::size_t i = 0; i < simulation_->drains().size(); ++i)
+        {
+            const auto& item = simulation_->drains()[i];
+            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell
+                && world_position.y >= item.y * cell && world_position.y < (item.y + item.height) * cell)
+            { clear_selection(); selected_drain_index_ = i; return true; }
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool select_pump_at(Vec2 world_position) noexcept
+    {
+        selected_pump_index_.reset();
+        if (simulation_ == nullptr) return false;
+        const float cell = simulation_->grid().cell_size();
+        for (std::size_t i = 0; i < simulation_->pumps().size(); ++i)
+        {
+            const auto& item = simulation_->pumps()[i];
+            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell
+                && world_position.y >= item.y * cell && world_position.y < (item.y + item.height) * cell)
+            { clear_selection(); selected_pump_index_ = i; return true; }
+        }
+        return false;
     }
 
     [[nodiscard]] bool select_gate_at(Vec2 world_position, float hit_radius) noexcept
@@ -890,10 +939,8 @@ public:
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
         simulation_->add_drain(WaterDrain{cell_x, cell_y, 3, 3, true});
-        selected_emitter_index_.reset();
-        selected_gate_index_.reset();
-        selected_sensor_index_.reset();
-        selected_valve_index_.reset();
+        clear_selection();
+        selected_drain_index_ = simulation_->drains().size() - 1;
         record_history_snapshot();
         return true;
     }
@@ -910,10 +957,8 @@ public:
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
         simulation_->add_pump(WaterPump{cell_x, cell_y, 3, 3, true, emitter_direction_, 12.0f});
-        selected_emitter_index_.reset();
-        selected_gate_index_.reset();
-        selected_sensor_index_.reset();
-        selected_valve_index_.reset();
+        clear_selection();
+        selected_pump_index_ = simulation_->pumps().size() - 1;
         record_history_snapshot();
         return true;
     }
@@ -1018,6 +1063,63 @@ public:
         selected_valve_index_.reset();
         record_history_snapshot();
         return true;
+    }
+
+    [[nodiscard]] bool delete_selected_drain() noexcept
+    {
+        if (simulation_ == nullptr || !selected_drain_index_ || *selected_drain_index_ >= simulation_->drains().size()) return false;
+        simulation_->drains().erase(simulation_->drains().begin() + static_cast<std::ptrdiff_t>(*selected_drain_index_));
+        selected_drain_index_.reset();
+        record_history_snapshot();
+        return true;
+    }
+
+    [[nodiscard]] bool delete_selected_pump() noexcept
+    {
+        if (simulation_ == nullptr || !selected_pump_index_ || *selected_pump_index_ >= simulation_->pumps().size()) return false;
+        simulation_->pumps().erase(simulation_->pumps().begin() + static_cast<std::ptrdiff_t>(*selected_pump_index_));
+        selected_pump_index_.reset();
+        record_history_snapshot();
+        return true;
+    }
+
+    [[nodiscard]] bool toggle_selected_drain_enabled() noexcept
+    {
+        auto* item = selected_drain(); if (item == nullptr) return false;
+        item->enabled = !item->enabled; record_history_snapshot(); return true;
+    }
+
+    [[nodiscard]] bool toggle_selected_pump_enabled() noexcept
+    {
+        auto* item = selected_pump(); if (item == nullptr) return false;
+        item->enabled = !item->enabled; record_history_snapshot(); return true;
+    }
+
+    [[nodiscard]] bool rotate_selected_pump(float radians) noexcept
+    {
+        auto* item = selected_pump(); if (item == nullptr) return false;
+        const float c = std::cos(radians), s = std::sin(radians);
+        item->direction = normalize(Vec2{item->direction.x * c - item->direction.y * s, item->direction.x * s + item->direction.y * c});
+        record_history_snapshot(); return true;
+    }
+
+    [[nodiscard]] bool set_selected_pump_direction(Vec2 direction) noexcept
+    {
+        auto* item = selected_pump(); if (item == nullptr) return false;
+        item->direction = length(direction) > 0.0f ? normalize(direction) : Vec2{0.0f, 1.0f};
+        record_history_snapshot(); return true;
+    }
+
+    [[nodiscard]] bool set_selected_pump_strength(float strength) noexcept
+    {
+        auto* item = selected_pump(); if (item == nullptr) return false;
+        item->strength = std::max(0.0f, strength); record_history_snapshot(); return true;
+    }
+
+    [[nodiscard]] bool adjust_selected_pump_strength(float delta) noexcept
+    {
+        auto* item = selected_pump(); if (item == nullptr) return false;
+        item->strength = std::max(0.0f, item->strength + delta); record_history_snapshot(); return true;
     }
 
     [[nodiscard]] bool toggle_selected_gate_open() noexcept
@@ -1309,6 +1411,8 @@ private:
     std::optional<std::size_t> selected_gate_index_{};
     std::optional<std::size_t> selected_sensor_index_{};
     std::optional<std::size_t> selected_valve_index_{};
+    std::optional<std::size_t> selected_drain_index_{};
+    std::optional<std::size_t> selected_pump_index_{};
     std::vector<SceneDocument> history_{};
     std::size_t history_index_ = 0;
 };

@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <limits>
 #include <optional>
+#include <span>
 #include <system_error>
 #include <sstream>
 #include <string>
@@ -102,6 +103,7 @@ struct RuntimeOptions
     bool debugOverlay = false;
     bool tutorialMode = false;
     bool skipSessionShell = false;
+    bool advancedTools = false;
 };
 
 class AppLogger
@@ -477,6 +479,10 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         {
             options.initialHelpOverlayVisible = true;
         }
+        else if (arg == "--advanced-tools")
+        {
+            options.advancedTools = true;
+        }
         else if (arg == "--reduced-motion")
         {
             options.initialReducedMotion = true;
@@ -568,16 +574,83 @@ const char* tool_name(physics_sim::SceneTool tool) noexcept
     return "unknown";
 }
 
-physics_sim::SceneTool next_sandbox_tool(physics_sim::SceneTool current, int direction) noexcept
+physics_sim::SceneTool next_sandbox_tool(physics_sim::SceneTool current, int direction, bool advanced) noexcept
 {
-    constexpr std::array tools{
+    constexpr std::array compact_tools{
         physics_sim::SceneTool::PointerWater,
         physics_sim::SceneTool::PaintWall,
         physics_sim::SceneTool::EraseWall};
+    constexpr std::array all_tools{
+        physics_sim::SceneTool::PointerWater, physics_sim::SceneTool::PaintWall, physics_sim::SceneTool::EraseWall,
+        physics_sim::SceneTool::DirectionalEmitter, physics_sim::SceneTool::OmniEmitter, physics_sim::SceneTool::Gate,
+        physics_sim::SceneTool::Sensor, physics_sim::SceneTool::Drain, physics_sim::SceneTool::Pump, physics_sim::SceneTool::Valve};
+    const std::span<const physics_sim::SceneTool> tools = advanced
+        ? std::span<const physics_sim::SceneTool>{all_tools}
+        : std::span<const physics_sim::SceneTool>{compact_tools};
     auto iterator = std::find(tools.begin(), tools.end(), current);
     const int current_index = iterator == tools.end() ? 0 : static_cast<int>(std::distance(tools.begin(), iterator));
     const int step = direction < 0 ? -1 : 1;
     return tools[static_cast<std::size_t>((current_index + step + static_cast<int>(tools.size())) % static_cast<int>(tools.size()))];
+}
+
+void draw_tool_palette(
+    SDL_Renderer* renderer,
+    const physics_sim::SceneController& controller,
+    bool advanced,
+    const physics_sim::UiPalette& palette)
+{
+    constexpr int x = 12;
+    constexpr int y = 12;
+    constexpr int width = 188;
+    constexpr int row_height = 24;
+    constexpr int header_height = 48;
+    const int tool_count = advanced ? 10 : 3;
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_Rect background{x, y, width, header_height + (tool_count + 1) * row_height + 8};
+    SDL_SetRenderDrawColor(renderer, 6, 10, 18, 220);
+    SDL_RenderFillRect(renderer, &background);
+    SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, 255);
+    SDL_RenderDrawRect(renderer, &background);
+    physics_sim::draw_text(renderer, x + 8, y + 7, 2, advanced ? "TOOLS - A COMPACT" : "TOOLS - A ADVANCED");
+    for (int index = 0; index < tool_count; ++index)
+    {
+        const auto tool = static_cast<physics_sim::SceneTool>(index);
+        SDL_Rect row{x + 5, y + header_height + index * row_height, width - 10, row_height - 2};
+        if (controller.tool() == tool)
+        {
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, 105);
+            SDL_RenderFillRect(renderer, &row);
+        }
+        SDL_SetRenderDrawColor(renderer, palette.text.r, palette.text.g, palette.text.b, 255);
+        physics_sim::draw_text(renderer, row.x + 5, row.y + 4, 2, std::to_string(index) + " " + tool_name(tool));
+    }
+    SDL_SetRenderDrawColor(renderer, palette.muted_text.r, palette.muted_text.g, palette.muted_text.b, 255);
+    physics_sim::draw_text(renderer, x + 8, y + header_height + tool_count * row_height + 4, 1, "TAB CYCLE  T TOGGLE  DEL REMOVE");
+}
+
+[[nodiscard]] std::optional<physics_sim::SceneTool> tool_palette_hit(int mouse_x, int mouse_y, bool advanced) noexcept
+{
+    constexpr int x = 12;
+    constexpr int y = 12;
+    constexpr int width = 188;
+    constexpr int row_height = 24;
+    constexpr int header_height = 48;
+    const int tool_count = advanced ? 10 : 3;
+    if (mouse_x < x + 5 || mouse_x >= x + width - 5)
+    {
+        return std::nullopt;
+    }
+    const int index = (mouse_y - (y + header_height)) / row_height;
+    if (mouse_y < y + header_height || index < 0 || index >= tool_count)
+    {
+        return std::nullopt;
+    }
+    return static_cast<physics_sim::SceneTool>(index);
+}
+
+[[nodiscard]] bool tool_palette_toggle_hit(int mouse_x, int mouse_y) noexcept
+{
+    return mouse_x >= 12 && mouse_x < 200 && mouse_y >= 0 && mouse_y < 60;
 }
 
 [[nodiscard]] std::string scene_label(const fs::path& path, const physics_sim::SceneMetadata& metadata)
@@ -998,12 +1071,14 @@ void draw_drains(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::SceneController& controller,
     const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
 
-    for (const auto& drain : simulation.drains())
+    for (std::size_t index = 0; index < simulation.drains().size(); ++index)
     {
+        const auto& drain = simulation.drains()[index];
         const SDL_FRect rect = world_rect(
             viewport,
             {static_cast<float>(drain.x) * cell_size, static_cast<float>(drain.y) * cell_size},
@@ -1023,6 +1098,11 @@ void draw_drains(
         SDL_RenderDrawRectF(renderer, &rect);
         SDL_RenderDrawLineF(renderer, rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
         SDL_RenderDrawLineF(renderer, rect.x + rect.w, rect.y, rect.x, rect.y + rect.h);
+        if (controller.selected_drain_index() == index)
+        {
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, 255);
+            SDL_RenderDrawRectF(renderer, &rect);
+        }
     }
 }
 
@@ -1030,12 +1110,14 @@ void draw_pumps(
     SDL_Renderer* renderer,
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
+    const physics_sim::SceneController& controller,
     const physics_sim::UiPalette& palette)
 {
     const float cell_size = simulation.grid().cell_size();
 
-    for (const auto& pump : simulation.pumps())
+    for (std::size_t index = 0; index < simulation.pumps().size(); ++index)
     {
+        const auto& pump = simulation.pumps()[index];
         const SDL_FRect rect = world_rect(
             viewport,
             {static_cast<float>(pump.x) * cell_size, static_cast<float>(pump.y) * cell_size},
@@ -1062,6 +1144,11 @@ void draw_pumps(
         const physics_sim::Vec2 arrow_start = viewport.world_to_window(center_world);
         const physics_sim::Vec2 arrow_end = viewport.world_to_window(arrow_end_world);
         SDL_RenderDrawLineF(renderer, arrow_start.x, arrow_start.y, arrow_end.x, arrow_end.y);
+        if (controller.selected_pump_index() == index)
+        {
+            SDL_SetRenderDrawColor(renderer, palette.selection.r, palette.selection.g, palette.selection.b, 255);
+            SDL_RenderDrawRectF(renderer, &rect);
+        }
     }
 }
 
@@ -2106,7 +2193,11 @@ void handle_fixture_edit_key(
 
     if (rotate_counterclockwise)
     {
-        if (has_selection)
+        if (controller.has_selected_pump())
+        {
+            static_cast<void>(controller.rotate_selected_pump(-0.2617994f));
+        }
+        else if (has_selection)
         {
             static_cast<void>(controller.rotate_selected_fixture(-0.2617994f));
         }
@@ -2120,7 +2211,11 @@ void handle_fixture_edit_key(
 
     if (rotate_clockwise)
     {
-        if (has_selection)
+        if (controller.has_selected_pump())
+        {
+            static_cast<void>(controller.rotate_selected_pump(0.2617994f));
+        }
+        else if (has_selection)
         {
             static_cast<void>(controller.rotate_selected_fixture(0.2617994f));
         }
@@ -2134,7 +2229,11 @@ void handle_fixture_edit_key(
 
     if (speed_down)
     {
-        if (has_selection)
+        if (controller.has_selected_pump())
+        {
+            static_cast<void>(controller.adjust_selected_pump_strength(-1.0f));
+        }
+        else if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_speed(-1.0f));
         }
@@ -2148,7 +2247,11 @@ void handle_fixture_edit_key(
 
     if (speed_up)
     {
-        if (has_selection)
+        if (controller.has_selected_pump())
+        {
+            static_cast<void>(controller.adjust_selected_pump_strength(1.0f));
+        }
+        else if (has_selection)
         {
             static_cast<void>(controller.adjust_selected_fixture_speed(1.0f));
         }
@@ -2201,6 +2304,14 @@ void handle_fixture_edit_key(
         else if (controller.has_selected_sensor())
         {
             static_cast<void>(controller.toggle_selected_sensor_enabled());
+        }
+        else if (controller.has_selected_drain())
+        {
+            static_cast<void>(controller.toggle_selected_drain_enabled());
+        }
+        else if (controller.has_selected_pump())
+        {
+            static_cast<void>(controller.toggle_selected_pump_enabled());
         }
         else if (has_selection)
         {
@@ -2604,6 +2715,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
     bool frameDumped = false;
     VisualMode visualMode = userSettings.visual_mode;
     bool showHelp = userSettings.help_overlay_visible;
+    bool advancedToolsVisible = options.advancedTools;
     const bool cleanCaptureFrame = captureByTickCount;
     physics_sim::SessionShellState sessionShellState;
     if (tutorialActive || sessionShellBypassed)
@@ -3459,7 +3571,11 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     return false;
                 }
 
-                if (controller.has_selected_fixture())
+                if (controller.has_selected_pump())
+                {
+                    static_cast<void>(controller.set_selected_pump_direction({*x, *y}));
+                }
+                else if (controller.has_selected_fixture())
                 {
                     static_cast<void>(controller.set_selected_fixture_direction({*x, *y}));
                 }
@@ -3480,7 +3596,11 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     return false;
                 }
 
-                if (controller.has_selected_fixture())
+                if (controller.has_selected_pump())
+                {
+                    static_cast<void>(controller.set_selected_pump_strength(*speed));
+                }
+                else if (controller.has_selected_fixture())
                 {
                     static_cast<void>(controller.set_selected_fixture_speed(*speed));
                 }
@@ -3523,12 +3643,48 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     return false;
                 }
 
-                if (!controller.place_fixture({*x, *y}))
+                bool placed = false;
+                switch (controller.tool())
+                {
+                case physics_sim::SceneTool::DirectionalEmitter:
+                case physics_sim::SceneTool::OmniEmitter: placed = controller.place_fixture({*x, *y}); break;
+                case physics_sim::SceneTool::Gate: placed = controller.place_gate({*x, *y}); break;
+                case physics_sim::SceneTool::Sensor: placed = controller.place_sensor({*x, *y}); break;
+                case physics_sim::SceneTool::Drain: placed = controller.place_drain({*x, *y}); break;
+                case physics_sim::SceneTool::Pump: placed = controller.place_pump({*x, *y}); break;
+                case physics_sim::SceneTool::Valve: placed = controller.place_valve({*x, *y}); break;
+                default: break;
+                }
+                if (!placed)
                 {
                     logger.log("fatal replay place invalid placement");
                     running = false;
                     return false;
                 }
+                continue;
+            }
+
+            if (event.command == "toggle-selected")
+            {
+                const bool toggled = controller.toggle_selected_fixture_enabled()
+                    || controller.toggle_selected_gate_open()
+                    || controller.toggle_selected_sensor_enabled()
+                    || controller.toggle_selected_drain_enabled()
+                    || controller.toggle_selected_pump_enabled()
+                    || controller.toggle_selected_valve_open();
+                if (!toggled) { logger.log("fatal replay toggle had no selection"); running = false; return false; }
+                continue;
+            }
+
+            if (event.command == "delete-selected")
+            {
+                const bool deleted = controller.delete_selected_fixture()
+                    || controller.delete_selected_gate()
+                    || controller.delete_selected_sensor()
+                    || controller.delete_selected_drain()
+                    || controller.delete_selected_pump()
+                    || controller.delete_selected_valve();
+                if (!deleted) { logger.log("fatal replay delete had no selection"); running = false; return false; }
                 continue;
             }
 
@@ -3993,7 +4149,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_prev || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) != 0))
                 {
-                    set_current_tool(next_sandbox_tool(controller.tool(), -1));
+                    set_current_tool(next_sandbox_tool(controller.tool(), -1, advancedToolsVisible));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -4001,7 +4157,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.tool_next || (event.key.keysym.sym == SDLK_TAB && (modifiers & KMOD_SHIFT) == 0))
                 {
-                    set_current_tool(next_sandbox_tool(controller.tool(), 1));
+                    set_current_tool(next_sandbox_tool(controller.tool(), 1, advancedToolsVisible));
                     play_audio(physics_sim::AudioCue::UiSelect);
                     set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
                     break;
@@ -4035,38 +4191,20 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.key.keysym.sym == bindings.delete_selection)
                 {
-                    if (!controller.delete_selected_fixture())
+                    bool deleted = controller.delete_selected_fixture();
+                    deleted = controller.delete_selected_gate() || deleted;
+                    deleted = controller.delete_selected_valve() || deleted;
+                    deleted = controller.delete_selected_sensor() || deleted;
+                    deleted = controller.delete_selected_drain() || deleted;
+                    deleted = controller.delete_selected_pump() || deleted;
+                    if (deleted)
                     {
-                        if (!controller.delete_selected_gate())
-                        {
-                            if (!controller.delete_selected_valve())
-                            {
-                                if (!controller.delete_selected_sensor())
-                                {
-                                    clear_current_scene();
-                                }
-                                else
-                                {
-                                    play_audio(physics_sim::AudioCue::UiConfirm);
-                                    set_status_message("DELETED SENSOR", StatusMessageKind::Warning);
-                                }
-                            }
-                            else
-                            {
-                                play_audio(physics_sim::AudioCue::UiConfirm);
-                                set_status_message("DELETED VALVE", StatusMessageKind::Warning);
-                            }
-                        }
-                        else
-                        {
-                            play_audio(physics_sim::AudioCue::UiConfirm);
-                            set_status_message("DELETED GATE", StatusMessageKind::Warning);
-                        }
+                        play_audio(physics_sim::AudioCue::UiConfirm);
+                        set_status_message("DELETED DEVICE", StatusMessageKind::Warning);
                     }
                     else
                     {
-                        play_audio(physics_sim::AudioCue::UiConfirm);
-                        set_status_message("DELETED FIXTURE", StatusMessageKind::Warning);
+                        clear_current_scene();
                     }
                     break;
                 }
@@ -4122,8 +4260,19 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     break;
                 }
 
-                if (event.key.keysym.sym == SDLK_PAGEUP || event.key.keysym.sym == SDLK_PAGEDOWN ||
-                    (event.key.keysym.sym >= SDLK_3 && event.key.keysym.sym <= SDLK_9))
+                if (event.key.keysym.sym == SDLK_a && (modifiers & KMOD_CTRL) == 0)
+                {
+                    advancedToolsVisible = !advancedToolsVisible;
+                    if (!advancedToolsVisible && static_cast<int>(controller.tool()) > 2)
+                    {
+                        set_current_tool(physics_sim::SceneTool::PointerWater);
+                    }
+                    set_status_message(advancedToolsVisible ? "ADVANCED TOOLS OPEN" : "COMPACT TOOLS", StatusMessageKind::Info);
+                    play_audio(physics_sim::AudioCue::UiConfirm);
+                    break;
+                }
+
+                if (event.key.keysym.sym == SDLK_PAGEUP || event.key.keysym.sym == SDLK_PAGEDOWN)
                 {
                     set_status_message("DEFERRED IN RECOVERY SANDBOX", StatusMessageKind::Warning);
                     play_audio(physics_sim::AudioCue::InvalidAction);
@@ -4230,6 +4379,24 @@ int physics_sim::app::run_application(int argc, char* argv[])
 
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
+                    if (tool_palette_toggle_hit(event.button.x, event.button.y))
+                    {
+                        advancedToolsVisible = !advancedToolsVisible;
+                        if (!advancedToolsVisible && static_cast<int>(controller.tool()) > 2)
+                        {
+                            set_current_tool(physics_sim::SceneTool::PointerWater);
+                        }
+                        play_audio(physics_sim::AudioCue::UiConfirm);
+                        set_status_message(advancedToolsVisible ? "ADVANCED TOOLS OPEN" : "COMPACT TOOLS", StatusMessageKind::Info);
+                        break;
+                    }
+                    if (const auto paletteTool = tool_palette_hit(event.button.x, event.button.y, advancedToolsVisible); paletteTool.has_value())
+                    {
+                        set_current_tool(*paletteTool);
+                        play_audio(physics_sim::AudioCue::UiSelect);
+                        set_status_message(std::string{"TOOL "} + tool_name(controller.tool()), StatusMessageKind::Info);
+                        break;
+                    }
                     const physics_sim::Vec2 world = viewport.window_to_world(mouseScreen);
                     if (controller.tool() == physics_sim::SceneTool::PointerWater)
                     {
@@ -4329,7 +4496,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     }
                     else if (controller.tool() == physics_sim::SceneTool::Drain)
                     {
-                        if (!controller.place_drain(world))
+                        if (!controller.select_drain_at(world) && !controller.place_drain(world))
                         {
                             set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
                             play_audio(physics_sim::AudioCue::InvalidAction);
@@ -4348,7 +4515,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
                     }
                     else if (controller.tool() == physics_sim::SceneTool::Pump)
                     {
-                        if (!controller.place_pump(world))
+                        if (!controller.select_pump_at(world) && !controller.place_pump(world))
                         {
                             set_status_message("INVALID PLACEMENT", StatusMessageKind::Error);
                             play_audio(physics_sim::AudioCue::InvalidAction);
@@ -4599,8 +4766,8 @@ int physics_sim::app::run_application(int argc, char* argv[])
         {
             draw_particles(renderer, viewport, simulation, palette);
         }
-        draw_drains(renderer, viewport, simulation, palette);
-        draw_pumps(renderer, viewport, simulation, palette);
+        draw_drains(renderer, viewport, simulation, controller, palette);
+        draw_pumps(renderer, viewport, simulation, controller, palette);
         draw_gates(renderer, viewport, simulation, controller, palette);
         draw_valves(renderer, viewport, simulation, controller, palette);
         draw_sensors(renderer, viewport, simulation, controller, palette);
@@ -4608,6 +4775,10 @@ int physics_sim::app::run_application(int argc, char* argv[])
         const bool sessionShellVisible = sessionShellState.screen != physics_sim::SessionShellScreen::Playing;
         if (!sessionShellVisible)
         {
+            if (!cleanCaptureFrame || options.advancedTools)
+            {
+                draw_tool_palette(renderer, controller, advancedToolsVisible, palette);
+            }
             draw_tool_preview(renderer, viewport, simulation, controller, viewport.window_to_world(mouseScreen), palette);
             draw_crosshair(renderer, static_cast<int>(mouseScreen.x), static_cast<int>(mouseScreen.y), palette);
         }
