@@ -394,19 +394,15 @@ $allowedAbsolutePathFiles = @(
 )
 
 $absolutePathPattern = '(?i)\b[A-Z]:\\'
-foreach ($file in Get-ChildItem -LiteralPath $repoRoot -Recurse -File)
+foreach ($relativePath in (& git -C $repoRoot ls-files))
 {
-    if ($file.FullName -like "$repoRoot\build\*")
-    {
-        continue
-    }
-
-    $relativeFullName = $file.FullName.Substring($repoRoot.Length + 1)
+    $relativeFullName = ([string]$relativePath).Replace('/', '\')
     if ($allowedAbsolutePathFiles -contains $relativeFullName)
     {
         continue
     }
 
+    $file = Get-Item -LiteralPath (Join-Path $repoRoot $relativePath)
     if ($file.Extension -notin @('.md', '.ps1', '.cpp', '.hpp', '.txt', '.json', '.cmake', '.pscene'))
     {
         continue
