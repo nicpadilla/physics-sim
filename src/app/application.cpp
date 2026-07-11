@@ -106,6 +106,7 @@ struct RuntimeOptions
     bool tutorialMode = false;
     bool skipSessionShell = false;
     bool advancedTools = false;
+    bool softwareRenderer = false;
 };
 
 class AppLogger
@@ -533,6 +534,10 @@ RuntimeOptions parse_command_line(int argc, char* argv[])
         else if (arg == "--disable-audio")
         {
             options.disableAudio = true;
+        }
+        else if (arg == "--software-renderer")
+        {
+            options.softwareRenderer = true;
         }
         else if (arg == "--debug-overlay")
         {
@@ -2555,13 +2560,11 @@ int physics_sim::app::run_application(int argc, char* argv[])
         return 1;
     }
 
-    std::string rendererMode = "accelerated+vsync";
-    SDL_Renderer* renderer = SDL_CreateRenderer(
-        window,
-        -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    std::string rendererMode = options.softwareRenderer ? "software" : "accelerated+vsync";
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1,
+        options.softwareRenderer ? SDL_RENDERER_SOFTWARE : (SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC));
 
-    if (renderer == nullptr)
+    if (renderer == nullptr && !options.softwareRenderer)
     {
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
         if (renderer != nullptr)

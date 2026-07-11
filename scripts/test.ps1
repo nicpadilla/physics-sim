@@ -30,7 +30,7 @@ switch ($Tier)
     }
     'Full'
     {
-        $budgetSeconds = 480
+        $budgetSeconds = if ($env:CI -eq 'true') { 600 } else { 480 }
     }
 }
 

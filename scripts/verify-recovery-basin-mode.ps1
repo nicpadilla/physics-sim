@@ -33,6 +33,7 @@ $process = Start-Process -FilePath $exe -ArgumentList @(
     '--log-file', $appLog,
     '--settings-file', $settings,
     '--disable-audio',
+    '--software-renderer',
     '--skip-session-shell',
     '--scene-path', 'scenes/starter_basin.pscene',
     '--replay-file', $replay,
