@@ -1,15 +1,18 @@
 # Release Packaging
 
-The current release package is a runnable folder created by `scripts\package-release.ps1`.
+The recovery prerelease is a runnable Windows x64 folder and matching ZIP created by `scripts\package-release.ps1`.
 
 Package layout:
 
 - `physics-sim.exe`
-- `SDL2d.dll`
+- `SDL2.dll`
 - `README.md`
 - `package-manifest.txt`
+- `SHA256SUMS.txt`
+- `VERSION.txt`
+- dependency license files
 - `scenes\starter_basin.pscene`
-- `scenes\demo_scene.pscene`
+- `scenes\tutorial_intro.pscene`
 
 Command:
 
@@ -19,7 +22,9 @@ Command:
 
 Validation:
 
-- The script runs `build.ps1` first.
-- It copies the runtime DLLs from `build\windows-x64\Debug`.
-- It validates that the expected runtime files exist in `dist\physics-sim-release`.
-- `package-manifest.txt` lists the packaged files and their SHA-256 hashes.
+- The script builds Release unless `-SkipBuild` is explicitly supplied.
+- It copies only the recovery runtime, basin/tutorial content, documentation, and dependency licenses.
+- Sandbox and lab smoke run with the package directory as the working directory.
+- The executable also resolves bundled relative resources from its own directory, so Explorer and arbitrary-working-directory launches work.
+- `package-manifest.txt` records version, commit, toolchain evidence, and contents; `SHA256SUMS.txt` records per-file hashes.
+- The ZIP receives a separate `.sha256` sidecar in `dist`.

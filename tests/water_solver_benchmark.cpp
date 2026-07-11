@@ -197,8 +197,17 @@ void require_profile_acceptance(
         return;
     }
 
-    REQUIRE(sim.metrics().average_density_error <= 1.0, "quality profile average density error exceeded budget");
-    REQUIRE(sim.metrics().max_density_error <= 1.25, "quality profile max density error exceeded budget");
+    if (sim.metrics().average_density_error > 1.0 || sim.metrics().max_density_error > 1.25)
+    {
+        char message[256];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "quality profile density error exceeded budget: avg=%.6f max=%.6f avg_limit=1.000000 max_limit=1.250000",
+            sim.metrics().average_density_error,
+            sim.metrics().max_density_error);
+        REQUIRE(false, message);
+    }
 }
 
 bool run_benchmark(

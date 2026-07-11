@@ -364,7 +364,7 @@ public:
             settings.rest_density = 1.0f;
             settings.particles_per_full_cell = 4;
             settings.density_kernel_radius_cells = 1.2f;
-            settings.density_correction_iterations = 1;
+            settings.density_correction_iterations = 6;
             settings.max_density_correction_fraction = 0.025f;
             settings.density_correction_velocity_ratio = 0.10f;
             settings.flip_blend = 0.55f;

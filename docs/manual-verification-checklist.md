@@ -1,113 +1,48 @@
-# Manual Verification Checklist
+# Recovery Sandbox Manual Verification
 
-Use this checklist after building the app on this machine:
+Run this matrix against the packaged Release application, not a developer-only Debug launch. Record the date, reviewer, commit/package hash, and result in a dated file under `docs/reviews`.
 
-```powershell
-.\scripts\build.ps1
-```
+## First and returning launch
 
-## Tutorial And First Run
+1. Launch `physics-sim.exe` from outside the package working directory.
+2. Confirm the guided basin loads without a missing-content dialog or engineering overlay.
+3. Pour with the pointer and follow the interactive draw, erase, pause, reset, and save/load prompts.
+4. Close and relaunch; confirm persisted settings and the returning flow remain usable.
 
-1. Launch the tutorial directly:
+## Core loop
 
-   ```powershell
-   .\build\windows-x64\Debug\physics-sim.exe --tutorial-mode
-   ```
+1. Pour water with the left pointer button.
+2. Select draw wall (`1`) and erase wall (`2`); confirm edits appear on the fixed tick.
+3. Pause/resume with `Space`, single-step with `S`, and clear fluid with `R`.
+4. Undo/redo with `Ctrl+Z` and `Ctrl+Y`.
+5. Save with `F5` and load with `F9`; confirm the scene is restored and save feedback is visible.
+6. Open the menu with `Esc`, switch to Lab, return to the menu, and return to Sandbox.
 
-2. Press `Esc` and choose `Return to Menu` from the pause menu.
-   - Expected: the guided tutorial can be skipped without restarting the executable, and the main menu returns.
-3. Press `R` before leaving the tutorial.
-   - Expected: the current tutorial scene resets without restarting the executable.
+## Keyboard and window behavior
 
-## Window And Input
+1. Navigate every menu entry using arrows, `Enter`, and `Esc` without the pointer.
+2. Complete the sandbox actions using the documented keyboard alternatives.
+3. Resize smaller/larger, toggle fullscreen with `F11`, and restore windowed mode.
+4. Remove and restore focus while running and while paused; confirm no stuck action or simulation-time jump.
+5. Close through the title bar and through the menu; confirm clean exit.
 
-1. Launch the app:
+## Accessibility and degraded devices
 
-   ```powershell
-   .\build\windows-x64\Debug\physics-sim.exe
-   ```
+1. Enable high contrast and reduced motion and confirm both persist after restart.
+2. Remap a core control, use it, restore defaults, and confirm the guidance label follows the mapping.
+3. Navigate settings with the keyboard only.
+4. Start with the audio device unavailable; confirm silent operation with readable feedback and no crash.
 
-2. Move the mouse across the window.
-   - Expected: the crosshair follows the cursor.
-3. Resize the window larger and smaller.
-   - Expected: rendering continues without a crash or blank frame.
-4. Close the window with the title-bar close button or `Esc`.
-   - Expected: the app exits cleanly with no crash dialog.
+## Persistence failures
 
-## Pause, Step, Reset
+1. Launch with a missing or malformed save and confirm a player-facing recovery message plus a usable basin.
+2. Simulate failure before atomic replacement and confirm the previous save remains valid.
+3. Confirm a `.backup` file is retained after successful replacement.
 
-1. Press `Space`.
-   - Expected: the title shows the paused state.
-2. Press `S` once while paused.
-   - Expected: the simulation advances by one fixed tick.
-3. Press `R`.
-   - Expected: the current scene resets without restarting the executable.
-4. Press `Delete`.
-   - Expected: the selected fixture is removed, or the scene clears if nothing is selected.
+## Soak and package
 
-## Wall Drawing
+1. Run the packaged sandbox continuously for at least 15 minutes while pouring, editing, pausing, resizing/fullscreening, saving, and loading.
+2. Confirm finite state, responsive input, readable water, no crash dialog, and clean exit.
+3. Run packaged sandbox and lab smoke from a clean temporary directory.
 
-1. Press `1` to select wall paint mode.
-2. Left-drag a short line in the scene.
-   - Expected: the wall appears immediately on the next fixed tick.
-3. Press `2` to select wall erase mode.
-4. Left-drag over part of the wall line.
-   - Expected: only the touched wall cells are removed.
-
-## Fixture Selection And Editing
-
-1. Press `3` or `4` to select a hose or omni emitter.
-2. Left-click an existing emitter.
-   - Expected: the emitter is highlighted and the overlay shows its values.
-3. Press `Q` and `E`.
-   - Expected: the selected fixture or active tool direction rotates.
-4. Press `[` and `]`.
-   - Expected: the selected fixture speed changes.
-5. Press `-` and `=`.
-   - Expected: the selected fixture emission rate changes.
-6. Press `T`.
-   - Expected: the selected fixture toggles enabled/disabled.
-
-## Visual And Help Overlays
-
-1. Press `V`.
-   - Expected: the visual mode cycles between surface, mixed, density, and particles.
-2. Press `H`.
-   - Expected: the in-app help overlay appears and disappears.
-3. Confirm the overlay shows FPS, fixed step, tick count, particle count, divergence, visual mode, active tool, and selected fixture state.
-   - Expected: the text remains readable at the default window size.
-4. Launch with `--reduced-motion`.
-   - Expected: the status-message flash stays static instead of fading, while the app remains fully readable and responsive.
-
-## Settings, Audio, And Save Browser
-
-1. Open the pause menu and choose `Settings`.
-2. Toggle fullscreen, high contrast, reduced motion, and audio mute.
-   - Expected: the window mode changes immediately, the palette switches to the higher-contrast colors, and the settings persist after restart.
-3. Adjust the master, effects, and music volume entries.
-   - Expected: the values clamp between `0` and `100` and remain after restart.
-4. Cycle the solver profile entry.
-   - Expected: the selected profile changes immediately and remains after restart unless a loaded scene or CLI override supplies a different profile.
-5. Remap `Pause / Resume` to a different key, then use the new key.
-   - Expected: the help overlay and tutorial text show the new binding, and the new key still toggles pause/resume.
-6. Press `F5` to save the current scene, then open the pause menu and choose `Load Save`.
-   - Expected: the browser shows the autosave plus named saves, and loading one restores that scene without restarting the executable.
-
-## Failure Paths
-
-1. Launch with a missing startup scene:
-
-   ```powershell
-   .\build\windows-x64\Debug\physics-sim.exe --scene-path scenes\does-not-exist.pscene --auto-exit-ms 1500
-   ```
-
-   - Expected: the log records the failure, the app falls back to the demo scene, and the player-facing message stays readable.
-2. Create a malformed replay file and launch it:
-
-   ```powershell
-   $invalidReplay = "build\windows-x64\physics-sim-invalid.replay"
-   Set-Content -LiteralPath $invalidReplay -Value "physics-sim-replay 2`nscene-digest 0123456789ABCDEF`nfixed-timestep 0.008333333333333333`nsolver-profile balanced`ntick 0 nope"
-   .\build\windows-x64\Debug\physics-sim.exe --replay-file $invalidReplay --auto-exit-ms 1500
-   ```
-
-   - Expected: the app reports a `REPLAY FAILED` message and exits cleanly without exposing raw parser text as the only explanation.
+Deferred emitters, devices, objectives, progression, and gallery navigation must remain unreachable. Dear ImGui must never appear in Sandbox.

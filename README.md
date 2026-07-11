@@ -1,24 +1,24 @@
 # Physics Sim
 
-Physics Sim is a Windows C++20/SDL2 deterministic 2D water-sandbox project under active recovery.
+Physics Sim is a Windows C++20/SDL2 deterministic 2D water sandbox and laboratory.
 
-The current executable builds, runs, and has broad legacy editor/game functionality, but it is **not a finished release**. The recovery is narrowing the player experience to a polished basin sandbox while creating a separate Dear ImGui laboratory client over the same validated simulation core. See `ROADMAP.md` and `PROGRESS.md` for current evidence rather than relying on the historical all-green tracker.
+Version `0.2.0-alpha.1` is the first recovery prerelease. One executable provides a focused custom-SDL sandbox and a Dear ImGui engineering laboratory over the same validated simulation core. It is an alpha rather than a finished game; `ROADMAP.md` and `PROGRESS.md` record the current evidence and remaining limitations.
 
 ## Recovery Product
 
 - **Sandbox:** pour water, draw/erase walls, pause/step/resume, reset, undo/redo, and save/load.
 - **Lab:** canonical scenarios, profiles, metrics, plots, field views, replay, capture, and comparison.
 
-The first functional Dear ImGui lab slice and recovered command/data contracts are implemented; scenario breadth and human acceptance remain active work. The recovery queue begins at PSIM-0089 in `ISSUES.md`. Pre-recovery sources and evidence are preserved by tag `pre-recovery-2026-07-10`.
+The recovered command/data contracts, canonical lab scenarios, basin rendering, regression suite, and player acceptance matrix are implemented. Pre-recovery sources and evidence are preserved by tag `pre-recovery-2026-07-10`.
 
 ## Current Limitations
 
-- The committed surface regression is deterministic but does not meet the recovered visual acceptance bar.
-- The executable entry point is now thin, but the legacy SDL application remains concentrated in `src/app/application.cpp` and solver orchestration remains in a large header pending staged extraction.
-- Full verification still includes long solver and visual cases; Fast and Standard provide bounded developer feedback.
-- Recovery scene v2, replay v2, and recovered-settings v1 intentionally reject pre-recovery formats; goldens remain legacy evidence until visual recovery.
+- This is a plausible deterministic 2D CPU water model, not a 3D, GPU, multiphase, or research-grade simulator.
+- The SDL application and some solver passes remain larger than ideal even though compiled dependency boundaries and the simulation facade are enforced.
+- Full verification includes the 6000-tick solver run, visual/replay regressions, and packaging; Fast and Standard are the bounded developer loops.
+- Scene v2, replay v2, and recovered-settings v1 intentionally reject pre-recovery formats.
 - Secondary devices, objectives, progression, gallery breadth, and decorative polish will not be exposed in the first recovered release.
-- No Git remote, CI run, or current distributable establishes release readiness yet.
+- The alpha has Windows-only build and package coverage.
 
 ## Requirements
 
@@ -66,7 +66,7 @@ Additional current checks:
 .\scripts\capture-recovery-contact-sheet.ps1 -Tick 2400
 ```
 
-Create a legacy package (not a recovered release):
+Create the recovery prerelease package:
 
 ```powershell
 .\scripts\package-release.ps1
@@ -94,4 +94,4 @@ Secondary tool shortcuts `3` through `9` and gallery navigation are disabled in 
 - `docs/recovery-architecture.md`: active compiled boundaries and simulation facade.
 - `docs/history/pre-recovery-snapshot.md`: immutable legacy snapshot reference.
 
-A matching image hash proves reproducibility only. Recovered visual acceptance requires semantic checks plus a named, dated human review.
+A matching image hash proves reproducibility only. Recovered visual acceptance requires semantic checks plus a named, dated review. See `docs/release-notes-0.2.0-alpha.1.md` for the prerelease scope and limitations.
