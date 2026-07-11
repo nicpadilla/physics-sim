@@ -23,11 +23,11 @@ foreach ($path in @($roadmapPath, $progressPath, $issuesPath, $agentsPath, $trac
 
 $agentsText = Get-Content -LiteralPath $agentsPath -Raw
 $trackingText = Get-Content -LiteralPath $trackingPath -Raw
-if ($agentsText -notmatch '(?m)^## Commit Discipline$')
+if ($agentsText -notmatch '(?m)^## Commit Discipline\r?$')
 {
     Fail "AGENTS.md is missing the Commit Discipline section."
 }
-if ($trackingText -notmatch '(?m)^## Commit Workflow$')
+if ($trackingText -notmatch '(?m)^## Commit Workflow\r?$')
 {
     Fail "docs\TRACKING.md is missing the Commit Workflow section."
 }
@@ -35,7 +35,7 @@ if ($trackingText -notmatch 'Stage only the files intentionally changed')
 {
     Fail "docs\TRACKING.md must document path-scoped staging."
 }
-if ($trackingText -notmatch '(?m)^## Git Hook Workflow$')
+if ($trackingText -notmatch '(?m)^## Git Hook Workflow\r?$')
 {
     Fail "docs\TRACKING.md is missing the Git Hook Workflow section."
 }
