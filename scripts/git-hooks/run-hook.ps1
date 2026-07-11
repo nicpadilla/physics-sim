@@ -8,7 +8,10 @@ param(
 
     [string]$StagedFilesPath,
 
-    [switch]$SkipTrackingCheck
+    [switch]$SkipTrackingCheck,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$GitHookArguments
 )
 
 $ErrorActionPreference = 'Stop'

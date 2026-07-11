@@ -84,6 +84,7 @@ try
     try
     {
         Invoke-Hook -Arguments @('pre-push', '-SkipTrackingCheck')
+        Invoke-Hook -Arguments @('pre-push', 'origin', 'https://example.invalid/repository.git', '-SkipTrackingCheck')
     }
     finally
     {
