@@ -59,6 +59,28 @@ using physics_sim::parse_solver_profile_token;
 using physics_sim::solver_profile_name;
 using physics_sim::visual_mode_name;
 
+[[nodiscard]] fs::path executable_base_path()
+{
+    char* base_path = SDL_GetBasePath();
+    if (base_path == nullptr)
+    {
+        return {};
+    }
+    fs::path result{base_path};
+    SDL_free(base_path);
+    return result;
+}
+
+[[nodiscard]] fs::path resolve_runtime_resource(const fs::path& path, const fs::path& executable_base)
+{
+    if (path.is_absolute() || fs::exists(path) || executable_base.empty())
+    {
+        return path;
+    }
+    const fs::path packaged_path = executable_base / path;
+    return fs::exists(packaged_path) ? packaged_path : path;
+}
+
 struct RuntimeOptions
 {
     std::optional<std::chrono::milliseconds> autoExitAfter;
@@ -2098,20 +2120,22 @@ int physics_sim::app::run_application(int argc, char* argv[])
 {
     const RuntimeOptions options = parse_command_line(argc, argv);
     SDL_SetMainReady();
-    const fs::path starterScenePath{"scenes/starter_basin.pscene"};
-    const fs::path demoScenePath{"scenes/demo_scene.pscene"};
-    const fs::path tutorialScenePath{"scenes/tutorial_intro.pscene"};
+    const fs::path executableBase = executable_base_path();
+    const auto resource_path = [&](const fs::path& path) { return resolve_runtime_resource(path, executableBase); };
+    const fs::path starterScenePath = resource_path("scenes/starter_basin.pscene");
+    const fs::path demoScenePath = resource_path("scenes/demo_scene.pscene");
+    const fs::path tutorialScenePath = resource_path("scenes/tutorial_intro.pscene");
     const fs::path saveDirectory = default_save_directory().value_or(fs::path{"physics-sim-saves"});
     const fs::path autosaveScenePath = saveDirectory / "autosave.pscene";
     const fs::path logFilePath = options.logFilePath.value_or(fs::path{"physics-sim.log"});
-    const fs::path startupScenePath = options.startupScenePath.value_or(starterScenePath);
+    const fs::path startupScenePath = options.startupScenePath.has_value() ? resource_path(*options.startupScenePath) : starterScenePath;
     const std::array<fs::path, 6> galleryScenePaths{
         demoScenePath,
-        fs::path{"scenes/free_fall.pscene"},
-        fs::path{"scenes/hose_wall_impact.pscene"},
-        fs::path{"scenes/omni_spray.pscene"},
-        fs::path{"scenes/objective_fill.pscene"},
-        fs::path{"scenes/future_device.pscene"},
+        resource_path("scenes/free_fall.pscene"),
+        resource_path("scenes/hose_wall_impact.pscene"),
+        resource_path("scenes/omni_spray.pscene"),
+        resource_path("scenes/objective_fill.pscene"),
+        resource_path("scenes/future_device.pscene"),
     };
     const auto same_scene_path = [](const fs::path& lhs, const fs::path& rhs) -> bool
     {
