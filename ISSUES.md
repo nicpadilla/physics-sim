@@ -19,6 +19,11 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0099 | Done | P1 | Verification And Release | R18.04, R18.05, R18.06 | Add CI, hygiene, and prerelease packaging |
 | PSIM-0100 | Done | P2 | Selective Restoration | R19.01, R19.02, R19.03 | Audit and gate deferred features |
 | PSIM-0101 | Done | P0 | Recovery Acceptance | R19.04 | Complete recovery release acceptance |
+| PSIM-0102 | Done | P0 | Convincing Water Motion | R20.01 | Add deterministic water-feel validation |
+| PSIM-0103 | Open | P0 | Convincing Water Motion | R20.02 | Build an area-faithful particle free surface |
+| PSIM-0104 | Open | P0 | Convincing Water Motion | R20.03 | Restore believable transfer and free-surface flow |
+| PSIM-0105 | Open | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
+| PSIM-0106 | Open | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
 
 ## Epic 12: Recovery Foundation
 
@@ -724,3 +729,250 @@ Implementation notes:
 - Owner-delegated sandbox acceptance and visual acceptance are recorded in the dated review files. Protected pull requests and required Windows CI passed.
 - Annotated tag `v0.2.0-alpha.1` resolves to protected main commit `279a5fb726457a4ed58a249939bef21dc500ce96`. Tag workflow `29142733405` passed clean build, tracking/hygiene, Full, explicit prerelease packaging, and artifact upload in 9m10s. The explicit package-step ZIP SHA-256 is `6dd48e2e7155636657ed55ca0d556bf6201c6f9ecb671a31447ab536745de3a9`.
 - No P0 or P1 recovery issue remains open. Deferred breadth remains governed by PSIM-0100 rather than being misrepresented as part of this alpha.
+
+## Epic 20: Convincing Water Motion
+
+### PSIM-0102: Add deterministic water-feel validation
+
+Status: Done
+
+Priority: P0
+
+Linked roadmap IDs: R20.01
+
+Problem:
+Current regression gates prove containment, conservation, stability, and repeatability but can accept mound-like, overdamped water that does not flow or settle convincingly.
+
+Technical implementation direction:
+
+- Add deterministic scenarios and structured metrics under the existing solver-test and capture infrastructure for asymmetric leveling, fixed-rate pouring, sloshing, wall-sheet flow, two-stream merging, and obstacle breakup/rejoin.
+- Extend `SimulationMetrics` only where a generally useful core quantity is missing; derive scenario-specific surface slope, footprint, component lifetime, stream-width variation, vorticity, and particle-distribution measures in validation code.
+- Record scenario, profile, seed, tick, actual value, threshold, and artifact path on failure. Preserve existing hard conservation, pressure, penetration, finiteness, and determinism gates.
+- Establish provisional thresholds from the current baseline and physically acceptable candidate runs. Threshold promotion requires recorded capture review; do not tune the solver or regenerate accepted goldens in this issue.
+- Add real-time or fixed-frame-sequence evidence for motion review rather than relying exclusively on a final still image.
+
+Acceptance criteria:
+
+- Fast tests cover the metric algorithms with small deterministic fixtures.
+- Standard verification runs representative leveling and pour-feel scenarios with structured output.
+- Full verification covers every new scenario in balanced and quality profiles within the existing eight-minute budget.
+- A baseline report identifies which feel gates the current solver fails without weakening existing numeric contracts.
+
+Subtasks:
+
+- Define manifests and metric schemas.
+- Implement deterministic scenario runners and metric tests.
+- Capture current balanced/quality baselines and frame sequences.
+- Record provisional calibration ranges and observed failures.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- `.\scripts\check-tracking.ps1`
+
+Dependencies:
+
+- PSIM-0093 and PSIM-0094 are completed foundations.
+
+Implementation notes:
+
+- Added compiled `water_feel_metrics` core measurement for horizontal footprint, occupied columns, surface RMS/maximum slope, particle-count coefficient of variation, eight-neighbor particle support components, largest-component fraction, and grid vorticity RMS.
+- Added deterministic unit fixtures for level, stepped, separated, uniformly sampled, and rotating fields and integrated every metric into repeated scenario snapshot comparison and non-finite checks.
+- Added asymmetric leveling, steady pour, slosh decay, wall sheet, two-stream merge, and obstacle breakup/rejoin scenarios. Standard includes representative leveling and pour cases; the structured suite covers every new case in balanced and quality.
+- Extended fluid-quality logs with checkpoint `sample=` records and the JSON summary with all new final metrics and artifact paths.
+- Recorded pre-tuning measurements, provisional calibration ranges, and classified numerical, sampling, rendering, and acceptance debt in `docs/water-feel-baseline-2026-07-11.md`.
+- Verification on 2026-07-11: `.\scripts\build.ps1` passed; Fast passed 26/26 in 4.277 seconds; Standard passed 28/28 in 26.450 seconds; `.\scripts\verify-fluid-quality-suite.ps1` passed all 30 balanced/quality runs in 278.7 seconds with zero hard-gate failures.
+
+### PSIM-0103: Build an area-faithful particle free surface
+
+Status: Open
+
+Priority: P0
+
+Linked roadmap IDs: R20.02
+
+Problem:
+Assigning each particle volume to one cell and averaging cell fractions at grid vertices expands tiny volumes, bridges holes, and produces coarse polygonal blobs.
+
+Technical implementation direction:
+
+- Introduce a deterministic compact-kernel particle volume rasterization that distributes each particle's volume to neighboring cells with normalized weights and stable iteration order.
+- Add a narrow-band particle signed-distance or equivalent sub-cell scalar field for player rendering; keep lab volume-fraction and particle views truthful and independently selectable.
+- Reconstruct the player surface at configurable higher sampling resolution without mutating solver state. Preserve total represented area within an explicit tolerance and clip against solids without leaks.
+- Add fixtures for isolated droplets, adjacent particles, shallow pools, thin streams, solid boundaries, translation continuity, and deterministic triangle output.
+- Do not use rendering dilation, minimum blob sizes, or temporal accumulation to conceal missing physical volume.
+
+Acceptance criteria:
+
+- A one-particle droplet renders within 15% of its conserved area and changes continuously under sub-cell translation.
+- Settled-pool reconstruction contains no internal holes larger than the configured particle support while preserving occupied area within 2%.
+- Thin streams remain connected when supported by particles and separate when the underlying particle support separates.
+- Existing state digests remain physics-only and deterministic; Fast, Standard, smoke, and recovery visual checks pass before reviewed golden replacement.
+
+Subtasks:
+
+- Add kernel volume rasterization and area accounting tests.
+- Add the player-facing sub-cell surface field and reconstruction.
+- Integrate interpolation and solid clipping.
+- Capture semantic comparisons without replacing accepted goldens prematurely.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Standard`
+- `.\scripts\run-smoke.ps1`
+- `.\scripts\verify-recovery-basin.ps1`
+
+Dependencies:
+
+- PSIM-0102 supplies area, continuity, and motion evidence.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0104: Restore believable transfer and free-surface flow
+
+Status: Open
+
+Priority: P0
+
+Linked roadmap IDs: R20.03
+
+Problem:
+The balanced and quality profiles lose shear and lateral motion too quickly, while coarse partial-cell pressure behavior permits stable stair-stepped mounds.
+
+Technical implementation direction:
+
+- Exercise the existing affine particle state through a measured APIC/FLIP transfer path with deterministic clamps and explicit energy diagnostics; tune profile values only against the new feel and invariant scenarios.
+- Reduce PIC dissipation incrementally while bounding grid-scale velocity noise, kinetic-energy growth, divergence, and repeated-digest equality.
+- Make pressure activation and free-surface gradients volume-aware so partial cells cannot support artificial hydrostatic steps; validate changes first on small known grids and leveling/hydrostatic scenarios.
+- Keep timestep, gravity, and units explicit. Do not compensate for pressure or transfer failures through density correction, viscosity, rendering, or relaxed accounting thresholds.
+
+Acceptance criteria:
+
+- An asymmetric pile spreads toward a level free surface with monotonically decreasing fitted surface slope after the pour stops.
+- Pour, slosh, wall-impact, and obstacle scenarios retain visibly useful shear and lateral motion without non-finite values, penetration, unexplained mass, or unbounded energy.
+- Balanced and quality retain their pressure residual, conservation, determinism, performance, and long-run gates.
+- Profile changes and calibration evidence are recorded in the scenario manifest and review artifacts.
+
+Subtasks:
+
+- Add APIC transfer coverage and energy/vorticity diagnostics.
+- Calibrate transfer blends in bounded sweeps.
+- Implement and validate volume-aware free-surface pressure treatment.
+- Re-run the complete canonical and feel scenario matrices.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Full`
+- `.\scripts\measure-water-solver.ps1`
+
+Dependencies:
+
+- PSIM-0102 metrics are required; PSIM-0103 may proceed in parallel but reviewed acceptance requires both.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0105: Regularize particles and remove artificial cohesion
+
+Status: Open
+
+Priority: P1
+
+Linked roadmap IDs: R20.04
+
+Problem:
+Per-cell split/merge and over-density-only position correction allow sparse holes and clumps, while the dormant surface-force path contains nonlocal center attraction that is incompatible with water.
+
+Technical implementation direction:
+
+- Remove global center-of-mass cohesion from the surface-force implementation; any restored surface tension must be a local curvature force derived from the validated free-surface field.
+- Add conservative neighborhood-aware particle shifting or redistribution with deterministic neighbor order and momentum-consistent velocity handling.
+- Extend resampling decisions across adjacent fluid cells while preserving mass, linear momentum, bounded angular-momentum error, center of mass, material identity, and lifecycle accounting.
+- Calibrate viscosity in explicit simulation units and introduce local surface tension only after transfer, pressure, and sampling gates pass; default coefficients must remain subtle at basin scale.
+
+Acceptance criteria:
+
+- Particle-distribution variation and unsupported surface holes decrease without measurable center-of-mass drift or unexplained lifecycle changes.
+- No force depends on the global fluid center of mass.
+- Droplets round locally while basin-scale water still spreads and levels; steady streams do not collapse into ropes or beads.
+- All invariant, feel, long-run, determinism, and performance gates pass in balanced and quality.
+
+Subtasks:
+
+- Remove and test against nonlocal cohesion.
+- Add deterministic particle-distribution metrics and regularization.
+- Improve neighborhood-aware resampling.
+- Calibrate unit-aware viscosity and optional local surface tension.
+
+Verification:
+
+- `.\scripts\build.ps1`
+- `.\scripts\test.ps1 -Tier Fast`
+- `.\scripts\test.ps1 -Tier Full`
+- `.\scripts\verify-recovery-basin.ps1`
+
+Dependencies:
+
+- PSIM-0103 and PSIM-0104.
+
+Implementation notes:
+
+- None yet.
+
+### PSIM-0106: Tune, review, and accept real-time water feel
+
+Status: Open
+
+Priority: P0
+
+Linked roadmap IDs: R20.05
+
+Problem:
+The recovered release was accepted from stable still captures but has not passed a real-time review of pouring, spreading, grouping, splashing, sloshing, merging, and settling.
+
+Technical implementation direction:
+
+- Tune only within the validated solver and rendering controls delivered by PSIM-0102 through PSIM-0105; every candidate must retain hard numeric gates.
+- Capture fixed-camera frame sequences and real-time video-equivalent contact sheets for standard sandbox actions in balanced and quality profiles.
+- Add restrained normals, highlights, and temporal rendering stability only where they improve legibility without changing represented area or hiding discontinuities.
+- Require a named review that evaluates stream weight, lateral spread, surface leveling, grouping strength, splash scale, wall behavior, slosh decay, tiny droplets, and fifteen-minute interactive stability.
+- Replace goldens only after numeric and semantic gates pass and the review records exact artifacts and hashes.
+
+Acceptance criteria:
+
+- A user can pour, redirect, pool, split, merge, slosh, and settle water without it reading as gel, sand, smoke, or disconnected grid cells.
+- Balanced is responsive and convincing in the sandbox; quality is at least as credible in lab comparisons.
+- Fast, Standard, Full, smoke, recovery-basin, package-directory, and tracking verification pass within established budgets.
+- Named human acceptance records exact build, profile, scenarios, duration, artifacts, observed limitations, and result.
+
+Subtasks:
+
+- Run bounded candidate sweeps and select validated defaults.
+- Add final water rendering legibility changes.
+- Capture and review the complete motion matrix.
+- Regenerate accepted baselines, package, release notes, and launch the verified build.
+
+Verification:
+
+- `.\scripts\verify-all.ps1`
+- `.\scripts\verify-recovery-basin.ps1`
+- `.\scripts\capture-recovery-contact-sheet.ps1 -Tick 2400`
+- Packaged sandbox and lab manual acceptance.
+- `.\scripts\check-tracking.ps1`
+
+Dependencies:
+
+- PSIM-0102, PSIM-0103, PSIM-0104, and PSIM-0105.
+
+Implementation notes:
+
+- None yet.

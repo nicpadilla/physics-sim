@@ -82,3 +82,15 @@ Completion markers:
 - Restored features have an isolated interface, automated evidence, human acceptance, persistence representation, and performance budget.
 - Restored features do not regress the pour/build/reset/save vertical slice.
 - Final recovery acceptance has no open P0 or P1 issues and reconciles roadmap, evidence, package, and release notes.
+
+## 20. Convincing Water Motion
+
+Goal: make pouring, spreading, merging, splashing, sloshing, and settling read as real water to a user rather than a stable grid-based gel.
+
+Completion markers:
+
+- Deterministic feel scenarios measure leveling, footprint growth, stream continuity, slosh decay, wall-sheet flow, merging, breakup, vorticity, and particle sampling quality.
+- Particle volume contributes smoothly to a sub-cell free-surface representation, and tiny fluid volumes render at approximately their conserved area instead of expanding into coarse polygons.
+- Balanced and quality transfer and free-surface pressure behavior preserve believable shear and lateral flow while retaining conservation, bounded energy, and deterministic results.
+- Conservative particle regularization prevents holes and clumps without introducing center-of-mass drift, unexplained mass changes, or global cohesion.
+- Real-time sandbox water passes numeric, semantic, and named human review for pouring, spreading, grouping, sloshing, and settling before replacement goldens are accepted.

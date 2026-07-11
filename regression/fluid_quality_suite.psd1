@@ -81,6 +81,36 @@
             SampleTicks = @(0, 3000, 6000)
         },
         @{
+            Name = 'asymmetric-leveling'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 360, 720, 1200)
+        },
+        @{
+            Name = 'steady-pour-feel'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 240, 360, 540, 720)
+        },
+        @{
+            Name = 'slosh-decay'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 240, 480, 960)
+        },
+        @{
+            Name = 'wall-sheet-flow'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 240, 480, 720)
+        },
+        @{
+            Name = 'two-stream-merge'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 240, 480, 720)
+        },
+        @{
+            Name = 'obstacle-breakup-rejoin'
+            Profile = 'balanced'
+            SampleTicks = @(0, 120, 240, 480, 840)
+        },
+        @{
             Name = 'still-pool'
             Profile = 'quality'
             SampleTicks = @(0, 400, 800, 1200)
@@ -99,6 +129,36 @@
             Name = 'long-run-stress'
             Profile = 'quality'
             SampleTicks = @(0, 3000, 6000)
+        },
+        @{
+            Name = 'asymmetric-leveling'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 360, 720, 1200)
+        },
+        @{
+            Name = 'steady-pour-feel'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 240, 360, 540, 720)
+        },
+        @{
+            Name = 'slosh-decay'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 240, 480, 960)
+        },
+        @{
+            Name = 'wall-sheet-flow'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 240, 480, 720)
+        },
+        @{
+            Name = 'two-stream-merge'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 240, 480, 720)
+        },
+        @{
+            Name = 'obstacle-breakup-rejoin'
+            Profile = 'quality'
+            SampleTicks = @(0, 120, 240, 480, 840)
         }
     )
 }

@@ -2,6 +2,7 @@
 
 #include <physics_sim/math.hpp>
 #include <physics_sim/water_simulation.hpp>
+#include <physics_sim/water_feel_metrics.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -50,6 +51,7 @@ struct FluidQualitySnapshot
     double surface_height_jitter = 0.0;
     double max_volume_fraction = 0.0;
     double average_volume_fraction = 0.0;
+    WaterFeelMetrics feel{};
 };
 
 struct FluidQualityScenarioResult
@@ -120,6 +122,7 @@ using FluidQualityTickCallback = std::function<void(WaterSimulation2D&, std::uin
     const Vec2 total_momentum = sum_particle_momentum(simulation.particles());
     snapshot.momentum_x = total_momentum.x;
     snapshot.momentum_y = total_momentum.y;
+    snapshot.feel = measure_water_feel(simulation.particles(), simulation.grid());
 
     if (!simulation.particles().empty())
     {

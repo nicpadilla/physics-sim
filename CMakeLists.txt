@@ -16,6 +16,7 @@ find_package(imgui CONFIG REQUIRED)
 
 add_library(physics_sim_core STATIC
     src/core/simulation.cpp
+    src/core/water_feel_metrics.cpp
 )
 target_include_directories(physics_sim_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(physics_sim_core PUBLIC cxx_std_20)
@@ -84,6 +85,16 @@ if(BUILD_TESTING)
         target_compile_definitions(physics_sim_simulation_api_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
     add_test(NAME physics_sim_simulation_api_tests COMMAND physics_sim_simulation_api_tests)
+    add_executable(physics_sim_water_feel_metrics_tests
+        tests/water_feel_metrics_tests.cpp
+    )
+    target_link_libraries(physics_sim_water_feel_metrics_tests PRIVATE physics_sim_core)
+    target_compile_features(physics_sim_water_feel_metrics_tests PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(physics_sim_water_feel_metrics_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_water_feel_metrics_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_water_feel_metrics_tests COMMAND physics_sim_water_feel_metrics_tests)
     add_executable(physics_sim_surface_reconstruction_tests
         tests/surface_reconstruction_tests.cpp
     )
@@ -520,6 +531,8 @@ if(BUILD_TESTING)
             --scenario dam-break
             --scenario hose-wall-impact
             --scenario narrow-channel
+            --scenario asymmetric-leveling
+            --scenario steady-pour-feel
     )
     add_test(NAME physics_sim_fluid_quality_full COMMAND physics_sim_fluid_quality_tests)
 
@@ -570,6 +583,7 @@ if(BUILD_TESTING)
 
     set_tests_properties(
         physics_sim_simulation_api_tests
+        physics_sim_water_feel_metrics_tests
         physics_sim_surface_reconstruction_tests
         physics_sim_dependency_check
         physics_sim_tests

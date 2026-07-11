@@ -13,6 +13,12 @@ $strictQualityScenarios = [System.Collections.Generic.HashSet[string]]::new([Sys
 [void]$strictQualityScenarios.Add('hydrostatic-column')
 [void]$strictQualityScenarios.Add('particle-overcrowding')
 [void]$strictQualityScenarios.Add('long-run-stress')
+[void]$strictQualityScenarios.Add('asymmetric-leveling')
+[void]$strictQualityScenarios.Add('steady-pour-feel')
+[void]$strictQualityScenarios.Add('slosh-decay')
+[void]$strictQualityScenarios.Add('wall-sheet-flow')
+[void]$strictQualityScenarios.Add('two-stream-merge')
+[void]$strictQualityScenarios.Add('obstacle-breakup-rejoin')
 
 function Write-SuiteLog
 {
@@ -223,7 +229,7 @@ foreach ($case in $cases)
     }
 
     $fields = Parse-ScenarioFields ([string]$finalLines[-1])
-    foreach ($requiredField in @('scenario', 'profile', 'tier', 'mass_error', 'density_error', 'kinetic_energy', 'pressure_residual', 'removed', 'outflow', 'particles_in_solids', 'non_finite_values', 'unexplained_lifecycle_changes'))
+    foreach ($requiredField in @('scenario', 'profile', 'tier', 'mass_error', 'density_error', 'kinetic_energy', 'pressure_residual', 'footprint_cells', 'occupied_columns', 'surface_rms_slope', 'surface_max_slope', 'sampling_cv', 'particle_components', 'largest_component_fraction', 'vorticity_rms', 'removed', 'outflow', 'particles_in_solids', 'non_finite_values', 'unexplained_lifecycle_changes'))
     {
         if (-not $fields.ContainsKey($requiredField))
         {
@@ -248,7 +254,7 @@ foreach ($case in $cases)
         throw "Fluid-quality case $caseName ($profile) reported tier $($fields['tier']) instead of $expectedTier."
     }
 
-    foreach ($numericField in @('mass_error', 'density_error', 'kinetic_energy', 'pressure_residual'))
+    foreach ($numericField in @('mass_error', 'density_error', 'kinetic_energy', 'pressure_residual', 'footprint_cells', 'surface_rms_slope', 'surface_max_slope', 'sampling_cv', 'largest_component_fraction', 'vorticity_rms'))
     {
         try
         {
@@ -260,7 +266,7 @@ foreach ($case in $cases)
         }
     }
 
-    foreach ($integerField in @('removed', 'outflow'))
+    foreach ($integerField in @('occupied_columns', 'particle_components', 'removed', 'outflow'))
     {
         try
         {
@@ -283,6 +289,14 @@ foreach ($case in $cases)
         pressure_residual = $pressureResidual
         density_error = [double]::Parse($fields['density_error'], [System.Globalization.CultureInfo]::InvariantCulture)
         kinetic_energy = [double]::Parse($fields['kinetic_energy'], [System.Globalization.CultureInfo]::InvariantCulture)
+        footprint_cells = [double]::Parse($fields['footprint_cells'], [System.Globalization.CultureInfo]::InvariantCulture)
+        occupied_columns = [UInt64]::Parse($fields['occupied_columns'], [System.Globalization.CultureInfo]::InvariantCulture)
+        surface_rms_slope = [double]::Parse($fields['surface_rms_slope'], [System.Globalization.CultureInfo]::InvariantCulture)
+        surface_max_slope = [double]::Parse($fields['surface_max_slope'], [System.Globalization.CultureInfo]::InvariantCulture)
+        sampling_cv = [double]::Parse($fields['sampling_cv'], [System.Globalization.CultureInfo]::InvariantCulture)
+        particle_components = [UInt64]::Parse($fields['particle_components'], [System.Globalization.CultureInfo]::InvariantCulture)
+        largest_component_fraction = [double]::Parse($fields['largest_component_fraction'], [System.Globalization.CultureInfo]::InvariantCulture)
+        vorticity_rms = [double]::Parse($fields['vorticity_rms'], [System.Globalization.CultureInfo]::InvariantCulture)
         removed = [UInt64]::Parse($fields['removed'], [System.Globalization.CultureInfo]::InvariantCulture)
         outflow = [UInt64]::Parse($fields['outflow'], [System.Globalization.CultureInfo]::InvariantCulture)
         particles_in_solids = [UInt64]::Parse($fields['particles_in_solids'], [System.Globalization.CultureInfo]::InvariantCulture)
