@@ -47,7 +47,7 @@ Lab capture smoke:
 .\scripts\run-lab-smoke.ps1
 ```
 
-Use `scripts/test.ps1 -Tier Fast|Standard|Full`. Fast is the sub-30-second developer loop, Standard adds solver and smoke coverage under 90 seconds, and Full adds visuals, benchmarks, and release checks under eight minutes.
+Use `scripts/test.ps1 -Tier Fast|Standard|Full`. Fast is the sub-30-second developer loop, Standard adds solver and smoke coverage under 90 seconds, and local Full adds visuals, benchmarks, and release checks under eight minutes. Hosted CI allows ten minutes for the same Full test set because shared Windows runners are slower; it does not omit or relax test thresholds.
 
 Current full local bundle:
 
