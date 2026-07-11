@@ -25,7 +25,7 @@ The pre-recovery issue ledger is preserved by the `pre-recovery-2026-07-10` tag.
 | PSIM-0105 | Done | P1 | Convincing Water Motion | R20.04 | Regularize particles and remove artificial cohesion |
 | PSIM-0106 | Done | P0 | Convincing Water Motion | R20.05 | Tune, review, and accept real-time water feel |
 | PSIM-0107 | Done | P0 | Complete Water Sandbox | R21.01 | Regularize active pours and refine droplets |
-| PSIM-0108 | Open | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
+| PSIM-0108 | Done | P1 | Complete Water Sandbox | R21.02 | Add deterministic foam and spray presentation |
 | PSIM-0109 | Open | P0 | Complete Water Sandbox | R21.03 | Restore advanced water tools and devices |
 | PSIM-0110 | Open | P1 | Complete Water Sandbox | R21.04 | Restore challenge objectives |
 | PSIM-0111 | Open | P1 | Complete Water Sandbox | R21.05 | Ship the curated scene gallery |
@@ -1056,7 +1056,7 @@ Implementation notes:
 
 ### PSIM-0108: Add deterministic foam and spray presentation
 
-Status: Open
+Status: Done
 
 Priority: P1
 
@@ -1100,7 +1100,11 @@ Dependencies:
 
 Implementation notes:
 
-- None yet.
+- Added compiled `WaterVisualEffects` extraction with deterministic foam, spray, and impact primitives, fixed caps, stable tick phases, reduced-motion behavior, and a presentation digest. The builder reads particles and solids without mutating solver state.
+- Integrated the same effects into sandbox SDL surface rendering and lab ImGui surface rendering. Lab capture JSON now records primitive counts and digest; still-water captures report zero effects while dam break, impact, and channel captures report bounded accents.
+- Added still-water, activation, cap, reduced-motion determinism, and 1.5 ms budget coverage in `tests/water_visual_effects_tests.cpp`; registered it as a unit test and kept core dependency boundaries intact.
+- Corrected contact-sheet image scaling by using explicit pixel source rectangles, reviewed `build/windows-x64/recovery-visual-review/recovery-contact-sheet.bmp` as `Codex visual review for PSIM-0108` on 2026-07-11, and accepted the reviewed basin golden after numeric scenario gates passed.
+- Verification on 2026-07-11: `scripts/build.ps1` passed; `scripts/test.ps1 -Tier Fast` passed 27/27 in 3.891 seconds; `scripts/test.ps1 -Tier Standard` passed 29/29 in 28.768 seconds; `scripts/capture-recovery-contact-sheet.ps1 -Accept -Reviewer 'Codex visual review for PSIM-0108'` passed; `scripts/verify-recovery-basin.ps1` passed with SHA-256 `F8E7C200E7B697CDB79B0D7DEAF0E15DC78BA54FCD00D22F3C16ABA4B134915C`.
 
 ### PSIM-0109: Restore advanced water tools and devices
 

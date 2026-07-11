@@ -317,6 +317,11 @@ public:
         return metrics_;
     }
 
+    [[nodiscard]] std::uint64_t simulation_tick() const noexcept
+    {
+        return simulation_tick_;
+    }
+
     [[nodiscard]] static FluidSolverSettings solver_settings_for_profile(FluidSolverProfile profile) noexcept
     {
         FluidSolverSettings settings;

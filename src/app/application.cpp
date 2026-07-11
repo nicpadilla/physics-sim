@@ -48,6 +48,7 @@
 #include <physics_sim/surface_reconstruction.hpp>
 #include <physics_sim/visual_mode.hpp>
 #include <physics_sim/water_simulation.hpp>
+#include <physics_sim/water_visual_effects.hpp>
 
 namespace
 {
@@ -748,7 +749,8 @@ void draw_fluid_surface(
     const physics_sim::SceneViewport& viewport,
     const physics_sim::WaterSimulation2D& simulation,
     const physics_sim::UiPalette& palette,
-    float interpolation_alpha)
+    float interpolation_alpha,
+    bool reduced_motion)
 {
     const auto& grid = simulation.grid();
     if (grid.width() == 0 || grid.height() == 0)
@@ -865,6 +867,44 @@ void draw_fluid_surface(
         previous = current;
         have_previous = true;
     }
+
+    physics_sim::WaterVisualEffectsSettings effect_settings;
+    effect_settings.reduced_motion = reduced_motion;
+    const auto effects = physics_sim::build_water_visual_effects(
+        simulation.particles(), solids, grid.width(), grid.height(), grid.cell_size(), simulation.simulation_tick(), effect_settings);
+
+    SDL_BlendMode previous_blend = SDL_BLENDMODE_NONE;
+    SDL_GetRenderDrawBlendMode(renderer, &previous_blend);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    for (const auto& point : effects.foam)
+    {
+        const std::uint8_t alpha = static_cast<std::uint8_t>(std::clamp(90.0f + point.intensity * 125.0f, 0.0f, 255.0f));
+        SDL_SetRenderDrawColor(renderer, 224, 244, 255, alpha);
+        const SDL_FRect bounds = world_rect(
+            viewport,
+            {point.position.x - point.radius, point.position.y - point.radius},
+            {point.radius * 2.0f, point.radius * 2.0f});
+        draw_filled_circle(renderer, bounds);
+    }
+    for (const auto& streak : effects.spray)
+    {
+        const std::uint8_t alpha = static_cast<std::uint8_t>(std::clamp(75.0f + streak.intensity * 145.0f, 0.0f, 255.0f));
+        SDL_SetRenderDrawColor(renderer, 205, 238, 255, alpha);
+        const auto start = viewport.world_to_window(streak.start);
+        const auto end = viewport.world_to_window(streak.end);
+        SDL_RenderDrawLineF(renderer, start.x, start.y, end.x, end.y);
+    }
+    for (const auto& impact : effects.impacts)
+    {
+        const std::uint8_t alpha = static_cast<std::uint8_t>(std::clamp(45.0f + impact.intensity * 90.0f, 0.0f, 180.0f));
+        SDL_SetRenderDrawColor(renderer, 214, 242, 255, alpha);
+        const SDL_FRect bounds = world_rect(
+            viewport,
+            {impact.position.x - impact.radius, impact.position.y - impact.radius},
+            {impact.radius * 2.0f, impact.radius * 2.0f});
+        draw_filled_circle(renderer, bounds);
+    }
+    SDL_SetRenderDrawBlendMode(renderer, previous_blend);
 }
 
 void draw_emitters(
@@ -4548,7 +4588,7 @@ int physics_sim::app::run_application(int argc, char* argv[])
             const float interpolationAlpha = captureByTickCount
                 ? 1.0f
                 : static_cast<float>(stepDriver.accumulator().count() / stepDriver.fixed_step().count());
-            draw_fluid_surface(renderer, viewport, simulation, palette, interpolationAlpha);
+            draw_fluid_surface(renderer, viewport, simulation, palette, interpolationAlpha, userSettings.reduced_motion);
         }
         else if (visualMode != VisualMode::Particles)
         {
