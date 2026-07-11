@@ -1,6 +1,7 @@
 param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 $version = '0.2.0-alpha.1'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildRoot = Join-Path $repoRoot 'build\windows-x64'
