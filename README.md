@@ -2,7 +2,7 @@
 
 Physics Sim is a Windows C++20/SDL2 deterministic 2D water sandbox and laboratory.
 
-Version `0.2.0-alpha.2` is the complete-water-sandbox recovery prerelease. One executable provides a custom-SDL creative sandbox and a Dear ImGui engineering laboratory over the same validated simulation core. It is an alpha rather than a finished game; `ROADMAP.md` and `PROGRESS.md` record current evidence and limitations.
+Version `0.2.0-alpha.2` is the complete-water-sandbox recovery prerelease. One executable provides a custom-SDL creative sandbox and a Dear ImGui engineering laboratory over the same validated simulation core. It is an alpha rather than a finished game; GitHub Issues track active work, while `ROADMAP.md` and `PROGRESS.md` preserve the completed recovery contract and evidence.
 
 ## Recovery Product
 
@@ -89,9 +89,12 @@ Create the recovery prerelease package:
 
 ## Evidence And Tracking
 
-- `ROADMAP.md`: recovery product contract.
-- `PROGRESS.md`: current implementation, automation, and human-acceptance status.
-- `ISSUES.md`: implementation-ready recovery queue.
+- GitHub Issues and milestones: active implementation work, priorities, dependencies, and completion state.
+- `CONTRIBUTING.md`: branch, pull-request, verification-tier, and evidence rules.
+- `docs/active-tracking.md`: active source-of-truth and issue-completion policy.
+- `ROADMAP.md`: completed recovery product contract and retained direction record.
+- `PROGRESS.md`: completed recovery implementation, automation, and acceptance ledger.
+- `ISSUES.md`: completed implementation-ready recovery ledger.
 - `docs/TRACKING.md`: lifecycle and evidence rules.
 - `docs/adr/README.md`: architecture decisions.
 - `docs/recovery-architecture.md`: active compiled boundaries and simulation facade.
