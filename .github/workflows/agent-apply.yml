@@ -1,0 +1,62 @@
+name: Apply runtime correctness changes
+
+on:
+  push:
+    branches:
+      - codex/runtime-correctness-and-tracking
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-apply-runtime-correctness
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply reviewed changes
+        shell: pwsh
+        run: python .agent/apply_changes.py
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+      - name: Configure and build
+        shell: pwsh
+        run: .\scripts\build.ps1
+      - name: Tracking, version, and hygiene
+        shell: pwsh
+        run: .\scripts\check-hygiene.ps1
+      - name: Standard verification
+        shell: pwsh
+        run: .\scripts\test.ps1 -Tier Standard
+      - name: Focused replay verification
+        shell: pwsh
+        run: .\scripts\verify-replay-suite.ps1
+      - name: Commit verified changes
+        shell: pwsh
+        run: |
+          $paths = Get-Content -LiteralPath .agent\changed_paths.txt | Where-Object { $_ }
+          foreach ($path in $paths) {
+            git add -- $path
+            if ($LASTEXITCODE -ne 0) { throw "Failed to stage $path" }
+          }
+          git rm -- .agent/apply_changes.py .github/workflows/agent-apply.yml
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove bootstrap files.' }
+          Remove-Item -LiteralPath .agent\changed_paths.txt -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git status --short
+          git commit -m 'Fix runtime state identity and establish active tracking'
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to commit verified changes.' }
+          git push origin "HEAD:$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to push verified changes.' }
