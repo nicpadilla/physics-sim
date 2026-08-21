@@ -2,6 +2,7 @@
 
 #include <physics_sim/fluid_particle.hpp>
 #include <physics_sim/solver_profile.hpp>
+#include <physics_sim/state_digest.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +27,6 @@ struct SimulationConfig
     double fixed_timestep = 1.0 / 120.0;
     float gravity_acceleration = 9.8f;
     FluidSolverProfile solver_profile = FluidSolverProfile::Balanced;
-    std::uint64_t deterministic_seed = 0;
 };
 
 struct ClearFluidCommand
@@ -75,15 +75,8 @@ struct SingleStepCommand
 {
 };
 
-using SimulationCommand = std::variant<
-    ClearFluidCommand,
-    ResetSimulationCommand,
-    SetSolidCellCommand,
-    AddEmitterCommand,
-    ClearEmittersCommand,
-    SeedParticleCommand,
-    SetPausedCommand,
-    SingleStepCommand>;
+using SimulationCommand = std::variant<ClearFluidCommand, ResetSimulationCommand, SetSolidCellCommand, AddEmitterCommand, ClearEmittersCommand,
+                                       SeedParticleCommand, SetPausedCommand, SingleStepCommand>;
 
 struct SimulationSnapshot
 {
@@ -125,24 +118,30 @@ struct SimulationMetrics
 
 class Simulation
 {
-public:
-    explicit Simulation(const SimulationConfig& config = {});
+  public:
+    explicit Simulation(const SimulationConfig &config = {});
     ~Simulation();
 
-    Simulation(Simulation&&) noexcept;
-    Simulation& operator=(Simulation&&) noexcept;
-    Simulation(const Simulation&) = delete;
-    Simulation& operator=(const Simulation&) = delete;
+    Simulation(Simulation &&) noexcept;
+    Simulation &operator=(Simulation &&) noexcept;
+    Simulation(const Simulation &) = delete;
+    Simulation &operator=(const Simulation &) = delete;
 
-    [[nodiscard]] const SimulationConfig& config() const noexcept;
+    [[nodiscard]] const SimulationConfig &config() const noexcept;
     [[nodiscard]] bool paused() const noexcept;
-    void apply(const SimulationCommand& command);
+    [[nodiscard]] bool single_step_pending() const noexcept;
+    void apply(const SimulationCommand &command);
     bool step();
     [[nodiscard]] SimulationSnapshot snapshot() const;
     [[nodiscard]] SimulationMetrics metrics() const noexcept;
     [[nodiscard]] std::string state_digest() const;
+    [[nodiscard]] static constexpr std::uint32_t versioned_state_digest_version() noexcept
+    {
+        return StateDigestFormatVersion;
+    }
+    [[nodiscard]] std::string versioned_state_digest() const;
 
-private:
+  private:
     class Impl;
     std::unique_ptr<Impl> impl_;
 };
