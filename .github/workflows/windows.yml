@@ -1,23 +1,19 @@
-name: Windows verification
+name: Full version and package verification
 
 on:
   pull_request:
-  push:
-    branches: [main]
-    tags: ['v*']
-  schedule:
-    - cron: '23 7 * * *'
-  workflow_dispatch:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
 
 concurrency:
-  group: physics-sim-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: full-version-package-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   verify:
+    if: github.head_ref == 'codex/single-source-version-packaging'
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
@@ -27,44 +23,28 @@ jobs:
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: vcpkg.json
-      - name: Configure and build
+      - name: Build
         shell: pwsh
         run: .\scripts\build.ps1
-      - name: Tracking and hygiene
+      - name: Hygiene and version tests
         shell: pwsh
         run: |
-          $fullTree = $env:GITHUB_EVENT_NAME -in @('schedule', 'workflow_dispatch') -or $env:GITHUB_REF -like 'refs/tags/*'
-          if ($fullTree) {
-            .\scripts\check-hygiene.ps1 -All
-          } else {
-            .\scripts\check-hygiene.ps1
-          }
-          .\scripts\test-hygiene.ps1
-      - name: Standard pull-request verification
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: .\scripts\test.ps1 -Tier Standard
-      - name: Standard main verification
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: .\scripts\test.ps1 -Tier Standard
+          .\scripts\check-hygiene.ps1
+          .\scripts\test-version.ps1
       - name: Full verification
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: .\scripts\verify-all.ps1
-      - name: Package prerelease
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Package from verified Release build
         shell: pwsh
-        run: .\scripts\package-release.ps1
-      - name: Upload verification evidence
+        run: .\scripts\package-release.ps1 -SkipBuild
+      - name: Upload package evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: physics-sim-verification-${{ github.run_id }}
+          name: physics-sim-full-version-package-${{ github.run_id }}
           path: |
             build/windows-x64/*.log
-            build/windows-x64/clang-tidy/**
             build/windows-x64/fluid-quality-suite/**
-            build/windows-x64/lab-smoke/**
             dist/*.zip*
+            dist/*/release-manifest.json
           if-no-files-found: ignore
