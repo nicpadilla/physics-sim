@@ -1,3 +1,4 @@
+# Temporary self-cleaning workflow for the digest branch.
 name: Apply versioned state digests
 
 on:
