@@ -61,6 +61,8 @@ struct SceneSensor
     std::size_t width = 1;
     std::size_t height = 1;
     bool enabled = true;
+    // Retained for scene-v2 parser compatibility. Sensor activity is derived
+    // runtime state and is never captured, saved, or applied as authored state.
     bool active = false;
     bool objective = false;
     std::string label{};
@@ -170,7 +172,7 @@ inline constexpr int SceneFormatVersion = 2;
             sensor.width,
             sensor.height,
             sensor.enabled,
-            sensor.active,
+            false,
             sensor.objective,
             sensor.label,
         });
@@ -242,6 +244,10 @@ inline void apply_scene(
     const FluidSolverProfile profile = effective_scene_solver_profile(document, fallback_profile, forced_profile);
     simulation.resize(document.grid_width, document.grid_height, document.cell_size);
     simulation.set_solver_settings(WaterSimulation2D::solver_settings_for_profile(profile));
+    // resize() rebuilds the grid and containers; clear_fluid() establishes the
+    // explicit new-runtime contract, including tick, counters, fields, metrics,
+    // and emitter runtime state.
+    simulation.clear_fluid();
 
     for (const auto& cell : document.solid_cells)
     {
@@ -273,7 +279,7 @@ inline void apply_scene(
             sensor.width,
             sensor.height,
             sensor.enabled,
-            sensor.active,
+            false,
             sensor.objective,
             sensor.label,
         });
@@ -311,6 +317,8 @@ inline void apply_scene(
             valve.open,
         });
     }
+
+    simulation.refresh_sensor_states();
 }
 
 [[nodiscard]] inline std::optional<SceneDocument> parse_scene_text(std::string_view text)
@@ -737,7 +745,7 @@ inline void apply_scene(
              << sensor.width << ' '
              << sensor.height << ' '
              << (sensor.enabled ? 1 : 0) << ' '
-             << (sensor.active ? 1 : 0) << ' '
+             << 0 << ' '
              << (sensor.objective ? 1 : 0);
         if (!sensor.label.empty())
         {
