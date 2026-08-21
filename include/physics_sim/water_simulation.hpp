@@ -13,10 +13,10 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <iomanip>
-#include <sstream>
+#include <limits>
 #include <span>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -197,9 +197,11 @@ struct WaterSimulationMetrics
     PressureSolveResult pressure_solve{};
 };
 
+struct WaterSimulationCheckpoint;
+
 class WaterSimulation2D
 {
-public:
+  public:
     using size_type = std::size_t;
 
     WaterSimulation2D() = default;
@@ -235,87 +237,87 @@ public:
         metrics_ = {};
     }
 
-    [[nodiscard]] MacGrid2D& grid() noexcept
+    [[nodiscard]] MacGrid2D &grid() noexcept
     {
         return grid_;
     }
 
-    [[nodiscard]] const MacGrid2D& grid() const noexcept
+    [[nodiscard]] const MacGrid2D &grid() const noexcept
     {
         return grid_;
     }
 
-    [[nodiscard]] std::vector<FluidParticle>& particles() noexcept
+    [[nodiscard]] std::vector<FluidParticle> &particles() noexcept
     {
         return particles_;
     }
 
-    [[nodiscard]] const std::vector<FluidParticle>& particles() const noexcept
+    [[nodiscard]] const std::vector<FluidParticle> &particles() const noexcept
     {
         return particles_;
     }
 
-    [[nodiscard]] std::vector<WaterEmitter>& emitters() noexcept
+    [[nodiscard]] std::vector<WaterEmitter> &emitters() noexcept
     {
         return emitters_;
     }
 
-    [[nodiscard]] const std::vector<WaterEmitter>& emitters() const noexcept
+    [[nodiscard]] const std::vector<WaterEmitter> &emitters() const noexcept
     {
         return emitters_;
     }
 
-    [[nodiscard]] std::vector<WaterGate>& gates() noexcept
+    [[nodiscard]] std::vector<WaterGate> &gates() noexcept
     {
         return gates_;
     }
 
-    [[nodiscard]] const std::vector<WaterGate>& gates() const noexcept
+    [[nodiscard]] const std::vector<WaterGate> &gates() const noexcept
     {
         return gates_;
     }
 
-    [[nodiscard]] std::vector<WaterSensor>& sensors() noexcept
+    [[nodiscard]] std::vector<WaterSensor> &sensors() noexcept
     {
         return sensors_;
     }
 
-    [[nodiscard]] const std::vector<WaterSensor>& sensors() const noexcept
+    [[nodiscard]] const std::vector<WaterSensor> &sensors() const noexcept
     {
         return sensors_;
     }
 
-    [[nodiscard]] std::vector<WaterDrain>& drains() noexcept
+    [[nodiscard]] std::vector<WaterDrain> &drains() noexcept
     {
         return drains_;
     }
 
-    [[nodiscard]] const std::vector<WaterDrain>& drains() const noexcept
+    [[nodiscard]] const std::vector<WaterDrain> &drains() const noexcept
     {
         return drains_;
     }
 
-    [[nodiscard]] std::vector<WaterPump>& pumps() noexcept
+    [[nodiscard]] std::vector<WaterPump> &pumps() noexcept
     {
         return pumps_;
     }
 
-    [[nodiscard]] const std::vector<WaterPump>& pumps() const noexcept
+    [[nodiscard]] const std::vector<WaterPump> &pumps() const noexcept
     {
         return pumps_;
     }
 
-    [[nodiscard]] std::vector<WaterValve>& valves() noexcept
+    [[nodiscard]] std::vector<WaterValve> &valves() noexcept
     {
         return valves_;
     }
 
-    [[nodiscard]] const std::vector<WaterValve>& valves() const noexcept
+    [[nodiscard]] const std::vector<WaterValve> &valves() const noexcept
     {
         return valves_;
     }
 
-    [[nodiscard]] const WaterSimulationMetrics& metrics() const noexcept
+    [[nodiscard]] const WaterSimulationMetrics &metrics() const noexcept
     {
         return metrics_;
     }
@@ -324,6 +326,12 @@ public:
     {
         return simulation_tick_;
     }
+
+    [[nodiscard]] WaterSimulationCheckpoint capture_checkpoint() const;
+
+    [[nodiscard]] bool restore_checkpoint(const WaterSimulationCheckpoint &checkpoint);
+
+    [[nodiscard]] std::size_t estimated_runtime_bytes() const noexcept;
 
     [[nodiscard]] std::string state_digest() const
     {
@@ -337,26 +345,78 @@ public:
             }
         };
         const auto mix_float = [&mix](float value) { mix(std::bit_cast<std::uint32_t>(value)); };
-        mix(simulation_tick_); mix(grid_.width()); mix(grid_.height()); mix_float(grid_.cell_size());
-        for (const auto& particle : particles_)
+        mix(simulation_tick_);
+        mix(grid_.width());
+        mix(grid_.height());
+        mix_float(grid_.cell_size());
+        for (const auto &particle : particles_)
         {
-            mix_float(particle.position.x); mix_float(particle.position.y);
-            mix_float(particle.velocity.x); mix_float(particle.velocity.y);
-            mix_float(particle.mass); mix_float(particle.volume); mix_float(particle.density); mix(particle.neighbor_count);
+            mix_float(particle.position.x);
+            mix_float(particle.position.y);
+            mix_float(particle.velocity.x);
+            mix_float(particle.velocity.y);
+            mix_float(particle.mass);
+            mix_float(particle.volume);
+            mix_float(particle.density);
+            mix(particle.neighbor_count);
         }
-        for (const float fraction : cell_volume_fractions_) mix_float(fraction);
+        for (const float fraction : cell_volume_fractions_)
+            mix_float(fraction);
         for (std::size_t y = 0; y < grid_.height(); ++y)
-            for (std::size_t x = 0; x < grid_.width(); ++x) mix(grid_.solid(x, y) ? 1U : 0U);
-        for (const auto& emitter : emitters_)
+            for (std::size_t x = 0; x < grid_.width(); ++x)
+                mix(grid_.solid(x, y) ? 1U : 0U);
+        for (const auto &emitter : emitters_)
         {
-            mix(static_cast<std::uint64_t>(emitter.kind)); mix_float(emitter.position.x); mix_float(emitter.position.y);
-            mix_float(emitter.direction.x); mix_float(emitter.direction.y); mix_float(emitter.speed); mix_float(emitter.emission_rate); mix(emitter.enabled);
+            mix(static_cast<std::uint64_t>(emitter.kind));
+            mix_float(emitter.position.x);
+            mix_float(emitter.position.y);
+            mix_float(emitter.direction.x);
+            mix_float(emitter.direction.y);
+            mix_float(emitter.speed);
+            mix_float(emitter.emission_rate);
+            mix(emitter.enabled);
         }
-        for (const auto& gate : gates_) { mix(gate.x); mix(gate.y); mix(gate.open); }
-        for (const auto& sensor : sensors_) { mix(sensor.x); mix(sensor.y); mix(sensor.width); mix(sensor.height); mix(sensor.enabled); mix(sensor.active); mix(sensor.objective); }
-        for (const auto& drain : drains_) { mix(drain.x); mix(drain.y); mix(drain.width); mix(drain.height); mix(drain.enabled); }
-        for (const auto& pump : pumps_) { mix(pump.x); mix(pump.y); mix(pump.width); mix(pump.height); mix(pump.enabled); mix_float(pump.direction.x); mix_float(pump.direction.y); mix_float(pump.strength); }
-        for (const auto& valve : valves_) { mix(valve.x); mix(valve.y); mix(valve.open); }
+        for (const auto &gate : gates_)
+        {
+            mix(gate.x);
+            mix(gate.y);
+            mix(gate.open);
+        }
+        for (const auto &sensor : sensors_)
+        {
+            mix(sensor.x);
+            mix(sensor.y);
+            mix(sensor.width);
+            mix(sensor.height);
+            mix(sensor.enabled);
+            mix(sensor.active);
+            mix(sensor.objective);
+        }
+        for (const auto &drain : drains_)
+        {
+            mix(drain.x);
+            mix(drain.y);
+            mix(drain.width);
+            mix(drain.height);
+            mix(drain.enabled);
+        }
+        for (const auto &pump : pumps_)
+        {
+            mix(pump.x);
+            mix(pump.y);
+            mix(pump.width);
+            mix(pump.height);
+            mix(pump.enabled);
+            mix_float(pump.direction.x);
+            mix_float(pump.direction.y);
+            mix_float(pump.strength);
+        }
+        for (const auto &valve : valves_)
+        {
+            mix(valve.x);
+            mix(valve.y);
+            mix(valve.open);
+        }
         std::ostringstream stream;
         stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
         return stream.str();
@@ -468,12 +528,12 @@ public:
         return solver_settings_for_profile(FluidSolverProfile::Quality);
     }
 
-    [[nodiscard]] const FluidSolverSettings& solver_settings() const noexcept
+    [[nodiscard]] const FluidSolverSettings &solver_settings() const noexcept
     {
         return solver_settings_;
     }
 
-    void set_solver_settings(const FluidSolverSettings& settings) noexcept
+    void set_solver_settings(const FluidSolverSettings &settings) noexcept
     {
         solver_settings_ = sanitize_solver_settings(settings);
     }
@@ -501,7 +561,7 @@ public:
     void ensure_particle_transfer_properties() noexcept
     {
         const FluidDensitySettings settings = density_settings();
-        for (auto& particle : particles_)
+        for (auto &particle : particles_)
         {
             particle.volume = particle.volume > 0.0f ? particle.volume : settings.particle_volume;
             particle.mass = particle.mass > 0.0f ? particle.mass : settings.rest_density * particle.volume;
@@ -535,34 +595,34 @@ public:
         return cell_densities_[grid_.cell_index(x, y)];
     }
 
-    void add_emitter(const WaterEmitter& emitter)
+    void add_emitter(const WaterEmitter &emitter)
     {
         emitters_.push_back(emitter);
     }
 
-    void add_gate(const WaterGate& gate)
+    void add_gate(const WaterGate &gate)
     {
         gates_.push_back(gate);
         sync_gate_cells();
     }
 
-    void add_sensor(const WaterSensor& sensor)
+    void add_sensor(const WaterSensor &sensor)
     {
         sensors_.push_back(sensor);
         recount_sensor_metrics_from_state();
     }
 
-    void add_drain(const WaterDrain& drain)
+    void add_drain(const WaterDrain &drain)
     {
         drains_.push_back(drain);
     }
 
-    void add_pump(const WaterPump& pump)
+    void add_pump(const WaterPump &pump)
     {
         pumps_.push_back(pump);
     }
 
-    void add_valve(const WaterValve& valve)
+    void add_valve(const WaterValve &valve)
     {
         valves_.push_back(valve);
         sync_gate_cells();
@@ -621,7 +681,7 @@ public:
         update_sensor_states();
     }
 
-    void add_particle(const FluidParticle& particle)
+    void add_particle(const FluidParticle &particle)
     {
         particles_.push_back(particle);
     }
@@ -641,15 +701,9 @@ public:
             return;
         }
 
-        const auto to_cell_x = [&](float value) -> int
-        {
-            return static_cast<int>(std::floor(value / grid_.cell_size()));
-        };
+        const auto to_cell_x = [&](float value) -> int { return static_cast<int>(std::floor(value / grid_.cell_size())); };
 
-        const auto to_cell_y = [&](float value) -> int
-        {
-            return static_cast<int>(std::floor(value / grid_.cell_size()));
-        };
+        const auto to_cell_y = [&](float value) -> int { return static_cast<int>(std::floor(value / grid_.cell_size())); };
 
         int x0 = to_cell_x(start.x);
         int y0 = to_cell_y(start.y);
@@ -704,7 +758,7 @@ public:
         metrics_ = {};
         sync_gate_cells();
         update_sensor_states();
-        for (auto& emitter : emitters_)
+        for (auto &emitter : emitters_)
         {
             emitter.emission_accumulator = 0.0;
             emitter.emitted_particles = 0;
@@ -748,7 +802,7 @@ public:
         remove_particles_in_drains();
         apply_pump_forces(step_seconds);
 
-        for (auto& particle : particles_)
+        for (auto &particle : particles_)
         {
             particle.velocity.y += gravity * step_seconds;
         }
@@ -838,21 +892,20 @@ public:
         metrics_.active_cells = divergence_count;
         metrics_.visible_fluid_cells = visible_fluid_cells;
         metrics_.pressure_active_cells = pressure_active_cells;
-        metrics_.active_cell_overreach_ratio = visible_fluid_cells > 0
-            ? static_cast<double>(pressure_active_cells) / static_cast<double>(visible_fluid_cells)
-            : 0.0;
+        metrics_.active_cell_overreach_ratio =
+            visible_fluid_cells > 0 ? static_cast<double>(pressure_active_cells) / static_cast<double>(visible_fluid_cells) : 0.0;
         metrics_.pressure_solve = pressure_solve;
         update_sensor_states();
         metrics_.average_divergence_after_projection = divergence_count > 0 ? divergence_sum / static_cast<double>(divergence_count) : 0.0;
         metrics_.max_divergence_after_projection = divergence_max;
         double kinetic_energy = 0.0;
-        for (const auto& particle : particles_)
+        for (const auto &particle : particles_)
         {
             const double particle_mass = particle.mass > 0.0f
-                ? static_cast<double>(particle.mass)
-                : static_cast<double>(particle.volume > 0.0f ? particle.volume : density_settings().particle_volume);
-            const double speed_squared = static_cast<double>(particle.velocity.x) * static_cast<double>(particle.velocity.x)
-                + static_cast<double>(particle.velocity.y) * static_cast<double>(particle.velocity.y);
+                                             ? static_cast<double>(particle.mass)
+                                             : static_cast<double>(particle.volume > 0.0f ? particle.volume : density_settings().particle_volume);
+            const double speed_squared = static_cast<double>(particle.velocity.x) * static_cast<double>(particle.velocity.x) +
+                                         static_cast<double>(particle.velocity.y) * static_cast<double>(particle.velocity.y);
             kinetic_energy += 0.5 * particle_mass * speed_squared;
         }
         metrics_.kinetic_energy = kinetic_energy;
@@ -863,7 +916,7 @@ public:
         }
     }
 
-private:
+  private:
     [[nodiscard]] bool is_valid_cell(size_type x, size_type y) const noexcept
     {
         return grid_.contains(x, y);
@@ -907,7 +960,7 @@ private:
             return;
         }
 
-        for (const auto& gate : gates_)
+        for (const auto &gate : gates_)
         {
             if (grid_.contains(gate.x, gate.y))
             {
@@ -915,7 +968,7 @@ private:
             }
         }
 
-        for (const auto& valve : valves_)
+        for (const auto &valve : valves_)
         {
             if (grid_.contains(valve.x, valve.y))
             {
@@ -924,7 +977,7 @@ private:
         }
     }
 
-    [[nodiscard]] bool region_contains(std::size_t left, std::size_t top, std::size_t width, std::size_t height, const Vec2& position) const noexcept
+    [[nodiscard]] bool region_contains(std::size_t left, std::size_t top, std::size_t width, std::size_t height, const Vec2 &position) const noexcept
     {
         const float cell_size = grid_.cell_size();
         const float region_left = static_cast<float>(left) * cell_size;
@@ -946,10 +999,10 @@ private:
 
         std::uint64_t removed_this_pass = 0;
         double removed_mass_this_pass = 0.0;
-        for (const auto& particle : particles_)
+        for (const auto &particle : particles_)
         {
             bool drained = false;
-            for (const auto& drain : drains_)
+            for (const auto &drain : drains_)
             {
                 if (!drain.enabled)
                 {
@@ -989,7 +1042,7 @@ private:
             return;
         }
 
-        for (const auto& pump : pumps_)
+        for (const auto &pump : pumps_)
         {
             if (!pump.enabled)
             {
@@ -999,7 +1052,7 @@ private:
             const Vec2 direction = normalized_or_default(pump.direction, Vec2{0.0f, 1.0f});
             const float strength = std::max(0.0f, pump.strength) * step_seconds;
 
-            for (auto& particle : particles_)
+            for (auto &particle : particles_)
             {
                 if (region_contains(pump.x, pump.y, pump.width, pump.height, particle.position))
                 {
@@ -1011,7 +1064,7 @@ private:
 
     void update_sensor_states() noexcept
     {
-        for (auto& sensor : sensors_)
+        for (auto &sensor : sensors_)
         {
             bool active = false;
             if (sensor.enabled && !particles_.empty() && grid_.width() > 0 && grid_.height() > 0)
@@ -1022,12 +1075,9 @@ private:
                 const float right = left + static_cast<float>(sensor.width) * cell_size;
                 const float bottom = top + static_cast<float>(sensor.height) * cell_size;
 
-                for (const auto& particle : particles_)
+                for (const auto &particle : particles_)
                 {
-                    if (particle.position.x >= left
-                        && particle.position.x < right
-                        && particle.position.y >= top
-                        && particle.position.y < bottom)
+                    if (particle.position.x >= left && particle.position.x < right && particle.position.y >= top && particle.position.y < bottom)
                     {
                         active = true;
                         break;
@@ -1047,7 +1097,7 @@ private:
         std::size_t objective_sensors = 0;
         bool objective_completed = true;
 
-        for (const auto& sensor : sensors_)
+        for (const auto &sensor : sensors_)
         {
             if (sensor.active)
             {
@@ -1076,12 +1126,9 @@ private:
         return static_cast<float>(grid_.height()) * grid_.cell_size();
     }
 
-    [[nodiscard]] bool is_out_of_domain(const Vec2& position) const noexcept
+    [[nodiscard]] bool is_out_of_domain(const Vec2 &position) const noexcept
     {
-        return position.x < 0.0f
-            || position.y < 0.0f
-            || position.x >= domain_width()
-            || position.y >= domain_height();
+        return position.x < 0.0f || position.y < 0.0f || position.x >= domain_width() || position.y >= domain_height();
     }
 
     void cull_out_of_domain_particles() noexcept
@@ -1096,7 +1143,7 @@ private:
 
         std::uint64_t removed_this_pass = 0;
         double removed_mass_this_pass = 0.0;
-        for (const auto& particle : particles_)
+        for (const auto &particle : particles_)
         {
             if (is_out_of_domain(particle.position))
             {
@@ -1139,13 +1186,8 @@ private:
     }
 
     template <typename IndexFn>
-    [[nodiscard]] static float bilinear_sample(
-        const std::vector<float>& values,
-        size_type width,
-        size_type height,
-        float x,
-        float y,
-        IndexFn&& index_fn) noexcept
+    [[nodiscard]] static float bilinear_sample(const std::vector<float> &values, size_type width, size_type height, float x, float y,
+                                               IndexFn &&index_fn) noexcept
     {
         if (width == 0 || height == 0 || values.empty())
         {
@@ -1176,15 +1218,8 @@ private:
     }
 
     template <typename IndexFn>
-    static void bilinear_scatter(
-        std::vector<float>& values,
-        std::vector<float>& weights,
-        size_type width,
-        size_type height,
-        float x,
-        float y,
-        float contribution,
-        IndexFn&& index_fn) noexcept
+    static void bilinear_scatter(std::vector<float> &values, std::vector<float> &weights, size_type width, size_type height, float x, float y,
+                                 float contribution, IndexFn &&index_fn) noexcept
     {
         if (width == 0 || height == 0 || values.empty())
         {
@@ -1205,7 +1240,8 @@ private:
         const float w01 = (1.0f - tx) * ty;
         const float w11 = tx * ty;
 
-        const auto accumulate = [&](size_type x_index, size_type y_index, float w) {
+        const auto accumulate = [&](size_type x_index, size_type y_index, float w)
+        {
             const size_type idx = index_fn(x_index, y_index);
             values[idx] += contribution * w;
             weights[idx] += w;
@@ -1217,37 +1253,25 @@ private:
         accumulate(x1, y1, w11);
     }
 
-    [[nodiscard]] Vec2 sample_velocity(const Vec2& position,
-                                       const std::vector<float>& u_values,
-                                       const std::vector<float>& v_values) const noexcept
+    [[nodiscard]] Vec2 sample_velocity(const Vec2 &position, const std::vector<float> &u_values, const std::vector<float> &v_values) const noexcept
     {
         const float inv = 1.0f / grid_.cell_size();
-        const float u = bilinear_sample(
-            u_values,
-            grid_.width() + 1,
-            grid_.height(),
-            position.x * inv,
-            position.y * inv - 0.5f,
-            [&](size_type x, size_type y) { return y * (grid_.width() + 1) + x; });
-        const float v = bilinear_sample(
-            v_values,
-            grid_.width(),
-            grid_.height() + 1,
-            position.x * inv - 0.5f,
-            position.y * inv,
-            [&](size_type x, size_type y) { return y * grid_.width() + x; });
+        const float u = bilinear_sample(u_values, grid_.width() + 1, grid_.height(), position.x * inv, position.y * inv - 0.5f,
+                                        [&](size_type x, size_type y) { return y * (grid_.width() + 1) + x; });
+        const float v = bilinear_sample(v_values, grid_.width(), grid_.height() + 1, position.x * inv - 0.5f, position.y * inv,
+                                        [&](size_type x, size_type y) { return y * grid_.width() + x; });
         return {u, v};
     }
 
-    void emit_from_emitter(WaterEmitter& emitter, float dt)
+    void emit_from_emitter(WaterEmitter &emitter, float dt)
     {
         if (!emitter.enabled || emitter.emission_rate <= 0.0f)
         {
             return;
         }
 
-        const double calibrated_particle_rate = static_cast<double>(emitter.emission_rate)
-            * static_cast<double>(std::max<std::size_t>(1, solver_settings_.particles_per_full_cell));
+        const double calibrated_particle_rate =
+            static_cast<double>(emitter.emission_rate) * static_cast<double>(std::max<std::size_t>(1, solver_settings_.particles_per_full_cell));
         emitter.emission_accumulator += calibrated_particle_rate * static_cast<double>(dt);
         const auto direction = normalized_or_default(emitter.direction, Vec2{0.0f, 1.0f});
 
@@ -1285,12 +1309,12 @@ private:
 
     void emit_particles(float dt, std::span<WaterEmitter> transient_emitters)
     {
-        for (auto& emitter : emitters_)
+        for (auto &emitter : emitters_)
         {
             emit_from_emitter(emitter, dt);
         }
 
-        for (auto& emitter : transient_emitters)
+        for (auto &emitter : transient_emitters)
         {
             emit_from_emitter(emitter, dt);
         }
@@ -1415,8 +1439,7 @@ private:
             for (size_type x = 0; x < grid_.width(); ++x)
             {
                 const size_type idx = safe_cell_index(x, y);
-                if (!grid_.solid(x, y) && cell_states_.size() == grid_.cell_count()
-                    && cell_states_[idx] == FluidCellState::Fluid)
+                if (!grid_.solid(x, y) && cell_states_.size() == grid_.cell_count() && cell_states_[idx] == FluidCellState::Fluid)
                 {
                     const int ix = static_cast<int>(x);
                     const int iy = static_cast<int>(y);
@@ -1684,7 +1707,6 @@ private:
 
         grid_.u_raw().swap(next_u);
         grid_.v_raw().swap(next_v);
-
     }
 
     [[nodiscard]] PressureSolveResult project_pressures(float step_seconds)
@@ -1699,8 +1721,8 @@ private:
             pressure_next_.assign(cell_count, 0.0f);
         }
 
-        auto& cell_to_system = pressure_cell_to_system_workspace_;
-        auto& system_to_cell = pressure_system_to_cell_workspace_;
+        auto &cell_to_system = pressure_cell_to_system_workspace_;
+        auto &system_to_cell = pressure_system_to_cell_workspace_;
         cell_to_system.assign(cell_count, -1);
         system_to_cell.clear();
         if (system_to_cell.capacity() < cell_count)
@@ -1723,12 +1745,11 @@ private:
 
         result.active_cells = system_to_cell.size();
         result.pressure_active_cells = result.active_cells;
-        result.active_cell_overreach_ratio = result.visible_cells > 0
-            ? static_cast<double>(result.pressure_active_cells) / static_cast<double>(result.visible_cells)
-            : 0.0;
+        result.active_cell_overreach_ratio =
+            result.visible_cells > 0 ? static_cast<double>(result.pressure_active_cells) / static_cast<double>(result.visible_cells) : 0.0;
         if (system_to_cell.empty())
         {
-            for (float& pressure : grid_.pressure_values())
+            for (float &pressure : grid_.pressure_values())
             {
                 pressure = 0.0f;
             }
@@ -1742,13 +1763,13 @@ private:
         const std::size_t system_size = system_to_cell.size();
         result.max_iterations = std::max(1, solver_settings_.pressure_max_iterations);
         result.target_relative_residual = std::max(0.0f, solver_settings_.pressure_relative_residual_target);
-        auto& pressure = pressure_workspace_;
-        auto& rhs = pressure_rhs_workspace_;
-        auto& residual = pressure_residual_workspace_;
-        auto& direction = pressure_direction_workspace_;
-        auto& preconditioned = pressure_preconditioned_workspace_;
-        auto& applied = pressure_applied_workspace_;
-        auto& inverse_diagonal = pressure_inverse_diagonal_workspace_;
+        auto &pressure = pressure_workspace_;
+        auto &rhs = pressure_rhs_workspace_;
+        auto &residual = pressure_residual_workspace_;
+        auto &direction = pressure_direction_workspace_;
+        auto &preconditioned = pressure_preconditioned_workspace_;
+        auto &applied = pressure_applied_workspace_;
+        auto &inverse_diagonal = pressure_inverse_diagonal_workspace_;
         pressure.assign(system_size, 0.0);
         rhs.assign(system_size, 0.0);
         residual.assign(system_size, 0.0);
@@ -1757,15 +1778,9 @@ private:
         applied.assign(system_size, 0.0);
         inverse_diagonal.assign(system_size, 1.0);
 
-        const auto cell_x = [&](size_type cell_index) noexcept -> size_type
-        {
-            return cell_index % grid_.width();
-        };
+        const auto cell_x = [&](size_type cell_index) noexcept -> size_type { return cell_index % grid_.width(); };
 
-        const auto cell_y = [&](size_type cell_index) noexcept -> size_type
-        {
-            return cell_index / grid_.width();
-        };
+        const auto cell_y = [&](size_type cell_index) noexcept -> size_type { return cell_index / grid_.width(); };
 
         const auto neighbor_system_index = [&](int x, int y) noexcept -> int
         {
@@ -1782,7 +1797,7 @@ private:
             return cell_to_system[safe_cell_index(sx, sy)];
         };
 
-        const auto for_each_neighbor = [&](size_type x, size_type y, const auto& callback)
+        const auto for_each_neighbor = [&](size_type x, size_type y, const auto &callback)
         {
             callback(static_cast<int>(x) - 1, static_cast<int>(y));
             callback(static_cast<int>(x) + 1, static_cast<int>(y));
@@ -1798,24 +1813,25 @@ private:
             rhs[row] = -static_cast<double>(compute_divergence_for_cell(x, y, inv_cell_size)) * static_cast<double>(pressure_scale);
 
             int diagonal = 0;
-            for_each_neighbor(x, y, [&](int nx, int ny)
-            {
-                if (nx < 0 || ny < 0)
-                {
-                    return;
-                }
-                const size_type sx = static_cast<size_type>(nx);
-                const size_type sy = static_cast<size_type>(ny);
-                if (!grid_.contains(sx, sy) || grid_.solid(sx, sy))
-                {
-                    return;
-                }
-                ++diagonal;
-            });
+            for_each_neighbor(x, y,
+                              [&](int nx, int ny)
+                              {
+                                  if (nx < 0 || ny < 0)
+                                  {
+                                      return;
+                                  }
+                                  const size_type sx = static_cast<size_type>(nx);
+                                  const size_type sy = static_cast<size_type>(ny);
+                                  if (!grid_.contains(sx, sy) || grid_.solid(sx, sy))
+                                  {
+                                      return;
+                                  }
+                                  ++diagonal;
+                              });
             inverse_diagonal[row] = diagonal > 0 ? 1.0 / static_cast<double>(diagonal) : 1.0;
         }
 
-        const auto apply_operator = [&](const std::vector<double>& input, std::vector<double>& output)
+        const auto apply_operator = [&](const std::vector<double> &input, std::vector<double> &output)
         {
             std::fill(output.begin(), output.end(), 0.0);
             for (std::size_t row = 0; row < system_size; ++row)
@@ -1826,32 +1842,33 @@ private:
 
                 double diagonal = 0.0;
                 double neighbor_sum = 0.0;
-                for_each_neighbor(x, y, [&](int nx, int ny)
-                {
-                    if (nx < 0 || ny < 0)
-                    {
-                        return;
-                    }
-                    const size_type sx = static_cast<size_type>(nx);
-                    const size_type sy = static_cast<size_type>(ny);
-                    if (!grid_.contains(sx, sy) || grid_.solid(sx, sy))
-                    {
-                        return;
-                    }
+                for_each_neighbor(x, y,
+                                  [&](int nx, int ny)
+                                  {
+                                      if (nx < 0 || ny < 0)
+                                      {
+                                          return;
+                                      }
+                                      const size_type sx = static_cast<size_type>(nx);
+                                      const size_type sy = static_cast<size_type>(ny);
+                                      if (!grid_.contains(sx, sy) || grid_.solid(sx, sy))
+                                      {
+                                          return;
+                                      }
 
-                    ++diagonal;
-                    const int neighbor_index = neighbor_system_index(nx, ny);
-                    if (neighbor_index >= 0)
-                    {
-                        neighbor_sum += input[static_cast<std::size_t>(neighbor_index)];
-                    }
-                });
+                                      ++diagonal;
+                                      const int neighbor_index = neighbor_system_index(nx, ny);
+                                      if (neighbor_index >= 0)
+                                      {
+                                          neighbor_sum += input[static_cast<std::size_t>(neighbor_index)];
+                                      }
+                                  });
 
                 output[row] = diagonal * input[row] - neighbor_sum;
             }
         };
 
-        const auto dot = [](const std::vector<double>& lhs, const std::vector<double>& rhs_values) noexcept
+        const auto dot = [](const std::vector<double> &lhs, const std::vector<double> &rhs_values) noexcept
         {
             double sum = 0.0;
             for (std::size_t i = 0; i < lhs.size(); ++i)
@@ -1933,7 +1950,7 @@ private:
             }
         }
 
-        for (float& value : grid_.pressure_values())
+        for (float &value : grid_.pressure_values())
         {
             value = 0.0f;
         }
@@ -1989,7 +2006,8 @@ private:
             for (size_type x = 0; x <= grid_.width(); ++x)
             {
                 const float left_pressure = (x > 0 && !grid_.solid(x - 1, y)) ? grid_.pressure(x - 1, y) : 0.0f;
-                const float right_pressure = (x < grid_.width() && !grid_.solid(std::min(x, grid_.width() - 1), y)) ? grid_.pressure(std::min(x, grid_.width() - 1), y) : 0.0f;
+                const float right_pressure =
+                    (x < grid_.width() && !grid_.solid(std::min(x, grid_.width() - 1), y)) ? grid_.pressure(std::min(x, grid_.width() - 1), y) : 0.0f;
 
                 if (x == 0 || x == grid_.width())
                 {
@@ -2029,14 +2047,11 @@ private:
         const float flip_blend = solver_settings_.flip_blend;
         const float velocity_retention = solver_settings_.velocity_retention;
         const float viscosity_factor = dt > 0.0f && solver_settings_.viscosity_coefficient > 0.0f
-            ? std::clamp(
-                solver_settings_.viscosity_coefficient * dt / (grid_.cell_size() * grid_.cell_size()),
-                0.0f,
-                0.24f)
-            : 0.0f;
+                                           ? std::clamp(solver_settings_.viscosity_coefficient * dt / (grid_.cell_size() * grid_.cell_size()), 0.0f, 0.24f)
+                                           : 0.0f;
         const float particle_retention = clampf(1.0f - viscosity_factor * 0.5f, 0.0f, 1.0f);
 
-        for (auto& particle : particles_)
+        for (auto &particle : particles_)
         {
             const Vec2 pic_velocity = sample_velocity(particle.position, grid_.u_values(), grid_.v_values());
             const Vec2 previous_velocity = sample_velocity(particle.position, u_previous_, v_previous_);
@@ -2062,7 +2077,7 @@ private:
 
         std::vector<Vec2> previous_positions;
         previous_positions.reserve(particles_.size());
-        for (const auto& particle : particles_)
+        for (const auto &particle : particles_)
         {
             previous_positions.push_back(particle.position);
         }
@@ -2070,10 +2085,7 @@ private:
         DensityCorrectionSettings correction_settings;
         correction_settings.iterations = solver_settings_.density_correction_iterations;
         correction_settings.max_correction = grid_.cell_size() * solver_settings_.max_density_correction_fraction;
-        const DensityCorrectionResult correction = physics_sim::apply_density_constraint_correction(
-            particles_,
-            density_settings(),
-            correction_settings);
+        const DensityCorrectionResult correction = physics_sim::apply_density_constraint_correction(particles_, density_settings(), correction_settings);
         (void)correction;
 
         const float max_velocity_delta = correction_settings.max_correction / std::max(step_seconds, 1.0e-6f);
@@ -2092,14 +2104,13 @@ private:
                 correction_velocity = correction_velocity * (max_velocity_delta / correction_length);
             }
 
-            particles_[index].velocity = particles_[index].velocity
-                + correction_velocity * solver_settings_.density_correction_velocity_ratio;
+            particles_[index].velocity = particles_[index].velocity + correction_velocity * solver_settings_.density_correction_velocity_ratio;
         }
 
         resolve_particles_out_of_solids();
     }
 
-    void update_particle_affine_velocity(FluidParticle& particle) const noexcept
+    void update_particle_affine_velocity(FluidParticle &particle) const noexcept
     {
         const float radius = std::max(grid_.cell_size() * 0.5f, 0.0001f);
         const float inv_span = 1.0f / (2.0f * radius);
@@ -2121,7 +2132,7 @@ private:
     {
         const float epsilon = grid_.cell_size() * 0.001f;
 
-        for (auto& particle : particles_)
+        for (auto &particle : particles_)
         {
             const Vec2 previous_position = particle.position;
             Vec2 desired_position{
@@ -2149,16 +2160,10 @@ private:
                 continue;
             }
 
-            desired_position.x = clampf(
-                desired_position.x,
-                epsilon,
-                std::max(epsilon, domain_width() - epsilon));
-            desired_position.y = clampf(
-                desired_position.y,
-                epsilon,
-                std::max(epsilon, domain_height() - epsilon));
+            desired_position.x = clampf(desired_position.x, epsilon, std::max(epsilon, domain_width() - epsilon));
+            desired_position.y = clampf(desired_position.y, epsilon, std::max(epsilon, domain_height() - epsilon));
 
-            auto solid_cell_at = [&](const Vec2& position, size_type& cell_x, size_type& cell_y) noexcept
+            auto solid_cell_at = [&](const Vec2 &position, size_type &cell_x, size_type &cell_y) noexcept
             {
                 cell_x = static_cast<size_type>(std::floor(position.x / grid_.cell_size()));
                 cell_y = static_cast<size_type>(std::floor(position.y / grid_.cell_size()));
@@ -2253,13 +2258,13 @@ private:
 
     void resolve_particles_out_of_solids() noexcept
     {
-        for (auto& particle : particles_)
+        for (auto &particle : particles_)
         {
             resolve_particle_out_of_solids(particle);
         }
     }
 
-    void resolve_particle_out_of_solids(FluidParticle& particle) const noexcept
+    void resolve_particle_out_of_solids(FluidParticle &particle) const noexcept
     {
         if (grid_.width() == 0 || grid_.height() == 0)
         {
@@ -2271,7 +2276,7 @@ private:
         particle.position.x = clampf(particle.position.x, epsilon, std::max(epsilon, domain_width() - epsilon));
         particle.position.y = clampf(particle.position.y, epsilon, std::max(epsilon, domain_height() - epsilon));
 
-        const auto cell_for_position = [&](const Vec2& position, size_type& cell_x, size_type& cell_y) noexcept -> bool
+        const auto cell_for_position = [&](const Vec2 &position, size_type &cell_x, size_type &cell_y) noexcept -> bool
         {
             if (position.x < 0.0f || position.y < 0.0f)
             {
@@ -2374,7 +2379,7 @@ private:
         std::vector<std::vector<size_type>> buckets(cell_count);
         buckets.shrink_to_fit();
 
-        const auto cell_for_position = [&](const Vec2& position, size_type& cell_x, size_type& cell_y) noexcept -> bool
+        const auto cell_for_position = [&](const Vec2 &position, size_type &cell_x, size_type &cell_y) noexcept -> bool
         {
             if (position.x < 0.0f || position.y < 0.0f)
             {
@@ -2411,22 +2416,13 @@ private:
         const float min_split_mass = solver_settings_.resampling.min_split_particle_mass;
         const float split_offset = solver_settings_.resampling.split_offset_fraction * cell_size;
 
-        const auto prune_removed = [&](std::vector<size_type>& bucket)
-        {
-            bucket.erase(
-                std::remove_if(
-                    bucket.begin(),
-                    bucket.end(),
-                    [&](size_type particle_index) { return removed[particle_index] != 0; }),
-                bucket.end());
-        };
+        const auto prune_removed = [&](std::vector<size_type> &bucket)
+        { bucket.erase(std::remove_if(bucket.begin(), bucket.end(), [&](size_type particle_index) { return removed[particle_index] != 0; }), bucket.end()); };
 
-        const auto particle_volume_value = [&](const FluidParticle& particle) noexcept -> float
-        {
-            return particle.volume > 0.0f ? particle.volume : density_settings().particle_volume;
-        };
+        const auto particle_volume_value = [&](const FluidParticle &particle) noexcept -> float
+        { return particle.volume > 0.0f ? particle.volume : density_settings().particle_volume; };
 
-        const auto find_best_pair = [&](const std::vector<size_type>& bucket) noexcept -> std::pair<size_type, size_type>
+        const auto find_best_pair = [&](const std::vector<size_type> &bucket) noexcept -> std::pair<size_type, size_type>
         {
             bool have_pair = false;
             double best_distance = 0.0;
@@ -2452,10 +2448,9 @@ private:
                     const double distance = static_cast<double>(length_squared(particles_[first_index].position - particles_[second_index].position));
                     const size_type ordered_first = std::min(first_index, second_index);
                     const size_type ordered_second = std::max(first_index, second_index);
-                    if (!have_pair
-                        || distance < best_distance - 1.0e-12
-                        || (std::abs(distance - best_distance) <= 1.0e-12
-                            && (ordered_first < best_first || (ordered_first == best_first && ordered_second < best_second))))
+                    if (!have_pair || distance < best_distance - 1.0e-12 ||
+                        (std::abs(distance - best_distance) <= 1.0e-12 &&
+                         (ordered_first < best_first || (ordered_first == best_first && ordered_second < best_second))))
                     {
                         have_pair = true;
                         best_distance = distance;
@@ -2470,8 +2465,8 @@ private:
 
         const auto merge_particles = [&](size_type first_index, size_type second_index) noexcept
         {
-            const FluidParticle& first = particles_[first_index];
-            const FluidParticle& second = particles_[second_index];
+            const FluidParticle &first = particles_[first_index];
+            const FluidParticle &second = particles_[second_index];
             const double first_mass = static_cast<double>(first.mass > 0.0f ? first.mass : density_settings().rest_density * particle_volume_value(first));
             const double second_mass = static_cast<double>(second.mass > 0.0f ? second.mass : density_settings().rest_density * particle_volume_value(second));
             const double total_mass = first_mass + second_mass;
@@ -2483,12 +2478,16 @@ private:
             if (total_mass > 0.0)
             {
                 merged.position = Vec2{
-                    static_cast<float>((static_cast<double>(first.position.x) * first_mass + static_cast<double>(second.position.x) * second_mass) / total_mass),
-                    static_cast<float>((static_cast<double>(first.position.y) * first_mass + static_cast<double>(second.position.y) * second_mass) / total_mass),
+                    static_cast<float>((static_cast<double>(first.position.x) * first_mass + static_cast<double>(second.position.x) * second_mass) /
+                                       total_mass),
+                    static_cast<float>((static_cast<double>(first.position.y) * first_mass + static_cast<double>(second.position.y) * second_mass) /
+                                       total_mass),
                 };
                 merged.velocity = Vec2{
-                    static_cast<float>((static_cast<double>(first.velocity.x) * first_mass + static_cast<double>(second.velocity.x) * second_mass) / total_mass),
-                    static_cast<float>((static_cast<double>(first.velocity.y) * first_mass + static_cast<double>(second.velocity.y) * second_mass) / total_mass),
+                    static_cast<float>((static_cast<double>(first.velocity.x) * first_mass + static_cast<double>(second.velocity.x) * second_mass) /
+                                       total_mass),
+                    static_cast<float>((static_cast<double>(first.velocity.y) * first_mass + static_cast<double>(second.velocity.y) * second_mass) /
+                                       total_mass),
                 };
             }
 
@@ -2500,7 +2499,7 @@ private:
             return merged;
         };
 
-        const auto split_particle = [&](size_type cell_x, size_type cell_y, size_type particle_index, std::vector<size_type>& bucket)
+        const auto split_particle = [&](size_type cell_x, size_type cell_y, size_type particle_index, std::vector<size_type> &bucket)
         {
             if (operations >= max_operations)
             {
@@ -2547,12 +2546,8 @@ private:
             size_type child_a_cell_y = 0;
             size_type child_b_cell_x = 0;
             size_type child_b_cell_y = 0;
-            if (!cell_for_position(child_a_position, child_a_cell_x, child_a_cell_y)
-                || !cell_for_position(child_b_position, child_b_cell_x, child_b_cell_y)
-                || child_a_cell_x != cell_x
-                || child_a_cell_y != cell_y
-                || child_b_cell_x != cell_x
-                || child_b_cell_y != cell_y)
+            if (!cell_for_position(child_a_position, child_a_cell_x, child_a_cell_y) || !cell_for_position(child_b_position, child_b_cell_x, child_b_cell_y) ||
+                child_a_cell_x != cell_x || child_a_cell_y != cell_y || child_b_cell_x != cell_x || child_b_cell_y != cell_y)
             {
                 return false;
             }
@@ -2590,7 +2585,7 @@ private:
                 }
 
                 const std::size_t cell_index = grid_.cell_index(x, y);
-                auto& bucket = buckets[cell_index];
+                auto &bucket = buckets[cell_index];
                 prune_removed(bucket);
 
                 while (bucket.size() > target_particles && operations < max_operations)
@@ -2645,7 +2640,9 @@ private:
                                     continue;
                                 }
 
-                                const float mass = particles_[particle_index].mass > 0.0f ? particles_[particle_index].mass : density_settings().rest_density * particle_volume_value(particles_[particle_index]);
+                                const float mass = particles_[particle_index].mass > 0.0f
+                                                       ? particles_[particle_index].mass
+                                                       : density_settings().rest_density * particle_volume_value(particles_[particle_index]);
                                 if (mass > best_mass || (std::abs(mass - best_mass) <= 1.0e-6f && particle_index < best_candidate))
                                 {
                                     best_mass = mass;
@@ -2686,11 +2683,8 @@ private:
 
     void regularize_particle_distribution()
     {
-        if (!solver_settings_.regularization.enabled
-            || particles_.size() < solver_settings_.regularization.minimum_particle_count
-            || simulation_tick_ % solver_settings_.regularization.interval_ticks != 0
-            || grid_.width() == 0
-            || grid_.height() == 0)
+        if (!solver_settings_.regularization.enabled || particles_.size() < solver_settings_.regularization.minimum_particle_count ||
+            simulation_tick_ % solver_settings_.regularization.interval_ticks != 0 || grid_.width() == 0 || grid_.height() == 0)
         {
             return;
         }
@@ -2704,7 +2698,7 @@ private:
             return;
         }
 
-        const auto particle_mass = [&](const FluidParticle& particle) noexcept
+        const auto particle_mass = [&](const FluidParticle &particle) noexcept
         {
             if (particle.mass > 0.0f)
             {
@@ -2719,7 +2713,7 @@ private:
             std::vector<std::vector<size_type>> buckets(grid_.cell_count());
             for (size_type index = 0; index < particles_.size(); ++index)
             {
-                const FluidParticle& particle = particles_[index];
+                const FluidParticle &particle = particles_[index];
                 if (particle.position.x < 0.0f || particle.position.y < 0.0f)
                 {
                     continue;
@@ -2735,7 +2729,7 @@ private:
             std::vector<Vec2> corrections(particles_.size(), Vec2{});
             for (size_type first = 0; first < particles_.size(); ++first)
             {
-                const FluidParticle& first_particle = particles_[first];
+                const FluidParticle &first_particle = particles_[first];
                 if (first_particle.position.x < 0.0f || first_particle.position.y < 0.0f)
                 {
                     continue;
@@ -2756,7 +2750,7 @@ private:
                         {
                             continue;
                         }
-                        const auto& bucket = buckets[grid_.cell_index(static_cast<size_type>(neighbor_x), static_cast<size_type>(neighbor_y))];
+                        const auto &bucket = buckets[grid_.cell_index(static_cast<size_type>(neighbor_x), static_cast<size_type>(neighbor_y))];
                         for (const size_type second : bucket)
                         {
                             if (second <= first)
@@ -2881,8 +2875,10 @@ private:
         settings.surface_tension_coefficient = std::max(0.0f, settings.surface_tension_coefficient);
         settings.max_surface_velocity_delta_fraction = std::max(0.0f, settings.max_surface_velocity_delta_fraction);
         settings.resampling.min_particles_per_fluid_cell = std::max<std::size_t>(1, settings.resampling.min_particles_per_fluid_cell);
-        settings.resampling.target_particles_per_fluid_cell = std::max(settings.resampling.min_particles_per_fluid_cell, settings.resampling.target_particles_per_fluid_cell);
-        settings.resampling.max_particles_per_fluid_cell = std::max(settings.resampling.target_particles_per_fluid_cell, settings.resampling.max_particles_per_fluid_cell);
+        settings.resampling.target_particles_per_fluid_cell =
+            std::max(settings.resampling.min_particles_per_fluid_cell, settings.resampling.target_particles_per_fluid_cell);
+        settings.resampling.max_particles_per_fluid_cell =
+            std::max(settings.resampling.target_particles_per_fluid_cell, settings.resampling.max_particles_per_fluid_cell);
         settings.resampling.max_resampling_operations_per_step = std::max<std::size_t>(1, settings.resampling.max_resampling_operations_per_step);
         settings.resampling.split_offset_fraction = std::clamp(settings.resampling.split_offset_fraction, 0.0f, 0.5f);
         settings.resampling.min_split_particle_mass = std::max(0.0f, settings.resampling.min_split_particle_mass);
@@ -2896,7 +2892,7 @@ private:
         return settings;
     }
 
-    [[nodiscard]] double particle_mass_for_metrics(const FluidParticle& particle) const noexcept
+    [[nodiscard]] double particle_mass_for_metrics(const FluidParticle &particle) const noexcept
     {
         const FluidDensitySettings settings = density_settings();
         const float particle_volume = particle.volume > 0.0f ? particle.volume : settings.particle_volume;
@@ -2904,4 +2900,84 @@ private:
         return static_cast<double>(particle_mass);
     }
 };
+
+struct WaterSimulationCheckpoint
+{
+    static constexpr std::uint32_t CurrentVersion = 1;
+
+    std::uint32_t version = CurrentVersion;
+    WaterSimulation2D simulation{};
+
+    [[nodiscard]] std::size_t estimated_bytes() const noexcept
+    {
+        return sizeof(*this) - sizeof(WaterSimulation2D) + simulation.estimated_runtime_bytes();
+    }
+};
+
+inline WaterSimulationCheckpoint WaterSimulation2D::capture_checkpoint() const
+{
+    return WaterSimulationCheckpoint{WaterSimulationCheckpoint::CurrentVersion, *this};
+}
+
+inline bool WaterSimulation2D::restore_checkpoint(const WaterSimulationCheckpoint &checkpoint)
+{
+    if (checkpoint.version != WaterSimulationCheckpoint::CurrentVersion)
+    {
+        return false;
+    }
+
+    const WaterSimulation2D &candidate = checkpoint.simulation;
+    const std::size_t cell_count = candidate.grid_.cell_count();
+    const bool fixed_sizes_valid = candidate.grid_.valid() && candidate.fluid_cells_.size() == cell_count && candidate.cell_states_.size() == cell_count &&
+                                   candidate.cell_volume_fractions_.size() == cell_count && candidate.cell_densities_.size() == cell_count &&
+                                   candidate.u_previous_.size() == candidate.grid_.u_count() && candidate.v_previous_.size() == candidate.grid_.v_count() &&
+                                   candidate.pressure_next_.size() == cell_count &&
+                                   (candidate.u_weights_.empty() || candidate.u_weights_.size() == candidate.grid_.u_count()) &&
+                                   (candidate.v_weights_.empty() || candidate.v_weights_.size() == candidate.grid_.v_count());
+    if (!fixed_sizes_valid)
+    {
+        return false;
+    }
+
+    *this = candidate;
+    return true;
+}
+
+inline std::size_t WaterSimulation2D::estimated_runtime_bytes() const noexcept
+{
+    std::size_t total = sizeof(*this);
+    const auto add_vector = [&total](const auto &values) { total += values.capacity() * sizeof(values[0]); };
+
+    add_vector(particles_);
+    add_vector(emitters_);
+    add_vector(gates_);
+    add_vector(sensors_);
+    add_vector(drains_);
+    add_vector(pumps_);
+    add_vector(valves_);
+    add_vector(fluid_cells_);
+    add_vector(cell_states_);
+    add_vector(cell_volume_fractions_);
+    add_vector(cell_densities_);
+    add_vector(u_weights_);
+    add_vector(v_weights_);
+    add_vector(u_previous_);
+    add_vector(v_previous_);
+    add_vector(pressure_next_);
+    add_vector(pressure_workspace_);
+    add_vector(pressure_rhs_workspace_);
+    add_vector(pressure_residual_workspace_);
+    add_vector(pressure_direction_workspace_);
+    add_vector(pressure_preconditioned_workspace_);
+    add_vector(pressure_applied_workspace_);
+    add_vector(pressure_inverse_diagonal_workspace_);
+    add_vector(pressure_cell_to_system_workspace_);
+    add_vector(pressure_system_to_cell_workspace_);
+    for (const WaterSensor &sensor : sensors_)
+    {
+        total += sensor.label.capacity();
+    }
+    return total;
+}
+
 } // namespace physics_sim

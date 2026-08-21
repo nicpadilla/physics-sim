@@ -205,6 +205,17 @@ if(BUILD_TESTING)
 
     add_test(NAME physics_sim_editor_tests COMMAND physics_sim_editor_tests)
 
+    add_executable(physics_sim_runtime_checkpoint_tests
+        tests/runtime_checkpoint_tests.cpp
+    )
+    target_link_libraries(physics_sim_runtime_checkpoint_tests PRIVATE physics_sim_core)
+    target_compile_features(physics_sim_runtime_checkpoint_tests PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(physics_sim_runtime_checkpoint_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(physics_sim_runtime_checkpoint_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+    add_test(NAME physics_sim_runtime_checkpoint_tests COMMAND physics_sim_runtime_checkpoint_tests)
+
     add_executable(physics_sim_ui_tests
         tests/visual_mode_tests.cpp
         tests/debug_overlay_tests.cpp
@@ -643,6 +654,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(
         physics_sim_editor_tests
+        physics_sim_runtime_checkpoint_tests
         physics_sim_scene_persistence_tests
         physics_sim_scene_gallery_tests
         physics_sim_device_runtime_tests
