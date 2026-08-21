@@ -1,0 +1,65 @@
+name: Apply versioned state digests
+
+on:
+  push:
+    branches: [codex/versioned-runtime-digests]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-versioned-state-digests
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/versioned-runtime-digests
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply digest changes
+        shell: pwsh
+        run: python .agent/apply_state_digests.py
+      - name: Format changed C++
+        shell: pwsh
+        run: |
+          $llvmBin = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin'
+          $clangFormat = (Get-Command clang-format -ErrorAction SilentlyContinue).Path
+          if (-not $clangFormat) { $clangFormat = Join-Path $llvmBin 'clang-format.exe' }
+          & $clangFormat -i include\physics_sim\state_digest.hpp include\physics_sim\water_simulation.hpp include\physics_sim\scene_document.hpp include\physics_sim\simulation.hpp src\core\simulation.cpp tests\state_digest_tests.cpp
+          if ($LASTEXITCODE -ne 0) { throw 'clang-format failed.' }
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+      - name: Build and verify
+        shell: pwsh
+        run: |
+          .\scripts\build.ps1
+          .\scripts\test.ps1 -Tier Standard
+          .\build\windows-x64\Debug\physics_sim_state_digest_tests.exe
+      - name: Commit verified source changes
+        shell: pwsh
+        run: |
+          $paths = Get-Content -LiteralPath .agent\changed_paths.txt | Where-Object { $_ }
+          foreach ($path in $paths) {
+            git add -- $path
+            if ($LASTEXITCODE -ne 0) { throw "Failed to stage $path" }
+          }
+          git rm -- .agent/apply_state_digests.py .github/workflows/apply-state-digests.yml
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to remove temporary digest bootstrap files.' }
+          Remove-Item -LiteralPath .agent\changed_paths.txt -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Staged diff check failed.' }
+          git commit -m 'Introduce versioned scene and runtime state digests'
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to commit digest changes.' }
+          git push origin HEAD:codex/versioned-runtime-digests
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to push digest changes.' }
