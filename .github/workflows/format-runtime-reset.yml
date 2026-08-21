@@ -1,0 +1,35 @@
+name: Format runtime reset branch
+
+on:
+  push:
+    branches: [codex/clean-scene-runtime-reset]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/clean-scene-runtime-reset
+          fetch-depth: 0
+      - name: Format changed C++ files
+        shell: pwsh
+        run: |
+          $llvmBin = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin'
+          $clangFormat = (Get-Command clang-format -ErrorAction SilentlyContinue).Path
+          if (-not $clangFormat) { $clangFormat = Join-Path $llvmBin 'clang-format.exe' }
+          if (-not (Test-Path -LiteralPath $clangFormat)) { throw 'clang-format is unavailable.' }
+          & $clangFormat -i include\physics_sim\scene_document.hpp tests\scene_persistence_tests.cpp
+          if ($LASTEXITCODE -ne 0) { throw 'clang-format failed.' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- include/physics_sim/scene_document.hpp tests/scene_persistence_tests.cpp
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Formatted diff check failed.' }
+          git commit -m 'style: format runtime reset changes'
+          if ($LASTEXITCODE -ne 0) { throw 'No formatting commit was created.' }
+          git push origin HEAD:codex/clean-scene-runtime-reset
