@@ -13,22 +13,25 @@ if (-not (Test-Path -LiteralPath $clangFormat) -or -not (Test-Path -LiteralPath 
 }
 
 $allCppFiles = @(& git -C $repoRoot ls-files -- '*.cpp' '*.hpp')
+$productionSources = @(& git -C $repoRoot ls-files -- 'src/*.cpp' 'src/**/*.cpp')
+$changed = @()
+$base = if ($env:GITHUB_BASE_REF) { "origin/$($env:GITHUB_BASE_REF)" } else { 'HEAD~1' }
+& git -C $repoRoot rev-parse --verify $base *> $null
+if ($LASTEXITCODE -eq 0)
+{
+    $changed += @(& git -C $repoRoot diff --name-only --diff-filter=ACMRT "$base...HEAD" -- '*.cpp' '*.hpp')
+}
+$changed += @(& git -C $repoRoot diff --name-only --diff-filter=ACMRT -- '*.cpp' '*.hpp')
+$changed += @(& git -C $repoRoot diff --cached --name-only --diff-filter=ACMRT -- '*.cpp' '*.hpp')
+$changed = @($changed | Where-Object { $_ } | Sort-Object -Unique)
+
 if ($All)
 {
     $formatRelative = @($allCppFiles)
 }
 else
 {
-    $changed = @()
-    $base = if ($env:GITHUB_BASE_REF) { "origin/$($env:GITHUB_BASE_REF)" } else { 'HEAD~1' }
-    & git -C $repoRoot rev-parse --verify $base *> $null
-    if ($LASTEXITCODE -eq 0)
-    {
-        $changed += @(& git -C $repoRoot diff --name-only --diff-filter=ACMRT "$base...HEAD" -- '*.cpp' '*.hpp')
-    }
-    $changed += @(& git -C $repoRoot diff --name-only --diff-filter=ACMRT -- '*.cpp' '*.hpp')
-    $changed += @(& git -C $repoRoot diff --cached --name-only --diff-filter=ACMRT -- '*.cpp' '*.hpp')
-    $formatRelative = @($changed | Where-Object { $_ -and ($allCppFiles -contains $_) } | Sort-Object -Unique)
+    $formatRelative = @($changed | Where-Object { $allCppFiles -contains $_ })
 }
 
 if ($formatRelative.Count -gt 0)
@@ -38,22 +41,47 @@ if ($formatRelative.Count -gt 0)
     if ($LASTEXITCODE -ne 0) { throw '[hygiene] clang-format check failed.' }
 }
 
-$tidySources = @(
+$baselineTidySources = @(
     'src\core\simulation.cpp',
     'src\core\water_feel_metrics.cpp',
     'src\content\content_module.cpp',
     'src\app\surface_reconstruction.cpp',
     'src\app\water_visual_effects.cpp'
 )
+if ($All)
+{
+    $tidySources = @($productionSources)
+}
+else
+{
+    $changedProduction = @($changed | Where-Object { $_ -like 'src/*.cpp' -or $_ -like 'src/**/*.cpp' })
+    $tidySources = @($baselineTidySources + $changedProduction | Sort-Object -Unique)
+}
+
 $tidyRoot = Join-Path $repoRoot 'build\windows-x64\clang-tidy'
 New-Item -ItemType Directory -Path $tidyRoot -Force | Out-Null
+$vcpkgInclude = Join-Path $repoRoot 'build\windows-x64\vcpkg_installed\x64-windows\include'
+$compileArguments = @('-std=c++20', "-I$(Join-Path $repoRoot 'include')", '-DNOMINMAX', '-DWIN32_LEAN_AND_MEAN')
+if (Test-Path -LiteralPath $vcpkgInclude)
+{
+    $compileArguments += "-I$vcpkgInclude"
+}
+
+# These two high-volume checks are tracked separately because enabling them on the
+# existing surface API would turn this tooling change into an unrelated API rewrite.
+$tidyChecks = '-checks=-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,performance-*'
 foreach ($relative in $tidySources)
 {
     $source = Join-Path $repoRoot $relative
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf))
+    {
+        throw "[hygiene] clang-tidy source is missing: $relative"
+    }
+
     $log = Join-Path $tidyRoot (($relative -replace '[\\/]', '-') + '.log')
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    & $clangTidy $source '-checks=-*,bugprone-*,performance-*' '--' '-std=c++20' "-I$(Join-Path $repoRoot 'include')" '-DNOMINMAX' '-DWIN32_LEAN_AND_MEAN' 2>&1 |
+    & $clangTidy $source $tidyChecks '--warnings-as-errors=*' '--' @compileArguments 2>&1 |
         Set-Content -LiteralPath $log
     $tidyExit = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorAction
@@ -74,4 +102,4 @@ foreach ($relativePath in $trackedFiles)
 
 & (Join-Path $PSScriptRoot 'check-dependencies.ps1')
 & (Join-Path $PSScriptRoot 'check-tracking.ps1')
-Write-Host "[hygiene] format_files=$($formatRelative.Count) tidy_files=$($tidySources.Count); dependency, tracking, secret, and path checks passed"
+Write-Host "[hygiene] all=$All format_files=$($formatRelative.Count) tidy_files=$($tidySources.Count); dependency, tracking, secret, and path checks passed"
