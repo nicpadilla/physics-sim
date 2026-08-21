@@ -32,7 +32,14 @@ jobs:
         run: .\scripts\build.ps1
       - name: Tracking and hygiene
         shell: pwsh
-        run: .\scripts\check-hygiene.ps1
+        run: |
+          $fullTree = $env:GITHUB_EVENT_NAME -in @('schedule', 'workflow_dispatch') -or $env:GITHUB_REF -like 'refs/tags/*'
+          if ($fullTree) {
+            .\scripts\check-hygiene.ps1 -All
+          } else {
+            .\scripts\check-hygiene.ps1
+          }
+          .\scripts\test-hygiene.ps1
       - name: Standard pull-request verification
         if: github.event_name == 'pull_request'
         shell: pwsh
