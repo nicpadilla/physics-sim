@@ -36,7 +36,9 @@ else
 
 if ($formatRelative.Count -gt 0)
 {
-    $formatFiles = $formatRelative | ForEach-Object { Join-Path $repoRoot $_ }
+    # Keep this an array even when exactly one C++ file changed. PowerShell's
+    # argument splatting treats a scalar string as individual characters.
+    $formatFiles = @($formatRelative | ForEach-Object { Join-Path $repoRoot $_ })
     & $clangFormat --dry-run --Werror @formatFiles
     if ($LASTEXITCODE -ne 0) { throw '[hygiene] clang-format check failed.' }
 }
