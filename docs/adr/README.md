@@ -15,3 +15,4 @@ Current records:
 - [0009 - SDL And Dear ImGui UI Boundary](0009-sdl-imgui-ui-boundary.md)
 - [0010 - Breaking Recovery Formats](0010-breaking-recovery-formats.md)
 - [0011 - Tiered Verification](0011-tiered-verification.md)
+- [0012 - Authored Scene And Runtime Checkpoint Boundaries](0012-authored-scene-and-runtime-checkpoint-boundaries.md)
