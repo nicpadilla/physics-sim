@@ -1,5 +1,7 @@
 #include <physics_sim/scene_controller.hpp>
+#include <physics_sim/scene_state_digest.hpp>
 #include <physics_sim/water_simulation.hpp>
+#include <physics_sim/water_state_digest.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -50,6 +52,7 @@ void add_test_basin(physics_sim::WaterSimulation2D &simulation)
 void require_same_continuation_state(const physics_sim::WaterSimulation2D &lhs, const physics_sim::WaterSimulation2D &rhs, const char *message)
 {
     REQUIRE(lhs.state_digest() == rhs.state_digest(), message);
+    REQUIRE(physics_sim::versioned_water_state_digest(lhs, 1.0 / 120.0) == physics_sim::versioned_water_state_digest(rhs, 1.0 / 120.0), message);
     REQUIRE(lhs.simulation_tick() == rhs.simulation_tick(), message);
     REQUIRE(lhs.particles().size() == rhs.particles().size(), message);
     REQUIRE(lhs.emitters().size() == rhs.emitters().size(), message);
@@ -62,6 +65,7 @@ void require_same_continuation_state(const physics_sim::WaterSimulation2D &lhs, 
 int main()
 {
     constexpr double dt = 1.0 / 120.0;
+    REQUIRE(physics_sim::StateDigestFormatVersion == 2, "unexpected versioned digest format");
 
     {
         physics_sim::WaterSimulation2D simulation{12, 12, 1.0f};
@@ -74,6 +78,7 @@ int main()
         const physics_sim::WaterSimulationCheckpoint checkpoint = simulation.capture_checkpoint();
         const auto expected = checkpoint.simulation;
         const std::string digest = simulation.state_digest();
+        const std::string versioned_digest = physics_sim::versioned_water_state_digest(simulation, dt);
         const std::uint64_t tick = simulation.simulation_tick();
         const double accumulator = simulation.emitters().front().emission_accumulator;
         const std::uint64_t phase = simulation.emitters().front().emitted_particles;
@@ -84,9 +89,35 @@ int main()
         }
         REQUIRE(simulation.restore_checkpoint(checkpoint), "valid checkpoint was rejected");
         REQUIRE(simulation.state_digest() == digest, "checkpoint restore changed visible runtime state");
+        REQUIRE(physics_sim::versioned_water_state_digest(simulation, dt) == versioned_digest, "checkpoint restore changed versioned runtime identity");
         REQUIRE(simulation.simulation_tick() == tick, "checkpoint restore lost the simulation tick");
         REQUIRE(nearly_equal(simulation.emitters().front().emission_accumulator, accumulator), "checkpoint restore lost emitter accumulation");
         REQUIRE(simulation.emitters().front().emitted_particles == phase, "checkpoint restore lost emitter phase");
+
+        auto changed = checkpoint.simulation;
+        changed.emitters().front().emission_accumulator += 0.25;
+        REQUIRE(physics_sim::versioned_water_state_digest(changed, dt) != versioned_digest,
+                "emitter fractional accumulation did not affect versioned identity");
+        changed = checkpoint.simulation;
+        ++changed.emitters().front().emitted_particles;
+        REQUIRE(physics_sim::versioned_water_state_digest(changed, dt) != versioned_digest, "emitter deterministic phase did not affect versioned identity");
+        changed = checkpoint.simulation;
+        auto settings = changed.solver_settings();
+        settings.gravity_acceleration += 1.0f;
+        changed.set_solver_settings(settings);
+        REQUIRE(physics_sim::versioned_water_state_digest(changed, dt) != versioned_digest, "solver configuration did not affect versioned identity");
+        changed = checkpoint.simulation;
+        changed.grid().u(2, 2) += 1.0f;
+        REQUIRE(physics_sim::versioned_water_state_digest(changed, dt) != versioned_digest, "grid velocity did not affect versioned identity");
+        changed = checkpoint.simulation;
+        changed.particles().front().affine_velocity.m01 += 0.5f;
+        REQUIRE(physics_sim::versioned_water_state_digest(changed, dt) != versioned_digest, "particle affine state did not affect versioned identity");
+        REQUIRE(physics_sim::versioned_water_state_digest(checkpoint.simulation, dt, true, false) != versioned_digest,
+                "pause state did not affect versioned identity");
+        REQUIRE(physics_sim::versioned_water_state_digest(checkpoint.simulation, dt, false, true) != versioned_digest,
+                "pending single-step state did not affect versioned identity");
+        REQUIRE(physics_sim::versioned_water_state_digest(checkpoint.simulation, 1.0 / 60.0) != versioned_digest,
+                "fixed timestep did not affect versioned identity");
 
         auto continued = simulation;
         auto repeated = expected;
@@ -94,14 +125,16 @@ int main()
         {
             continued.step(dt);
             repeated.step(dt);
+            REQUIRE(physics_sim::versioned_water_state_digest(continued, dt) == physics_sim::versioned_water_state_digest(repeated, dt),
+                    "equal restored states diverged under equal future steps");
         }
         require_same_continuation_state(continued, repeated, "restored checkpoint did not continue deterministically");
 
         auto invalid = checkpoint;
         invalid.version = 99;
-        const std::string before_invalid = simulation.state_digest();
+        const std::string before_invalid = physics_sim::versioned_water_state_digest(simulation, dt);
         REQUIRE(!simulation.restore_checkpoint(invalid), "unsupported checkpoint version was accepted");
-        REQUIRE(simulation.state_digest() == before_invalid, "failed checkpoint restore mutated the simulation");
+        REQUIRE(physics_sim::versioned_water_state_digest(simulation, dt) == before_invalid, "failed checkpoint restore mutated the simulation");
         REQUIRE(checkpoint.estimated_bytes() >= sizeof(checkpoint), "checkpoint byte estimate is smaller than its object");
     }
 
@@ -159,6 +192,31 @@ int main()
         REQUIRE(controller.history_index() + 1 == controller.history_size(), "history index did not follow deterministic eviction");
     }
 
-    std::puts("runtime checkpoint tests passed");
+    {
+        physics_sim::SceneDocument scene;
+        scene.grid_width = 8;
+        scene.grid_height = 8;
+        scene.cell_size = 1.0f;
+        scene.solver_profile = physics_sim::FluidSolverProfile::Balanced;
+        scene.metadata.title = "Digest scene";
+        scene.solid_cells.push_back({2, 3});
+        scene.sensors.push_back({1, 1, 2, 2, true, false, true, "goal"});
+        const std::string scene_digest = physics_sim::versioned_scene_definition_digest(scene);
+
+        auto active_only = scene;
+        active_only.sensors.front().active = true;
+        REQUIRE(physics_sim::versioned_scene_definition_digest(active_only) == scene_digest, "derived sensor activity changed authored scene identity");
+        auto changed_scene = scene;
+        changed_scene.solid_cells.push_back({3, 3});
+        REQUIRE(physics_sim::versioned_scene_definition_digest(changed_scene) != scene_digest, "authored wall change did not affect scene identity");
+        changed_scene = scene;
+        changed_scene.metadata.title = "Different title";
+        REQUIRE(physics_sim::versioned_scene_definition_digest(changed_scene) != scene_digest, "authored metadata change did not affect scene identity");
+
+        physics_sim::WaterSimulation2D runtime{8, 8, 1.0f};
+        REQUIRE(physics_sim::versioned_water_state_digest(runtime, dt) != scene_digest, "scene and runtime digest domains collided for the test state");
+    }
+
+    std::puts("runtime checkpoint and versioned digest tests passed");
     return 0;
 }

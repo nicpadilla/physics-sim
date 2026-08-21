@@ -1,6 +1,7 @@
 #include <physics_sim/simulation.hpp>
 
 #include <physics_sim/water_simulation.hpp>
+#include <physics_sim/water_state_digest.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -68,6 +69,11 @@ const SimulationConfig &Simulation::config() const noexcept
 bool Simulation::paused() const noexcept
 {
     return impl_->paused;
+}
+
+bool Simulation::single_step_pending() const noexcept
+{
+    return impl_->single_step_pending;
 }
 
 void Simulation::apply(const SimulationCommand &command)
@@ -244,5 +250,10 @@ std::string Simulation::state_digest() const
     std::ostringstream stream;
     stream << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << hash;
     return stream.str();
+}
+
+std::string Simulation::versioned_state_digest() const
+{
+    return versioned_water_state_digest(impl_->water, impl_->config.fixed_timestep, impl_->paused, impl_->single_step_pending);
 }
 } // namespace physics_sim
