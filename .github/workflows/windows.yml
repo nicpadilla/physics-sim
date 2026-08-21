@@ -40,6 +40,10 @@ jobs:
             .\scripts\check-hygiene.ps1
           }
           .\scripts\test-hygiene.ps1
+      - name: Release publication dry-run tests
+        if: hashFiles('scripts/test-release-publication.ps1') != ''
+        shell: pwsh
+        run: .\scripts\test-release-publication.ps1
       - name: Standard pull-request verification
         if: github.event_name == 'pull_request'
         shell: pwsh
@@ -68,3 +72,21 @@ jobs:
             build/windows-x64/lab-smoke/**
             dist/*.zip*
           if-no-files-found: ignore
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: physics-sim-verification-${{ github.run_id }}
+          path: release-artifacts
+      - name: Publish verified release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .\scripts\publish-release.ps1 -ArtifactRoot release-artifacts -ExpectedTag $env:GITHUB_REF_NAME
