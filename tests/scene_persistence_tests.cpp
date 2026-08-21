@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 
 namespace
 {
@@ -67,6 +68,16 @@ int main()
     REQUIRE(snapshot.emitters.size() == 2, "capture_scene lost emitters");
 
     {
+        physics_sim::WaterSimulation2D active_sensor_simulation{4, 4, 1.0f};
+        active_sensor_simulation.add_sensor({1, 1, 2, 2, true, false, true, "Goal"});
+        active_sensor_simulation.add_particle({{1.5f, 1.5f}, {0.0f, 0.0f}});
+        active_sensor_simulation.refresh_sensor_states();
+        REQUIRE(active_sensor_simulation.sensors().front().active, "sensor setup did not become active");
+        const auto authored_capture = physics_sim::capture_scene(active_sensor_simulation);
+        REQUIRE(!authored_capture.sensors.front().active, "capture_scene persisted derived sensor activity");
+    }
+
+    {
         const fs::path metadata_path = fs::temp_directory_path() / "physics-sim-scene-metadata.pscene";
         physics_sim::SceneMetadata metadata;
         metadata.title = "Demo Basin";
@@ -112,6 +123,9 @@ int main()
         device_document.valves.push_back({9, 5, false});
 
         REQUIRE(physics_sim::save_scene(device_path, device_document), "save_scene failed for device snapshot");
+        const auto saved_device_document = physics_sim::load_scene(device_path);
+        REQUIRE(saved_device_document.has_value(), "saved device document did not parse");
+        REQUIRE(!saved_device_document->sensors.front().active, "save_scene serialized transient sensor activity");
 
         physics_sim::WaterSimulation2D device_restored;
         REQUIRE(physics_sim::load_scene(device_path, device_restored), "load_scene failed for device snapshot");
@@ -119,7 +133,7 @@ int main()
         REQUIRE(device_restored.gates().front().open, "load_scene lost the gate open state");
         REQUIRE(device_restored.sensors().size() == 1, "load_scene lost scene sensors");
         REQUIRE(device_restored.sensors().front().objective, "load_scene lost the sensor objective flag");
-        REQUIRE(device_restored.sensors().front().active, "load_scene lost the sensor active state");
+        REQUIRE(!device_restored.sensors().front().active, "load_scene trusted transient sensor activity");
         REQUIRE(device_restored.sensors().front().label == "Goal", "load_scene lost the sensor label");
         REQUIRE(device_restored.drains().size() == 1, "load_scene lost scene drains");
         REQUIRE(device_restored.drains().front().enabled, "load_scene lost the drain enabled state");
@@ -130,6 +144,70 @@ int main()
         REQUIRE(device_restored.valves().front().open == false, "load_scene lost the valve open state");
 
         fs::remove(device_path);
+    }
+
+    {
+        physics_sim::SceneDocument reset_document;
+        reset_document.grid_width = 8;
+        reset_document.grid_height = 8;
+        reset_document.cell_size = 1.0f;
+        reset_document.solver_profile = physics_sim::FluidSolverProfile::Fast;
+        reset_document.solid_cells = {{0, 7}, {1, 7}, {2, 7}, {3, 7}, {4, 7}, {5, 7}, {6, 7}, {7, 7}};
+        reset_document.emitters.push_back({
+            physics_sim::WaterEmitterKind::Directional,
+            {4.0f, 1.0f},
+            {0.0f, 1.0f},
+            3.0f,
+            12.0f,
+            true,
+        });
+        reset_document.sensors.push_back({2, 4, 2, 2, true, true, true, "Goal"});
+
+        physics_sim::WaterSimulation2D reused{12, 9, 1.5f};
+        reused.set_solver_settings(physics_sim::WaterSimulation2D::solver_settings_for_profile(physics_sim::FluidSolverProfile::Quality));
+        reused.add_emitter({
+            physics_sim::WaterEmitterKind::Directional,
+            {6.0f, 1.0f},
+            {0.0f, 1.0f},
+            4.0f,
+            7.0f,
+            true,
+        });
+        reused.add_sensor({4, 2, 3, 3, true, false, true, "Old goal"});
+        for (int step = 0; step < 7; ++step)
+        {
+            reused.step(1.0 / 120.0);
+        }
+        REQUIRE(reused.simulation_tick() == 7, "active setup did not advance tick");
+        REQUIRE(!reused.particles().empty(), "active setup emitted no particles");
+        REQUIRE(reused.metrics().total_emitted > 0, "active setup did not update emitted count");
+        REQUIRE(reused.emitters().front().emitted_particles > 0, "active setup did not update emitter phase");
+        REQUIRE(reused.emitters().front().emission_accumulator > 0.0, "active setup did not retain a fractional emitter accumulator");
+
+        physics_sim::apply_scene(reset_document, reused);
+        REQUIRE(reused.simulation_tick() == 0, "apply_scene retained the prior simulation tick");
+        REQUIRE(reused.particles().empty(), "apply_scene retained prior fluid");
+        REQUIRE(reused.metrics().total_emitted == 0, "apply_scene retained emitted accounting");
+        REQUIRE(reused.metrics().total_removed == 0, "apply_scene retained removed accounting");
+        REQUIRE(reused.metrics().total_outflow == 0, "apply_scene retained outflow accounting");
+        REQUIRE(reused.grid().width() == 8 && reused.grid().height() == 8, "apply_scene did not replace grid dimensions");
+        REQUIRE(reused.solver_settings().profile == physics_sim::FluidSolverProfile::Fast, "apply_scene did not apply the authored profile");
+        REQUIRE(reused.emitters().size() == 1, "apply_scene did not replace emitters");
+        REQUIRE(reused.emitters().front().emitted_particles == 0, "apply_scene retained emitter phase");
+        REQUIRE(reused.emitters().front().emission_accumulator == 0.0, "apply_scene retained emitter accumulation");
+        REQUIRE(reused.sensors().size() == 1 && !reused.sensors().front().active, "apply_scene retained derived sensor activity");
+        REQUIRE(reused.metrics().active_sensors == 0, "apply_scene retained active sensor metrics");
+        REQUIRE(!reused.metrics().objective_completed, "apply_scene retained objective completion");
+
+        physics_sim::WaterSimulation2D fresh;
+        physics_sim::apply_scene(reset_document, fresh);
+        REQUIRE(reused.state_digest() == fresh.state_digest(), "reused and fresh scene application produced different initial digests");
+        for (int step = 0; step < 30; ++step)
+        {
+            reused.step(1.0 / 120.0);
+            fresh.step(1.0 / 120.0);
+            REQUIRE(reused.state_digest() == fresh.state_digest(), "old-grid runtime state changed deterministic continuation");
+        }
     }
 
     const fs::path temp_path = fs::temp_directory_path() / "physics-sim-scene-roundtrip.pscene";
@@ -151,6 +229,7 @@ int main()
     REQUIRE(restored.grid().width() == 12, "apply_scene lost grid width");
     REQUIRE(restored.grid().height() == 9, "apply_scene lost grid height");
     REQUIRE(nearly_equal(restored.grid().cell_size(), 1.5f), "apply_scene lost cell size");
+    REQUIRE(restored.simulation_tick() == 0, "apply_scene did not initialize tick zero");
     REQUIRE(restored.grid().solid(2, 3), "apply_scene lost a wall cell");
     REQUIRE(restored.grid().solid(3, 3), "apply_scene lost a wall cell");
     REQUIRE(restored.grid().solid(4, 3), "apply_scene lost a wall cell");
@@ -249,10 +328,51 @@ int main()
     }
 
     {
+        const fs::path malformed_path = fs::temp_directory_path() / "physics-sim-malformed-scene.pscene";
+        {
+            std::ofstream malformed_file(malformed_path, std::ios::trunc);
+            malformed_file << "physics-sim-scene 2\n"
+                           << "solver-profile balanced\n"
+                           << "grid 8 8 1\n"
+                           << "pump 7 7 3 3 1 1 0 8\n";
+        }
+
+        physics_sim::WaterSimulation2D unchanged_target{8, 8, 1.0f};
+        unchanged_target.add_emitter({
+            physics_sim::WaterEmitterKind::Directional,
+            {4.0f, 1.0f},
+            {0.0f, 1.0f},
+            3.0f,
+            12.0f,
+            true,
+        });
+        for (int step = 0; step < 15; ++step)
+        {
+            unchanged_target.step(1.0 / 120.0);
+        }
+        physics_sim::SceneMetadata unchanged_metadata;
+        unchanged_metadata.title = "unchanged";
+        const auto digest_before = unchanged_target.state_digest();
+        const auto tick_before = unchanged_target.simulation_tick();
+        const auto emitted_before = unchanged_target.metrics().total_emitted;
+        const auto particles_before = unchanged_target.particles().size();
+
+        REQUIRE(!physics_sim::load_scene(malformed_path, unchanged_target, &unchanged_metadata), "load_scene accepted malformed input");
+        REQUIRE(unchanged_target.state_digest() == digest_before, "failed load mutated runtime state");
+        REQUIRE(unchanged_target.simulation_tick() == tick_before, "failed load mutated tick");
+        REQUIRE(unchanged_target.metrics().total_emitted == emitted_before, "failed load mutated counters");
+        REQUIRE(unchanged_target.particles().size() == particles_before, "failed load mutated particles");
+        REQUIRE(unchanged_metadata.title == "unchanged", "failed load mutated metadata output");
+        fs::remove(malformed_path);
+    }
+
+    {
         physics_sim::WaterSimulation2D missing_load_target{2, 2, 1.0f};
         const fs::path missing_path = fs::temp_directory_path() / "physics-sim-missing-scene.pscene";
         fs::remove(missing_path);
+        const auto digest_before = missing_load_target.state_digest();
         REQUIRE(!physics_sim::load_scene(missing_path, missing_load_target), "load_scene succeeded on a missing file");
+        REQUIRE(missing_load_target.state_digest() == digest_before, "missing-file load mutated runtime state");
     }
 
     fs::remove(temp_path);
