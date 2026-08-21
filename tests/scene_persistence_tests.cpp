@@ -9,20 +9,20 @@
 
 namespace
 {
-[[noreturn]] void fail(const char* message, const char* file, int line)
+[[noreturn]] void fail(const char *message, const char *file, int line)
 {
     std::fprintf(stderr, "FAIL %s:%d: %s\n", file, line, message);
     std::fflush(stderr);
     std::exit(1);
 }
 
-#define REQUIRE(condition, message) \
-    do \
-    { \
-        if (!(condition)) \
-        { \
-            fail((message), __FILE__, __LINE__); \
-        } \
+#define REQUIRE(condition, message)                                                                                                                            \
+    do                                                                                                                                                         \
+    {                                                                                                                                                          \
+        if (!(condition))                                                                                                                                      \
+        {                                                                                                                                                      \
+            fail((message), __FILE__, __LINE__);                                                                                                               \
+        }                                                                                                                                                      \
     } while (false)
 
 bool nearly_equal(float lhs, float rhs, float epsilon = 0.0001f) noexcept
@@ -244,17 +244,15 @@ int main()
     REQUIRE(restored.solver_settings().profile == physics_sim::FluidSolverProfile::Quality, "apply_scene lost solver profile");
 
     {
-        const auto unsupported = physics_sim::parse_scene_text(
-            "physics-sim-scene 1\n"
-            "grid 2 2 1\n");
+        const auto unsupported = physics_sim::parse_scene_text("physics-sim-scene 1\n"
+                                                               "grid 2 2 1\n");
         REQUIRE(!unsupported.has_value(), "parse_scene_text accepted intentionally unsupported version 1");
     }
 
     {
-        const auto supported = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\n"
-            "solver-profile fast\n"
-            "grid 2 2 1\n");
+        const auto supported = physics_sim::parse_scene_text("physics-sim-scene 2\n"
+                                                             "solver-profile fast\n"
+                                                             "grid 2 2 1\n");
         REQUIRE(supported.has_value(), "parse_scene_text rejected supported version 2");
         REQUIRE(supported->solver_profile == physics_sim::FluidSolverProfile::Fast, "version 2 scene lost solver profile");
 
@@ -268,9 +266,8 @@ int main()
     }
 
     {
-        const auto unsupported = physics_sim::parse_scene_text(
-            "physics-sim-scene 3\n"
-            "grid 2 2 1\n");
+        const auto unsupported = physics_sim::parse_scene_text("physics-sim-scene 3\n"
+                                                               "grid 2 2 1\n");
         REQUIRE(!unsupported.has_value(), "parse_scene_text accepted unsupported version 3");
     }
 
@@ -292,38 +289,33 @@ int main()
     }
 
     {
-        const auto invalid_profile = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\n"
-            "solver-profile impossible\n"
-            "grid 2 2 1\n");
+        const auto invalid_profile = physics_sim::parse_scene_text("physics-sim-scene 2\n"
+                                                                   "solver-profile impossible\n"
+                                                                   "grid 2 2 1\n");
         REQUIRE(!invalid_profile.has_value(), "parse_scene_text accepted invalid solver profile");
     }
 
     {
-        const auto malformed = physics_sim::parse_scene_text(
-            "physics-sim-scene not-a-number\n"
-            "grid 2 2 1\n");
+        const auto malformed = physics_sim::parse_scene_text("physics-sim-scene not-a-number\n"
+                                                             "grid 2 2 1\n");
         REQUIRE(!malformed.has_value(), "parse_scene_text accepted malformed version token");
     }
 
     {
-        const auto out_of_bounds_device = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\n"
-            "solver-profile balanced\n"
-            "grid 8 8 1\n"
-            "pump 7 7 3 3 1 1 0 8\n");
+        const auto out_of_bounds_device = physics_sim::parse_scene_text("physics-sim-scene 2\n"
+                                                                        "solver-profile balanced\n"
+                                                                        "grid 8 8 1\n"
+                                                                        "pump 7 7 3 3 1 1 0 8\n");
         REQUIRE(!out_of_bounds_device.has_value(), "parse_scene_text accepted an out-of-bounds device region");
-        const auto invalid_emitter = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\n"
-            "solver-profile balanced\n"
-            "grid 8 8 1\n"
-            "emitter directional 9 2 1 0 5 10 1\n");
+        const auto invalid_emitter = physics_sim::parse_scene_text("physics-sim-scene 2\n"
+                                                                   "solver-profile balanced\n"
+                                                                   "grid 8 8 1\n"
+                                                                   "emitter directional 9 2 1 0 5 10 1\n");
         REQUIRE(!invalid_emitter.has_value(), "parse_scene_text accepted an out-of-bounds emitter");
-        const auto invalid_challenge = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 0 -1 -1 Invalid\n");
+        const auto invalid_challenge = physics_sim::parse_scene_text("physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 0 -1 -1 Invalid\n");
         REQUIRE(!invalid_challenge.has_value(), "parse_scene_text accepted a zero-duration challenge");
-        const auto missing_objective = physics_sim::parse_scene_text(
-            "physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 10 -1 -1 Missing target\n");
+        const auto missing_objective =
+            physics_sim::parse_scene_text("physics-sim-scene 2\nsolver-profile balanced\ngrid 8 8 1\nchallenge 1 10 -1 -1 Missing target\n");
         REQUIRE(!missing_objective.has_value(), "parse_scene_text accepted a challenge without objective sensors");
     }
 
