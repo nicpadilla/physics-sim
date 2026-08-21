@@ -63,10 +63,14 @@ else
 $tidyRoot = Join-Path $repoRoot 'build\windows-x64\clang-tidy'
 New-Item -ItemType Directory -Path $tidyRoot -Force | Out-Null
 $vcpkgInclude = Join-Path $repoRoot 'build\windows-x64\vcpkg_installed\x64-windows\include'
+$generatedInclude = Join-Path $repoRoot 'build\windows-x64\generated'
 $compileArguments = @('-std=c++20', "-I$(Join-Path $repoRoot 'include')", '-DNOMINMAX', '-DWIN32_LEAN_AND_MEAN')
-if (Test-Path -LiteralPath $vcpkgInclude)
+foreach ($includeDirectory in @($vcpkgInclude, $generatedInclude))
 {
-    $compileArguments += "-I$vcpkgInclude"
+    if (Test-Path -LiteralPath $includeDirectory)
+    {
+        $compileArguments += "-I$includeDirectory"
+    }
 }
 
 # These two high-volume checks are tracked separately because enabling them on the

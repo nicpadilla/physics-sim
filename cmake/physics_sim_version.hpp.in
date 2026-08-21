@@ -1,0 +1,11 @@
+#pragma once
+
+#include <string_view>
+
+namespace physics_sim
+{
+inline constexpr std::string_view version = "@PHYSICS_SIM_VERSION_FULL@";
+inline constexpr int version_major = @PHYSICS_SIM_VERSION_MAJOR@;
+inline constexpr int version_minor = @PHYSICS_SIM_VERSION_MINOR@;
+inline constexpr int version_patch = @PHYSICS_SIM_VERSION_PATCH@;
+} // namespace physics_sim

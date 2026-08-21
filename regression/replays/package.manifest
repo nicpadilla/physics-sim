@@ -1,0 +1,4 @@
+physics-sim-replay-package	1
+replay	fill-goal	challenge_fill.replay
+replay	open-gate	challenge_gate.replay
+replay	power-crossing	challenge_pump_valve.replay

@@ -2,7 +2,7 @@
 
 Physics Sim is a Windows C++20/SDL2 deterministic 2D water sandbox and laboratory.
 
-Version `0.2.0-alpha.2` is the complete-water-sandbox recovery prerelease. One executable provides a custom-SDL creative sandbox and a Dear ImGui engineering laboratory over the same validated simulation core. It is an alpha rather than a finished game; GitHub Issues track active work, while `ROADMAP.md` and `PROGRESS.md` preserve the completed recovery contract and evidence.
+Version `0.2.0-alpha.3` is the runtime-correctness and maintainability prerelease under development. One executable provides a custom-SDL creative sandbox and a Dear ImGui engineering laboratory over the same validated simulation core. It is an alpha rather than a finished game; `ROADMAP.md` and `PROGRESS.md` record current evidence and limitations.
 
 ## Recovery Product
 
@@ -35,9 +35,12 @@ The recovered command/data contracts, canonical lab scenarios, basin rendering, 
 .\scripts\build.ps1
 .\scripts\test.ps1
 .\scripts\run-smoke.ps1
+.\build\windows-x64\Debug\physics-sim.exe --version
 .\build\windows-x64\Debug\physics-sim.exe --mode sandbox
 .\build\windows-x64\Debug\physics-sim.exe --mode lab
 ```
+
+`VERSION.txt` is the authoritative full version string. Configure generates the runtime version header from that file; `.\scripts\check-version.ps1` verifies CMake, vcpkg, README, release notes, tags, and package manifests agree.
 
 Sandbox starts without engineering metrics. Add `--debug-overlay` only when diagnosing a run; laboratory diagnostics remain available through `--mode lab`.
 
@@ -61,6 +64,7 @@ Additional current checks:
 .\scripts\verify-fluid-quality-suite.ps1
 .\scripts\verify-replay-suite.ps1
 .\scripts\measure-water-solver.ps1 -Profile All
+.\scripts\check-version.ps1
 .\scripts\check-tracking.ps1
 .\scripts\check-dependencies.ps1
 .\scripts\capture-recovery-contact-sheet.ps1 -Tick 2400
@@ -89,15 +93,12 @@ Create the recovery prerelease package:
 
 ## Evidence And Tracking
 
-- GitHub Issues and milestones: active implementation work, priorities, dependencies, and completion state.
-- `CONTRIBUTING.md`: branch, pull-request, verification-tier, and evidence rules.
-- `docs/active-tracking.md`: active source-of-truth and issue-completion policy.
-- `ROADMAP.md`: completed recovery product contract and retained direction record.
-- `PROGRESS.md`: completed recovery implementation, automation, and acceptance ledger.
-- `ISSUES.md`: completed implementation-ready recovery ledger.
+- `ROADMAP.md`: recovery product contract.
+- `PROGRESS.md`: current implementation, automation, and human-acceptance status.
+- `ISSUES.md`: implementation-ready recovery queue.
 - `docs/TRACKING.md`: lifecycle and evidence rules.
 - `docs/adr/README.md`: architecture decisions.
 - `docs/recovery-architecture.md`: active compiled boundaries and simulation facade.
 - `docs/history/pre-recovery-snapshot.md`: immutable legacy snapshot reference.
 
-A matching image hash proves reproducibility only. Visual and usability acceptance requires semantic checks plus a named, dated review. See `docs/release-notes-0.2.0-alpha.2.md` for this prerelease's scope and limitations.
+A matching image hash proves reproducibility only. Visual and usability acceptance requires semantic checks plus a named, dated review. See `docs/release-notes-0.2.0-alpha.3.md` for this prerelease's scope and limitations.

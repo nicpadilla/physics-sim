@@ -3,12 +3,27 @@
 #include <physics_sim/application.hpp>
 #include <physics_sim/lab_application.hpp>
 #include <physics_sim/mode_switch.hpp>
+#include <physics_sim/version.hpp>
 
+#include <cstdio>
 #include <cstdlib>
 #include <string_view>
 
 namespace
 {
+bool version_requested(int argc, char *argv[])
+{
+    for (int index = 1; index < argc; ++index)
+    {
+        const std::string_view argument = argv[index];
+        if (argument == "--version" || argument == "-v")
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool lab_mode_requested(int argc, char *argv[])
 {
     for (int index = 1; index < argc; ++index)
@@ -24,6 +39,12 @@ bool lab_mode_requested(int argc, char *argv[])
 
 int run_selected_mode(int argc, char *argv[])
 {
+    if (version_requested(argc, argv))
+    {
+        std::printf("physics-sim %.*s\n", static_cast<int>(physics_sim::version.size()), physics_sim::version.data());
+        return 0;
+    }
+
     bool lab_mode = lab_mode_requested(argc, argv);
     for (;;)
     {

@@ -2,8 +2,22 @@ param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
 Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
-$version = '0.2.0-alpha.2'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$version = (Get-Content -LiteralPath (Join-Path $repoRoot 'VERSION.txt') -Raw).Trim()
+$expectedTag = ''
+if ($env:GITHUB_REF -like 'refs/tags/*')
+{
+    $expectedTag = $env:GITHUB_REF.Substring('refs/tags/'.Length)
+}
+elseif ($env:GITHUB_REF_TYPE -eq 'tag' -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME))
+{
+    $expectedTag = $env:GITHUB_REF_NAME
+}
+
+$versionCheckArguments = @{}
+if (-not [string]::IsNullOrWhiteSpace($expectedTag)) { $versionCheckArguments.ExpectedTag = $expectedTag }
+& (Join-Path $PSScriptRoot 'check-version.ps1') @versionCheckArguments
+
 $buildRoot = Join-Path $repoRoot 'build\windows-x64'
 $buildDir = Join-Path $buildRoot 'Release'
 $distRoot = Join-Path $repoRoot 'dist'
@@ -23,6 +37,7 @@ if (-not $SkipBuild)
 }
 if (Test-Path -LiteralPath $packageRoot) { Remove-Item -LiteralPath $packageRoot -Recurse -Force }
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+if (Test-Path -LiteralPath "$zipPath.sha256") { Remove-Item -LiteralPath "$zipPath.sha256" -Force }
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
 $exe = Join-Path $buildDir 'physics-sim.exe'
@@ -32,27 +47,60 @@ Get-ChildItem -LiteralPath $buildDir -Filter '*.dll' -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $packageRoot
 }
 
+$galleryManifest = Join-Path $repoRoot 'gallery\gallery.manifest'
+$galleryLines = @(Get-Content -LiteralPath $galleryManifest | Where-Object { $_ -like "entry`t*" })
+if ($galleryLines.Count -eq 0) { throw 'Gallery manifest contains no package entries.' }
+$scenePaths = @()
+$thumbnailPaths = @()
+foreach ($line in $galleryLines)
+{
+    $fields = @($line -split "`t")
+    if ($fields.Count -lt 9) { throw "Malformed gallery manifest entry: $line" }
+    $scenePaths += $fields[4]
+    $thumbnailPaths += $fields[5]
+}
+$scenePaths = @($scenePaths | Sort-Object -Unique)
+$thumbnailPaths = @($thumbnailPaths | Sort-Object -Unique)
+
 $packageScenes = Join-Path $packageRoot 'scenes'
 New-Item -ItemType Directory -Path $packageScenes -Force | Out-Null
-foreach ($scene in @('tutorial_intro.pscene', 'starter_basin.pscene', 'hose_wall_impact.pscene', 'omni_spray.pscene', 'device_playground.pscene', 'objective_fill.pscene', 'challenge_gate.pscene', 'challenge_pump_valve.pscene'))
+foreach ($scenePath in $scenePaths)
 {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "scenes\$scene") -Destination $packageScenes
+    $source = Join-Path $repoRoot $scenePath
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Gallery scene is missing: $scenePath" }
+    Copy-Item -LiteralPath $source -Destination $packageScenes
 }
+
 $packageGallery = Join-Path $packageRoot 'gallery'
 $packageThumbnails = Join-Path $packageGallery 'thumbnails'
 New-Item -ItemType Directory -Path $packageThumbnails -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $repoRoot 'gallery\gallery.manifest') -Destination $packageGallery
-Get-ChildItem -LiteralPath (Join-Path $repoRoot 'gallery\thumbnails') -Filter '*.bmp' -File | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $packageThumbnails
+Copy-Item -LiteralPath $galleryManifest -Destination $packageGallery
+foreach ($thumbnailPath in $thumbnailPaths)
+{
+    $source = Join-Path $repoRoot $thumbnailPath
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Gallery thumbnail is missing: $thumbnailPath" }
+    Copy-Item -LiteralPath $source -Destination $packageThumbnails
 }
+
+$replayManifest = Join-Path $repoRoot 'regression\replays\package.manifest'
+$replayLines = @(Get-Content -LiteralPath $replayManifest | Where-Object { $_ -like "replay`t*" })
+if ($replayLines.Count -eq 0) { throw 'Replay package manifest contains no entries.' }
 $packageReplays = Join-Path $packageRoot 'replays'
 New-Item -ItemType Directory -Path $packageReplays -Force | Out-Null
-foreach ($replay in @('challenge_fill.replay', 'challenge_gate.replay', 'challenge_pump_valve.replay'))
+foreach ($line in $replayLines)
 {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "regression\replays\$replay") -Destination $packageReplays
+    $fields = @($line -split "`t")
+    if ($fields.Count -ne 3) { throw "Malformed replay package entry: $line" }
+    $replay = $fields[2]
+    $source = Join-Path $repoRoot "regression\replays\$replay"
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Packaged replay is missing: $replay" }
+    Copy-Item -LiteralPath $source -Destination $packageReplays
 }
+Copy-Item -LiteralPath $replayManifest -Destination $packageReplays
+
 Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination $packageRoot
-Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\release-notes-0.2.0-alpha.2.md') -Destination $packageRoot
+Copy-Item -LiteralPath (Join-Path $repoRoot "docs\release-notes-$version.md") -Destination $packageRoot
+Copy-Item -LiteralPath (Join-Path $repoRoot 'VERSION.txt') -Destination $packageRoot
 
 $licenses = Join-Path $packageRoot 'licenses'
 New-Item -ItemType Directory -Path $licenses -Force | Out-Null
@@ -72,6 +120,8 @@ $manifest = [ordered]@{
     modes = @('sandbox', 'lab')
     scene_format = 2
     replay_format = 2
+    gallery_manifest = 'gallery/gallery.manifest'
+    replay_package_manifest = 'replays/package.manifest'
 }
 $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $packageRoot 'release-manifest.json') -Encoding utf8
 
@@ -123,5 +173,5 @@ Set-Content -LiteralPath $checksumPath -Value $checksumLines -Encoding ascii
 Compress-Archive -LiteralPath $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
 $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
 Set-Content -LiteralPath "$zipPath.sha256" -Value "$zipHash  $packageName.zip" -Encoding ascii
-Write-Host "[release-package] package=$packageRoot"
+Write-Host "[release-package] version=$version package=$packageRoot"
 Write-Host "[release-package] archive=$zipPath sha256=$zipHash"
