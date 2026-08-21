@@ -5,6 +5,16 @@ $version = (Get-Content -LiteralPath (Join-Path $repoRoot 'VERSION.txt') -Raw).T
 
 & $checker -ExpectedTag "v$version"
 
+$verifyAllText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'verify-all.ps1') -Raw
+if ($verifyAllText -notmatch 'VERSION\.txt' -or $verifyAllText -notmatch 'physics-sim-\$version-windows-x64')
+{
+    throw '[version-test] verify-all.ps1 does not derive the packaged acceptance path from VERSION.txt.'
+}
+if ($verifyAllText -match 'physics-sim-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?-windows-x64')
+{
+    throw '[version-test] verify-all.ps1 contains a hardcoded package version.'
+}
+
 $tagMismatchDetected = $false
 try
 {
@@ -72,4 +82,4 @@ finally
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host '[version-test] matching metadata passed; tag mismatch, missing content, and duplicate identity were rejected'
+Write-Host '[version-test] matching metadata and dynamic package path passed; tag mismatch, missing content, and duplicate identity were rejected'
