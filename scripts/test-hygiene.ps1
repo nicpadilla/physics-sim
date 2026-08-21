@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$llvmBin = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin'
+$llvmBin = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin'
 $clangFormat = (Get-Command clang-format -ErrorAction SilentlyContinue).Path
 $clangTidy = (Get-Command clang-tidy -ErrorAction SilentlyContinue).Path
 if (-not $clangFormat) { $clangFormat = Join-Path $llvmBin 'clang-format.exe' }
