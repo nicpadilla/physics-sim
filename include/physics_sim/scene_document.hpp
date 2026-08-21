@@ -61,6 +61,8 @@ struct SceneSensor
     std::size_t width = 1;
     std::size_t height = 1;
     bool enabled = true;
+    // Retained for scene-v2 parser compatibility. Sensor activity is derived
+    // runtime state and is never captured, saved, or applied as authored state.
     bool active = false;
     bool objective = false;
     std::string label{};
@@ -118,7 +120,7 @@ struct SceneDocument
 // Recovery scene v2 is intentionally incompatible with the pre-recovery v1 format.
 inline constexpr int SceneFormatVersion = 2;
 
-[[nodiscard]] inline SceneDocument capture_scene(const WaterSimulation2D& simulation, SceneMetadata metadata = {})
+[[nodiscard]] inline SceneDocument capture_scene(const WaterSimulation2D &simulation, SceneMetadata metadata = {})
 {
     SceneDocument document;
     document.grid_width = simulation.grid().width();
@@ -139,7 +141,7 @@ inline constexpr int SceneFormatVersion = 2;
     }
 
     document.emitters.reserve(simulation.emitters().size());
-    for (const auto& emitter : simulation.emitters())
+    for (const auto &emitter : simulation.emitters())
     {
         document.emitters.push_back(SceneEmitter{
             emitter.kind,
@@ -152,7 +154,7 @@ inline constexpr int SceneFormatVersion = 2;
     }
 
     document.gates.reserve(simulation.gates().size());
-    for (const auto& gate : simulation.gates())
+    for (const auto &gate : simulation.gates())
     {
         document.gates.push_back(SceneGate{
             gate.x,
@@ -162,7 +164,7 @@ inline constexpr int SceneFormatVersion = 2;
     }
 
     document.sensors.reserve(simulation.sensors().size());
-    for (const auto& sensor : simulation.sensors())
+    for (const auto &sensor : simulation.sensors())
     {
         document.sensors.push_back(SceneSensor{
             sensor.x,
@@ -170,14 +172,14 @@ inline constexpr int SceneFormatVersion = 2;
             sensor.width,
             sensor.height,
             sensor.enabled,
-            sensor.active,
+            false,
             sensor.objective,
             sensor.label,
         });
     }
 
     document.drains.reserve(simulation.drains().size());
-    for (const auto& drain : simulation.drains())
+    for (const auto &drain : simulation.drains())
     {
         document.drains.push_back(SceneDrain{
             drain.x,
@@ -189,7 +191,7 @@ inline constexpr int SceneFormatVersion = 2;
     }
 
     document.pumps.reserve(simulation.pumps().size());
-    for (const auto& pump : simulation.pumps())
+    for (const auto &pump : simulation.pumps())
     {
         document.pumps.push_back(ScenePump{
             pump.x,
@@ -203,7 +205,7 @@ inline constexpr int SceneFormatVersion = 2;
     }
 
     document.valves.reserve(simulation.valves().size());
-    for (const auto& valve : simulation.valves())
+    for (const auto &valve : simulation.valves())
     {
         document.valves.push_back(SceneValve{
             valve.x,
@@ -215,10 +217,9 @@ inline constexpr int SceneFormatVersion = 2;
     return document;
 }
 
-[[nodiscard]] inline FluidSolverProfile effective_scene_solver_profile(
-    const SceneDocument& document,
-    FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
-    std::optional<FluidSolverProfile> forced_profile = std::nullopt) noexcept
+[[nodiscard]] inline FluidSolverProfile effective_scene_solver_profile(const SceneDocument &document,
+                                                                       FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
+                                                                       std::optional<FluidSolverProfile> forced_profile = std::nullopt) noexcept
 {
     if (forced_profile.has_value())
     {
@@ -233,22 +234,23 @@ inline constexpr int SceneFormatVersion = 2;
     return fallback_profile;
 }
 
-inline void apply_scene(
-    const SceneDocument& document,
-    WaterSimulation2D& simulation,
-    FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
-    std::optional<FluidSolverProfile> forced_profile = std::nullopt)
+inline void apply_scene(const SceneDocument &document, WaterSimulation2D &simulation, FluidSolverProfile fallback_profile = FluidSolverProfile::Balanced,
+                        std::optional<FluidSolverProfile> forced_profile = std::nullopt)
 {
     const FluidSolverProfile profile = effective_scene_solver_profile(document, fallback_profile, forced_profile);
     simulation.resize(document.grid_width, document.grid_height, document.cell_size);
     simulation.set_solver_settings(WaterSimulation2D::solver_settings_for_profile(profile));
+    // resize() rebuilds the grid and containers; clear_fluid() establishes the
+    // explicit new-runtime contract, including tick, counters, fields, metrics,
+    // and emitter runtime state.
+    simulation.clear_fluid();
 
-    for (const auto& cell : document.solid_cells)
+    for (const auto &cell : document.solid_cells)
     {
         simulation.set_solid_cell(cell.x, cell.y, true);
     }
 
-    for (const auto& emitter : document.emitters)
+    for (const auto &emitter : document.emitters)
     {
         WaterEmitter runtime_emitter;
         runtime_emitter.kind = emitter.kind;
@@ -260,12 +262,12 @@ inline void apply_scene(
         simulation.add_emitter(runtime_emitter);
     }
 
-    for (const auto& gate : document.gates)
+    for (const auto &gate : document.gates)
     {
         simulation.add_gate(WaterGate{gate.x, gate.y, gate.open});
     }
 
-    for (const auto& sensor : document.sensors)
+    for (const auto &sensor : document.sensors)
     {
         simulation.add_sensor(WaterSensor{
             sensor.x,
@@ -273,13 +275,13 @@ inline void apply_scene(
             sensor.width,
             sensor.height,
             sensor.enabled,
-            sensor.active,
+            false,
             sensor.objective,
             sensor.label,
         });
     }
 
-    for (const auto& drain : document.drains)
+    for (const auto &drain : document.drains)
     {
         simulation.add_drain(WaterDrain{
             drain.x,
@@ -290,7 +292,7 @@ inline void apply_scene(
         });
     }
 
-    for (const auto& pump : document.pumps)
+    for (const auto &pump : document.pumps)
     {
         simulation.add_pump(WaterPump{
             pump.x,
@@ -303,7 +305,7 @@ inline void apply_scene(
         });
     }
 
-    for (const auto& valve : document.valves)
+    for (const auto &valve : document.valves)
     {
         simulation.add_valve(WaterValve{
             valve.x,
@@ -311,6 +313,8 @@ inline void apply_scene(
             valve.open,
         });
     }
+
+    simulation.refresh_sensor_states();
 }
 
 [[nodiscard]] inline std::optional<SceneDocument> parse_scene_text(std::string_view text)
@@ -323,14 +327,14 @@ inline void apply_scene(
     bool saw_grid = false;
     int file_version = 0;
 
-    auto trim = [](std::string& line)
+    auto trim = [](std::string &line)
     {
         const auto is_not_space = [](unsigned char ch) { return !std::isspace(ch); };
         line.erase(line.begin(), std::find_if(line.begin(), line.end(), is_not_space));
         line.erase(std::find_if(line.rbegin(), line.rend(), is_not_space).base(), line.end());
     };
 
-    const auto read_value = [&trim](std::istringstream& line_stream) -> std::string
+    const auto read_value = [&trim](std::istringstream &line_stream) -> std::string
     {
         std::string value;
         std::getline(line_stream, value);
@@ -458,7 +462,8 @@ inline void apply_scene(
             SceneEmitter emitter;
             int enabled_value = 1;
 
-            if (!(line_stream >> kind_token >> emitter.position.x >> emitter.position.y >> emitter.direction.x >> emitter.direction.y >> emitter.speed >> emitter.emission_rate >> enabled_value))
+            if (!(line_stream >> kind_token >> emitter.position.x >> emitter.position.y >> emitter.direction.x >> emitter.direction.y >> emitter.speed >>
+                  emitter.emission_rate >> enabled_value))
             {
                 return std::nullopt;
             }
@@ -529,14 +534,15 @@ inline void apply_scene(
                 return std::nullopt;
             }
             challenge.title = read_value(line_stream);
-            if (challenge.required_objective_sensors == 0 || challenge.hold_ticks == 0 || challenge.title.empty()
-                || !std::isfinite(maximum_emitted) || !std::isfinite(maximum_outflow)
-                || maximum_emitted < -1.0 || maximum_outflow < -1.0)
+            if (challenge.required_objective_sensors == 0 || challenge.hold_ticks == 0 || challenge.title.empty() || !std::isfinite(maximum_emitted) ||
+                !std::isfinite(maximum_outflow) || maximum_emitted < -1.0 || maximum_outflow < -1.0)
             {
                 return std::nullopt;
             }
-            if (maximum_emitted >= 0.0) challenge.maximum_emitted_mass = maximum_emitted;
-            if (maximum_outflow >= 0.0) challenge.maximum_outflow_mass = maximum_outflow;
+            if (maximum_emitted >= 0.0)
+                challenge.maximum_emitted_mass = maximum_emitted;
+            if (maximum_outflow >= 0.0)
+                challenge.maximum_outflow_mass = maximum_outflow;
             document.metadata.challenge = std::move(challenge);
             continue;
         }
@@ -603,42 +609,52 @@ inline void apply_scene(
 
     const auto region_valid = [&](std::size_t x, std::size_t y, std::size_t width, std::size_t height)
     {
-        return x < document.grid_width && y < document.grid_height
-            && width > 0 && height > 0
-            && width <= document.grid_width - x && height <= document.grid_height - y;
+        return x < document.grid_width && y < document.grid_height && width > 0 && height > 0 && width <= document.grid_width - x &&
+               height <= document.grid_height - y;
     };
-    for (const auto& cell : document.solid_cells) if (!region_valid(cell.x, cell.y, 1, 1)) return std::nullopt;
-    for (const auto& gate : document.gates) if (!region_valid(gate.x, gate.y, 1, 1)) return std::nullopt;
-    for (const auto& sensor : document.sensors) if (!region_valid(sensor.x, sensor.y, sensor.width, sensor.height)) return std::nullopt;
-    for (const auto& drain : document.drains) if (!region_valid(drain.x, drain.y, drain.width, drain.height)) return std::nullopt;
-    for (const auto& pump : document.pumps)
+    for (const auto &cell : document.solid_cells)
+        if (!region_valid(cell.x, cell.y, 1, 1))
+            return std::nullopt;
+    for (const auto &gate : document.gates)
+        if (!region_valid(gate.x, gate.y, 1, 1))
+            return std::nullopt;
+    for (const auto &sensor : document.sensors)
+        if (!region_valid(sensor.x, sensor.y, sensor.width, sensor.height))
+            return std::nullopt;
+    for (const auto &drain : document.drains)
+        if (!region_valid(drain.x, drain.y, drain.width, drain.height))
+            return std::nullopt;
+    for (const auto &pump : document.pumps)
     {
-        if (!region_valid(pump.x, pump.y, pump.width, pump.height) || !std::isfinite(pump.strength)
-            || !std::isfinite(pump.direction.x) || !std::isfinite(pump.direction.y)) return std::nullopt;
+        if (!region_valid(pump.x, pump.y, pump.width, pump.height) || !std::isfinite(pump.strength) || !std::isfinite(pump.direction.x) ||
+            !std::isfinite(pump.direction.y))
+            return std::nullopt;
     }
-    for (const auto& valve : document.valves) if (!region_valid(valve.x, valve.y, 1, 1)) return std::nullopt;
+    for (const auto &valve : document.valves)
+        if (!region_valid(valve.x, valve.y, 1, 1))
+            return std::nullopt;
     const float world_width = static_cast<float>(document.grid_width) * document.cell_size;
     const float world_height = static_cast<float>(document.grid_height) * document.cell_size;
-    for (const auto& emitter : document.emitters)
+    for (const auto &emitter : document.emitters)
     {
-        if (!std::isfinite(emitter.position.x) || !std::isfinite(emitter.position.y)
-            || !std::isfinite(emitter.direction.x) || !std::isfinite(emitter.direction.y)
-            || !std::isfinite(emitter.speed) || !std::isfinite(emitter.emission_rate)
-            || emitter.position.x < 0.0f || emitter.position.y < 0.0f
-            || emitter.position.x >= world_width || emitter.position.y >= world_height
-            || emitter.speed < 0.0f || emitter.emission_rate < 0.0f) return std::nullopt;
+        if (!std::isfinite(emitter.position.x) || !std::isfinite(emitter.position.y) || !std::isfinite(emitter.direction.x) ||
+            !std::isfinite(emitter.direction.y) || !std::isfinite(emitter.speed) || !std::isfinite(emitter.emission_rate) || emitter.position.x < 0.0f ||
+            emitter.position.y < 0.0f || emitter.position.x >= world_width || emitter.position.y >= world_height || emitter.speed < 0.0f ||
+            emitter.emission_rate < 0.0f)
+            return std::nullopt;
     }
     if (document.metadata.challenge.has_value())
     {
-        const auto objective_count = static_cast<std::size_t>(std::count_if(
-            document.sensors.begin(), document.sensors.end(), [](const SceneSensor& sensor) { return sensor.objective && sensor.enabled; }));
-        if (objective_count < document.metadata.challenge->required_objective_sensors) return std::nullopt;
+        const auto objective_count = static_cast<std::size_t>(
+            std::count_if(document.sensors.begin(), document.sensors.end(), [](const SceneSensor &sensor) { return sensor.objective && sensor.enabled; }));
+        if (objective_count < document.metadata.challenge->required_objective_sensors)
+            return std::nullopt;
     }
 
     return document;
 }
 
-[[nodiscard]] inline std::optional<SceneDocument> load_scene(const std::filesystem::path& path)
+[[nodiscard]] inline std::optional<SceneDocument> load_scene(const std::filesystem::path &path)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -651,7 +667,7 @@ inline void apply_scene(
     return parse_scene_text(buffer.str());
 }
 
-[[nodiscard]] inline bool save_scene(const std::filesystem::path& path, const SceneDocument& document)
+[[nodiscard]] inline bool save_scene(const std::filesystem::path &path, const SceneDocument &document)
 {
     const auto parent = path.parent_path();
     if (!parent.empty())
@@ -690,54 +706,38 @@ inline void apply_scene(
     {
         file << "author " << document.metadata.author << "\n";
     }
-    for (const auto& tag : document.metadata.tags)
+    for (const auto &tag : document.metadata.tags)
     {
         file << "tag " << tag << "\n";
     }
-    for (const auto& note : document.metadata.notes)
+    for (const auto &note : document.metadata.notes)
     {
         file << "note " << note << "\n";
     }
     if (document.metadata.challenge.has_value())
     {
-        const auto& challenge = *document.metadata.challenge;
-        file << "challenge " << challenge.required_objective_sensors << ' ' << challenge.hold_ticks << ' '
-             << challenge.maximum_emitted_mass.value_or(-1.0) << ' '
-             << challenge.maximum_outflow_mass.value_or(-1.0) << ' ' << challenge.title << "\n";
+        const auto &challenge = *document.metadata.challenge;
+        file << "challenge " << challenge.required_objective_sensors << ' ' << challenge.hold_ticks << ' ' << challenge.maximum_emitted_mass.value_or(-1.0)
+             << ' ' << challenge.maximum_outflow_mass.value_or(-1.0) << ' ' << challenge.title << "\n";
     }
     file << "grid " << document.grid_width << ' ' << document.grid_height << ' ' << document.cell_size << "\n";
-    for (const auto& cell : document.solid_cells)
+    for (const auto &cell : document.solid_cells)
     {
         file << "wall " << cell.x << ' ' << cell.y << "\n";
     }
-    for (const auto& emitter : document.emitters)
+    for (const auto &emitter : document.emitters)
     {
-        file << "emitter "
-             << (emitter.kind == WaterEmitterKind::Directional ? "directional" : "omni") << ' '
-             << emitter.position.x << ' '
-             << emitter.position.y << ' '
-             << emitter.direction.x << ' '
-             << emitter.direction.y << ' '
-             << emitter.speed << ' '
-             << emitter.emission_rate << ' '
+        file << "emitter " << (emitter.kind == WaterEmitterKind::Directional ? "directional" : "omni") << ' ' << emitter.position.x << ' ' << emitter.position.y
+             << ' ' << emitter.direction.x << ' ' << emitter.direction.y << ' ' << emitter.speed << ' ' << emitter.emission_rate << ' '
              << (emitter.enabled ? 1 : 0) << "\n";
     }
-    for (const auto& gate : document.gates)
+    for (const auto &gate : document.gates)
     {
-        file << "gate "
-             << gate.x << ' '
-             << gate.y << ' '
-             << (gate.open ? 1 : 0) << "\n";
+        file << "gate " << gate.x << ' ' << gate.y << ' ' << (gate.open ? 1 : 0) << "\n";
     }
-    for (const auto& sensor : document.sensors)
+    for (const auto &sensor : document.sensors)
     {
-        file << "sensor "
-             << sensor.x << ' '
-             << sensor.y << ' '
-             << sensor.width << ' '
-             << sensor.height << ' '
-             << (sensor.enabled ? 1 : 0) << ' '
-             << (sensor.active ? 1 : 0) << ' '
+        file << "sensor " << sensor.x << ' ' << sensor.y << ' ' << sensor.width << ' ' << sensor.height << ' ' << (sensor.enabled ? 1 : 0) << ' ' << 0 << ' '
              << (sensor.objective ? 1 : 0);
         if (!sensor.label.empty())
         {
@@ -745,33 +745,18 @@ inline void apply_scene(
         }
         file << "\n";
     }
-    for (const auto& drain : document.drains)
+    for (const auto &drain : document.drains)
     {
-        file << "drain "
-             << drain.x << ' '
-             << drain.y << ' '
-             << drain.width << ' '
-             << drain.height << ' '
-             << (drain.enabled ? 1 : 0) << "\n";
+        file << "drain " << drain.x << ' ' << drain.y << ' ' << drain.width << ' ' << drain.height << ' ' << (drain.enabled ? 1 : 0) << "\n";
     }
-    for (const auto& pump : document.pumps)
+    for (const auto &pump : document.pumps)
     {
-        file << "pump "
-             << pump.x << ' '
-             << pump.y << ' '
-             << pump.width << ' '
-             << pump.height << ' '
-             << (pump.enabled ? 1 : 0) << ' '
-             << pump.direction.x << ' '
-             << pump.direction.y << ' '
-             << pump.strength << "\n";
+        file << "pump " << pump.x << ' ' << pump.y << ' ' << pump.width << ' ' << pump.height << ' ' << (pump.enabled ? 1 : 0) << ' ' << pump.direction.x << ' '
+             << pump.direction.y << ' ' << pump.strength << "\n";
     }
-    for (const auto& valve : document.valves)
+    for (const auto &valve : document.valves)
     {
-        file << "valve "
-             << valve.x << ' '
-             << valve.y << ' '
-             << (valve.open ? 1 : 0) << "\n";
+        file << "valve " << valve.x << ' ' << valve.y << ' ' << (valve.open ? 1 : 0) << "\n";
     }
 
     file.flush();
@@ -813,20 +798,17 @@ inline void apply_scene(
     return true;
 }
 
-[[nodiscard]] inline bool save_scene(const std::filesystem::path& path, const WaterSimulation2D& simulation)
+[[nodiscard]] inline bool save_scene(const std::filesystem::path &path, const WaterSimulation2D &simulation)
 {
     return save_scene(path, capture_scene(simulation));
 }
 
-[[nodiscard]] inline bool save_scene(
-    const std::filesystem::path& path,
-    const WaterSimulation2D& simulation,
-    SceneMetadata metadata)
+[[nodiscard]] inline bool save_scene(const std::filesystem::path &path, const WaterSimulation2D &simulation, SceneMetadata metadata)
 {
     return save_scene(path, capture_scene(simulation, std::move(metadata)));
 }
 
-[[nodiscard]] inline bool load_scene(const std::filesystem::path& path, WaterSimulation2D& simulation)
+[[nodiscard]] inline bool load_scene(const std::filesystem::path &path, WaterSimulation2D &simulation)
 {
     const auto document = load_scene(path);
     if (!document.has_value())
@@ -838,10 +820,7 @@ inline void apply_scene(
     return true;
 }
 
-[[nodiscard]] inline bool load_scene(
-    const std::filesystem::path& path,
-    WaterSimulation2D& simulation,
-    SceneMetadata* metadata_out)
+[[nodiscard]] inline bool load_scene(const std::filesystem::path &path, WaterSimulation2D &simulation, SceneMetadata *metadata_out)
 {
     const auto document = load_scene(path);
     if (!document.has_value())
@@ -858,12 +837,8 @@ inline void apply_scene(
     return true;
 }
 
-[[nodiscard]] inline bool load_scene(
-    const std::filesystem::path& path,
-    WaterSimulation2D& simulation,
-    SceneMetadata* metadata_out,
-    FluidSolverProfile fallback_profile,
-    std::optional<FluidSolverProfile> forced_profile = std::nullopt)
+[[nodiscard]] inline bool load_scene(const std::filesystem::path &path, WaterSimulation2D &simulation, SceneMetadata *metadata_out,
+                                     FluidSolverProfile fallback_profile, std::optional<FluidSolverProfile> forced_profile = std::nullopt)
 {
     const auto document = load_scene(path);
     if (!document.has_value())
