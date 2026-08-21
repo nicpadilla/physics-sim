@@ -40,6 +40,10 @@ jobs:
             .\scripts\check-hygiene.ps1
           }
           .\scripts\test-hygiene.ps1
+      - name: Usability evidence script test
+        if: hashFiles('scripts/test-usability-package.ps1') != ''
+        shell: pwsh
+        run: .\scripts\test-usability-package.ps1
       - name: Standard pull-request verification
         if: github.event_name == 'pull_request'
         shell: pwsh
