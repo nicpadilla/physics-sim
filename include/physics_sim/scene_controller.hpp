@@ -4,8 +4,8 @@
 #include <physics_sim/scene_document.hpp>
 #include <physics_sim/water_simulation.hpp>
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -35,16 +35,9 @@ enum class SceneTool
     }
 
     constexpr std::array<SceneTool, 10> order{
-        SceneTool::PointerWater,
-        SceneTool::PaintWall,
-        SceneTool::EraseWall,
-        SceneTool::DirectionalEmitter,
-        SceneTool::OmniEmitter,
-        SceneTool::Gate,
-        SceneTool::Sensor,
-        SceneTool::Drain,
-        SceneTool::Pump,
-        SceneTool::Valve,
+        SceneTool::PointerWater, SceneTool::PaintWall, SceneTool::EraseWall, SceneTool::DirectionalEmitter,
+        SceneTool::OmniEmitter,  SceneTool::Gate,      SceneTool::Sensor,    SceneTool::Drain,
+        SceneTool::Pump,         SceneTool::Valve,
     };
 
     std::size_t index = 0;
@@ -69,9 +62,8 @@ enum class SceneTool
 
 class SceneController
 {
-public:
-    explicit SceneController(WaterSimulation2D& simulation) noexcept
-        : simulation_(&simulation)
+  public:
+    explicit SceneController(WaterSimulation2D &simulation) noexcept : simulation_(&simulation)
     {
         sync_history();
     }
@@ -102,7 +94,7 @@ public:
         return selected_emitter_index_;
     }
 
-    [[nodiscard]] WaterEmitter* selected_fixture() noexcept
+    [[nodiscard]] WaterEmitter *selected_fixture() noexcept
     {
         if (simulation_ == nullptr || !selected_emitter_index_.has_value())
         {
@@ -118,7 +110,7 @@ public:
         return &simulation_->emitters()[index];
     }
 
-    [[nodiscard]] const WaterEmitter* selected_fixture() const noexcept
+    [[nodiscard]] const WaterEmitter *selected_fixture() const noexcept
     {
         if (simulation_ == nullptr || !selected_emitter_index_.has_value())
         {
@@ -159,21 +151,35 @@ public:
         return selected_valve_index_.has_value();
     }
 
-    [[nodiscard]] bool has_selected_drain() const noexcept { return selected_drain_index_.has_value(); }
-    [[nodiscard]] bool has_selected_pump() const noexcept { return selected_pump_index_.has_value(); }
-    [[nodiscard]] std::optional<std::size_t> selected_drain_index() const noexcept { return selected_drain_index_; }
-    [[nodiscard]] std::optional<std::size_t> selected_pump_index() const noexcept { return selected_pump_index_; }
-
-    [[nodiscard]] WaterDrain* selected_drain() noexcept
+    [[nodiscard]] bool has_selected_drain() const noexcept
     {
-        return simulation_ != nullptr && selected_drain_index_ && *selected_drain_index_ < simulation_->drains().size()
-            ? &simulation_->drains()[*selected_drain_index_] : nullptr;
+        return selected_drain_index_.has_value();
+    }
+    [[nodiscard]] bool has_selected_pump() const noexcept
+    {
+        return selected_pump_index_.has_value();
+    }
+    [[nodiscard]] std::optional<std::size_t> selected_drain_index() const noexcept
+    {
+        return selected_drain_index_;
+    }
+    [[nodiscard]] std::optional<std::size_t> selected_pump_index() const noexcept
+    {
+        return selected_pump_index_;
     }
 
-    [[nodiscard]] WaterPump* selected_pump() noexcept
+    [[nodiscard]] WaterDrain *selected_drain() noexcept
+    {
+        return simulation_ != nullptr && selected_drain_index_ && *selected_drain_index_ < simulation_->drains().size()
+                   ? &simulation_->drains()[*selected_drain_index_]
+                   : nullptr;
+    }
+
+    [[nodiscard]] WaterPump *selected_pump() noexcept
     {
         return simulation_ != nullptr && selected_pump_index_ && *selected_pump_index_ < simulation_->pumps().size()
-            ? &simulation_->pumps()[*selected_pump_index_] : nullptr;
+                   ? &simulation_->pumps()[*selected_pump_index_]
+                   : nullptr;
     }
 
     [[nodiscard]] std::optional<std::size_t> selected_gate_index() const noexcept
@@ -191,7 +197,7 @@ public:
         return selected_valve_index_;
     }
 
-    [[nodiscard]] WaterGate* selected_gate() noexcept
+    [[nodiscard]] WaterGate *selected_gate() noexcept
     {
         if (simulation_ == nullptr || !selected_gate_index_.has_value())
         {
@@ -207,7 +213,7 @@ public:
         return &simulation_->gates()[index];
     }
 
-    [[nodiscard]] const WaterGate* selected_gate() const noexcept
+    [[nodiscard]] const WaterGate *selected_gate() const noexcept
     {
         if (simulation_ == nullptr || !selected_gate_index_.has_value())
         {
@@ -223,7 +229,7 @@ public:
         return &simulation_->gates()[index];
     }
 
-    [[nodiscard]] WaterSensor* selected_sensor() noexcept
+    [[nodiscard]] WaterSensor *selected_sensor() noexcept
     {
         if (simulation_ == nullptr || !selected_sensor_index_.has_value())
         {
@@ -239,7 +245,7 @@ public:
         return &simulation_->sensors()[index];
     }
 
-    [[nodiscard]] const WaterSensor* selected_sensor() const noexcept
+    [[nodiscard]] const WaterSensor *selected_sensor() const noexcept
     {
         if (simulation_ == nullptr || !selected_sensor_index_.has_value())
         {
@@ -255,7 +261,7 @@ public:
         return &simulation_->sensors()[index];
     }
 
-    [[nodiscard]] WaterValve* selected_valve() noexcept
+    [[nodiscard]] WaterValve *selected_valve() noexcept
     {
         if (simulation_ == nullptr || !selected_valve_index_.has_value())
         {
@@ -271,7 +277,7 @@ public:
         return &simulation_->valves()[index];
     }
 
-    [[nodiscard]] const WaterValve* selected_valve() const noexcept
+    [[nodiscard]] const WaterValve *selected_valve() const noexcept
     {
         if (simulation_ == nullptr || !selected_valve_index_.has_value())
         {
@@ -328,14 +334,19 @@ public:
     [[nodiscard]] bool select_drain_at(Vec2 world_position) noexcept
     {
         selected_drain_index_.reset();
-        if (simulation_ == nullptr) return false;
+        if (simulation_ == nullptr)
+            return false;
         const float cell = simulation_->grid().cell_size();
         for (std::size_t i = 0; i < simulation_->drains().size(); ++i)
         {
-            const auto& item = simulation_->drains()[i];
-            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell
-                && world_position.y >= item.y * cell && world_position.y < (item.y + item.height) * cell)
-            { clear_selection(); selected_drain_index_ = i; return true; }
+            const auto &item = simulation_->drains()[i];
+            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell && world_position.y >= item.y * cell &&
+                world_position.y < (item.y + item.height) * cell)
+            {
+                clear_selection();
+                selected_drain_index_ = i;
+                return true;
+            }
         }
         return false;
     }
@@ -343,14 +354,19 @@ public:
     [[nodiscard]] bool select_pump_at(Vec2 world_position) noexcept
     {
         selected_pump_index_.reset();
-        if (simulation_ == nullptr) return false;
+        if (simulation_ == nullptr)
+            return false;
         const float cell = simulation_->grid().cell_size();
         for (std::size_t i = 0; i < simulation_->pumps().size(); ++i)
         {
-            const auto& item = simulation_->pumps()[i];
-            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell
-                && world_position.y >= item.y * cell && world_position.y < (item.y + item.height) * cell)
-            { clear_selection(); selected_pump_index_ = i; return true; }
+            const auto &item = simulation_->pumps()[i];
+            if (world_position.x >= item.x * cell && world_position.x < (item.x + item.width) * cell && world_position.y >= item.y * cell &&
+                world_position.y < (item.y + item.height) * cell)
+            {
+                clear_selection();
+                selected_pump_index_ = i;
+                return true;
+            }
         }
         return false;
     }
@@ -372,7 +388,7 @@ public:
 
         for (std::size_t i = 0; i < simulation_->gates().size(); ++i)
         {
-            const auto& gate = simulation_->gates()[i];
+            const auto &gate = simulation_->gates()[i];
             const float center_x = (static_cast<float>(gate.x) + 0.5f) * simulation_->grid().cell_size();
             const float center_y = (static_cast<float>(gate.y) + 0.5f) * simulation_->grid().cell_size();
             const float dx = center_x - world_position.x;
@@ -409,7 +425,7 @@ public:
         std::optional<std::size_t> best_index;
         for (std::size_t i = 0; i < simulation_->sensors().size(); ++i)
         {
-            const auto& sensor = simulation_->sensors()[i];
+            const auto &sensor = simulation_->sensors()[i];
             const float left = static_cast<float>(sensor.x) * simulation_->grid().cell_size();
             const float top = static_cast<float>(sensor.y) * simulation_->grid().cell_size();
             const float right = left + static_cast<float>(sensor.width) * simulation_->grid().cell_size();
@@ -445,7 +461,7 @@ public:
         std::optional<std::size_t> best_index;
         for (std::size_t i = 0; i < simulation_->valves().size(); ++i)
         {
-            const auto& valve = simulation_->valves()[i];
+            const auto &valve = simulation_->valves()[i];
             const float center_x = (static_cast<float>(valve.x) + 0.5f) * simulation_->grid().cell_size();
             const float center_y = (static_cast<float>(valve.y) + 0.5f) * simulation_->grid().cell_size();
             const float dx = center_x - world_position.x;
@@ -483,7 +499,7 @@ public:
 
         for (std::size_t i = 0; i < simulation_->emitters().size(); ++i)
         {
-            const auto& emitter = simulation_->emitters()[i];
+            const auto &emitter = simulation_->emitters()[i];
             const float dx = emitter.position.x - world_position.x;
             const float dy = emitter.position.y - world_position.y;
             const float distance_squared = dx * dx + dy * dy;
@@ -506,12 +522,13 @@ public:
 
     [[nodiscard]] bool set_selected_fixture_direction(Vec2 direction) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         const float direction_length = length(direction);
         selected->direction = direction_length > 0.0f ? direction / direction_length : Vec2{0.0f, 1.0f};
         record_history_snapshot();
@@ -520,12 +537,13 @@ public:
 
     [[nodiscard]] bool rotate_selected_fixture(float radians) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         const float c = std::cos(radians);
         const float s = std::sin(radians);
         const Vec2 rotated{
@@ -539,12 +557,13 @@ public:
 
     [[nodiscard]] bool move_selected_fixture(Vec2 delta) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         selected->position.x += delta.x;
         selected->position.y += delta.y;
         record_history_snapshot();
@@ -553,12 +572,13 @@ public:
 
     [[nodiscard]] bool set_selected_fixture_speed(float speed) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         selected->speed = std::max(0.0f, speed);
         record_history_snapshot();
         return true;
@@ -566,18 +586,19 @@ public:
 
     [[nodiscard]] bool adjust_selected_fixture_speed(float delta) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         return selected != nullptr && set_selected_fixture_speed(selected->speed + delta);
     }
 
     [[nodiscard]] bool set_selected_fixture_emission_rate(float rate) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         selected->emission_rate = std::max(0.0f, rate);
         record_history_snapshot();
         return true;
@@ -585,18 +606,19 @@ public:
 
     [[nodiscard]] bool adjust_selected_fixture_emission_rate(float delta) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         return selected != nullptr && set_selected_fixture_emission_rate(selected->emission_rate + delta);
     }
 
     [[nodiscard]] bool set_selected_fixture_enabled(bool enabled) noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         if (selected == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         selected->enabled = enabled;
         record_history_snapshot();
         return true;
@@ -604,7 +626,7 @@ public:
 
     [[nodiscard]] bool toggle_selected_fixture_enabled() noexcept
     {
-        auto* selected = selected_fixture();
+        auto *selected = selected_fixture();
         return selected != nullptr && set_selected_fixture_enabled(!selected->enabled);
     }
 
@@ -615,7 +637,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -645,7 +667,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -675,7 +697,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -702,7 +724,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -729,7 +751,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -756,7 +778,7 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (grid.width() == 0 || grid.height() == 0)
         {
             return false;
@@ -815,6 +837,7 @@ public:
             return;
         }
 
+        prepare_history_for_edit();
         stroke_active_ = true;
         stroke_previous_ = world_position;
         paint_segment(world_position, world_position);
@@ -850,6 +873,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         WaterEmitter emitter;
         emitter.position = world_position;
         emitter.direction = emitter_direction_;
@@ -893,7 +917,8 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        prepare_history_for_edit();
+        const auto &grid = simulation_->grid();
         const std::size_t cell_x = static_cast<std::size_t>(std::floor(world_position.x / grid.cell_size()));
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
@@ -913,7 +938,8 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        prepare_history_for_edit();
+        const auto &grid = simulation_->grid();
         const std::size_t cell_x = static_cast<std::size_t>(std::floor(world_position.x / grid.cell_size()));
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
@@ -934,7 +960,8 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        prepare_history_for_edit();
+        const auto &grid = simulation_->grid();
         const std::size_t cell_x = static_cast<std::size_t>(std::floor(world_position.x / grid.cell_size()));
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
@@ -952,7 +979,8 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        prepare_history_for_edit();
+        const auto &grid = simulation_->grid();
         const std::size_t cell_x = static_cast<std::size_t>(std::floor(world_position.x / grid.cell_size()));
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
@@ -970,7 +998,8 @@ public:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        prepare_history_for_edit();
+        const auto &grid = simulation_->grid();
         const std::size_t cell_x = static_cast<std::size_t>(std::floor(world_position.x / grid.cell_size()));
         const std::size_t cell_y = static_cast<std::size_t>(std::floor(world_position.y / grid.cell_size()));
 
@@ -997,6 +1026,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         simulation_->emitters().erase(simulation_->emitters().begin() + static_cast<std::ptrdiff_t>(selected_index));
         selected_emitter_index_.reset();
         record_history_snapshot();
@@ -1017,6 +1047,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         simulation_->set_solid_cell(simulation_->gates()[selected_index].x, simulation_->gates()[selected_index].y, false);
         simulation_->gates().erase(simulation_->gates().begin() + static_cast<std::ptrdiff_t>(selected_index));
         selected_gate_index_.reset();
@@ -1038,6 +1069,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         simulation_->sensors().erase(simulation_->sensors().begin() + static_cast<std::ptrdiff_t>(selected_index));
         selected_sensor_index_.reset();
         record_history_snapshot();
@@ -1058,6 +1090,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         simulation_->set_solid_cell(simulation_->valves()[selected_index].x, simulation_->valves()[selected_index].y, false);
         simulation_->valves().erase(simulation_->valves().begin() + static_cast<std::ptrdiff_t>(selected_index));
         selected_valve_index_.reset();
@@ -1067,7 +1100,11 @@ public:
 
     [[nodiscard]] bool delete_selected_drain() noexcept
     {
-        if (simulation_ == nullptr || !selected_drain_index_ || *selected_drain_index_ >= simulation_->drains().size()) return false;
+        if (simulation_ == nullptr || !selected_drain_index_ || *selected_drain_index_ >= simulation_->drains().size())
+        {
+            return false;
+        }
+        prepare_history_for_edit();
         simulation_->drains().erase(simulation_->drains().begin() + static_cast<std::ptrdiff_t>(*selected_drain_index_));
         selected_drain_index_.reset();
         record_history_snapshot();
@@ -1076,7 +1113,11 @@ public:
 
     [[nodiscard]] bool delete_selected_pump() noexcept
     {
-        if (simulation_ == nullptr || !selected_pump_index_ || *selected_pump_index_ >= simulation_->pumps().size()) return false;
+        if (simulation_ == nullptr || !selected_pump_index_ || *selected_pump_index_ >= simulation_->pumps().size())
+        {
+            return false;
+        }
+        prepare_history_for_edit();
         simulation_->pumps().erase(simulation_->pumps().begin() + static_cast<std::ptrdiff_t>(*selected_pump_index_));
         selected_pump_index_.reset();
         record_history_snapshot();
@@ -1085,41 +1126,79 @@ public:
 
     [[nodiscard]] bool toggle_selected_drain_enabled() noexcept
     {
-        auto* item = selected_drain(); if (item == nullptr) return false;
-        item->enabled = !item->enabled; record_history_snapshot(); return true;
+        auto *item = selected_drain();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        prepare_history_for_edit();
+        item->enabled = !item->enabled;
+        record_history_snapshot();
+        return true;
     }
 
     [[nodiscard]] bool toggle_selected_pump_enabled() noexcept
     {
-        auto* item = selected_pump(); if (item == nullptr) return false;
-        item->enabled = !item->enabled; record_history_snapshot(); return true;
+        auto *item = selected_pump();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        prepare_history_for_edit();
+        item->enabled = !item->enabled;
+        record_history_snapshot();
+        return true;
     }
 
     [[nodiscard]] bool rotate_selected_pump(float radians) noexcept
     {
-        auto* item = selected_pump(); if (item == nullptr) return false;
-        const float c = std::cos(radians), s = std::sin(radians);
+        auto *item = selected_pump();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        prepare_history_for_edit();
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
         item->direction = normalize(Vec2{item->direction.x * c - item->direction.y * s, item->direction.x * s + item->direction.y * c});
-        record_history_snapshot(); return true;
+        record_history_snapshot();
+        return true;
     }
 
     [[nodiscard]] bool set_selected_pump_direction(Vec2 direction) noexcept
     {
-        auto* item = selected_pump(); if (item == nullptr) return false;
+        auto *item = selected_pump();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        prepare_history_for_edit();
         item->direction = length(direction) > 0.0f ? normalize(direction) : Vec2{0.0f, 1.0f};
-        record_history_snapshot(); return true;
+        record_history_snapshot();
+        return true;
     }
 
     [[nodiscard]] bool set_selected_pump_strength(float strength) noexcept
     {
-        auto* item = selected_pump(); if (item == nullptr) return false;
-        item->strength = std::max(0.0f, strength); record_history_snapshot(); return true;
+        auto *item = selected_pump();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        prepare_history_for_edit();
+        item->strength = std::max(0.0f, strength);
+        record_history_snapshot();
+        return true;
     }
 
     [[nodiscard]] bool adjust_selected_pump_strength(float delta) noexcept
     {
-        auto* item = selected_pump(); if (item == nullptr) return false;
-        item->strength = std::max(0.0f, item->strength + delta); record_history_snapshot(); return true;
+        auto *item = selected_pump();
+        if (item == nullptr)
+        {
+            return false;
+        }
+        return set_selected_pump_strength(item->strength + delta);
     }
 
     [[nodiscard]] bool toggle_selected_gate_open() noexcept
@@ -1129,6 +1208,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         const bool toggled = simulation_->toggle_gate_open(*selected_gate_index_);
         if (toggled)
         {
@@ -1139,12 +1219,13 @@ public:
 
     [[nodiscard]] bool toggle_selected_sensor_enabled() noexcept
     {
-        auto* sensor = selected_sensor();
+        auto *sensor = selected_sensor();
         if (sensor == nullptr)
         {
             return false;
         }
 
+        prepare_history_for_edit();
         sensor->enabled = !sensor->enabled;
         if (!sensor->enabled)
         {
@@ -1165,6 +1246,7 @@ public:
             return false;
         }
 
+        prepare_history_for_edit();
         const bool toggled = simulation_->toggle_valve_open(*selected_valve_index_);
         if (toggled)
         {
@@ -1189,10 +1271,11 @@ public:
     {
         history_.clear();
         history_index_ = 0;
+        history_bytes_ = 0;
 
         if (simulation_ != nullptr)
         {
-            history_.push_back(capture_scene(*simulation_));
+            append_history_checkpoint(simulation_->capture_checkpoint());
         }
     }
 
@@ -1204,7 +1287,11 @@ public:
         }
 
         --history_index_;
-        restore_history_entry();
+        if (!restore_history_entry())
+        {
+            ++history_index_;
+            return false;
+        }
         return true;
     }
 
@@ -1216,11 +1303,36 @@ public:
         }
 
         ++history_index_;
-        restore_history_entry();
+        if (!restore_history_entry())
+        {
+            --history_index_;
+            return false;
+        }
         return true;
     }
 
-private:
+    [[nodiscard]] std::size_t history_size() const noexcept
+    {
+        return history_.size();
+    }
+    [[nodiscard]] std::size_t history_bytes() const noexcept
+    {
+        return history_bytes_;
+    }
+    [[nodiscard]] std::size_t history_index() const noexcept
+    {
+        return history_index_;
+    }
+    [[nodiscard]] static constexpr std::size_t maximum_history_entries() noexcept
+    {
+        return HistoryMaxEntries;
+    }
+    [[nodiscard]] static constexpr std::size_t maximum_history_bytes() noexcept
+    {
+        return HistoryMaxBytes;
+    }
+
+  private:
     [[nodiscard]] bool is_wall_tool() const noexcept
     {
         return tool_ == SceneTool::PaintWall || tool_ == SceneTool::EraseWall;
@@ -1263,14 +1375,14 @@ private:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (!grid.contains(x, y) || grid.solid(x, y))
         {
             return false;
         }
 
         const float cell_size = grid.cell_size();
-        for (const auto& emitter : simulation_->emitters())
+        for (const auto &emitter : simulation_->emitters())
         {
             const int emitter_x = static_cast<int>(std::floor(emitter.position.x / cell_size));
             const int emitter_y = static_cast<int>(std::floor(emitter.position.y / cell_size));
@@ -1280,7 +1392,7 @@ private:
             }
         }
 
-        for (const auto& gate : simulation_->gates())
+        for (const auto &gate : simulation_->gates())
         {
             if (gate.x == x && gate.y == y)
             {
@@ -1288,7 +1400,7 @@ private:
             }
         }
 
-        for (const auto& valve : simulation_->valves())
+        for (const auto &valve : simulation_->valves())
         {
             if (valve.x == x && valve.y == y)
             {
@@ -1297,11 +1409,9 @@ private:
         }
 
         const auto overlaps_rect = [x, y](std::size_t left, std::size_t top, std::size_t width, std::size_t height) noexcept
-        {
-            return x >= left && x < left + width && y >= top && y < top + height;
-        };
+        { return x >= left && x < left + width && y >= top && y < top + height; };
 
-        for (const auto& sensor : simulation_->sensors())
+        for (const auto &sensor : simulation_->sensors())
         {
             if (overlaps_rect(sensor.x, sensor.y, sensor.width, sensor.height))
             {
@@ -1309,7 +1419,7 @@ private:
             }
         }
 
-        for (const auto& drain : simulation_->drains())
+        for (const auto &drain : simulation_->drains())
         {
             if (overlaps_rect(drain.x, drain.y, drain.width, drain.height))
             {
@@ -1317,7 +1427,7 @@ private:
             }
         }
 
-        for (const auto& pump : simulation_->pumps())
+        for (const auto &pump : simulation_->pumps())
         {
             if (overlaps_rect(pump.x, pump.y, pump.width, pump.height))
             {
@@ -1335,7 +1445,7 @@ private:
             return false;
         }
 
-        const auto& grid = simulation_->grid();
+        const auto &grid = simulation_->grid();
         if (left + width > grid.width() || top + height > grid.height())
         {
             return false;
@@ -1365,42 +1475,102 @@ private:
         simulation_->paint_wall_line(start, end, tool_ == SceneTool::PaintWall);
     }
 
-    void record_history_snapshot() noexcept
+    struct HistoryEntry
+    {
+        WaterSimulationCheckpoint checkpoint{};
+        std::size_t bytes = 0;
+    };
+
+    static constexpr std::size_t HistoryMaxEntries = 64;
+    static constexpr std::size_t HistoryMaxBytes = 64U * 1024U * 1024U;
+
+    void remove_redo_history() noexcept
+    {
+        if (history_index_ + 1 >= history_.size())
+        {
+            return;
+        }
+        for (std::size_t index = history_index_ + 1; index < history_.size(); ++index)
+        {
+            history_bytes_ -= history_[index].bytes;
+        }
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(history_index_ + 1), history_.end());
+    }
+
+    void enforce_history_limits() noexcept
+    {
+        while (history_.size() > 1 && (history_.size() > HistoryMaxEntries || history_bytes_ > HistoryMaxBytes))
+        {
+            history_bytes_ -= history_.front().bytes;
+            history_.erase(history_.begin());
+            if (history_index_ > 0)
+            {
+                --history_index_;
+            }
+        }
+    }
+
+    void append_history_checkpoint(WaterSimulationCheckpoint checkpoint) noexcept
+    {
+        const std::size_t bytes = checkpoint.estimated_bytes();
+        history_.push_back(HistoryEntry{std::move(checkpoint), bytes});
+        history_bytes_ += bytes;
+        history_index_ = history_.size() - 1;
+        enforce_history_limits();
+    }
+
+    void prepare_history_for_edit() noexcept
     {
         if (simulation_ == nullptr)
         {
             return;
         }
-
         if (history_.empty())
         {
             sync_history();
             return;
         }
 
-        if (history_index_ + 1 < history_.size())
-        {
-            history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(history_index_ + 1), history_.end());
-        }
-
-        history_.push_back(capture_scene(*simulation_));
-        history_index_ = history_.size() - 1;
+        remove_redo_history();
+        WaterSimulationCheckpoint checkpoint = simulation_->capture_checkpoint();
+        const std::size_t bytes = checkpoint.estimated_bytes();
+        history_bytes_ -= history_[history_index_].bytes;
+        history_[history_index_] = HistoryEntry{std::move(checkpoint), bytes};
+        history_bytes_ += bytes;
+        enforce_history_limits();
     }
 
-    void restore_history_entry() noexcept
+    void record_history_snapshot() noexcept
     {
-        if (simulation_ == nullptr || history_.empty() || history_index_ >= history_.size())
+        if (simulation_ == nullptr)
         {
             return;
         }
+        if (history_.empty())
+        {
+            sync_history();
+            return;
+        }
 
-        const SceneDocument& document = history_[history_index_];
-        apply_scene(document, *simulation_);
-
-        clear_selection();
+        remove_redo_history();
+        append_history_checkpoint(simulation_->capture_checkpoint());
     }
 
-    WaterSimulation2D* simulation_ = nullptr;
+    [[nodiscard]] bool restore_history_entry() noexcept
+    {
+        if (simulation_ == nullptr || history_.empty() || history_index_ >= history_.size())
+        {
+            return false;
+        }
+        if (!simulation_->restore_checkpoint(history_[history_index_].checkpoint))
+        {
+            return false;
+        }
+        clear_selection();
+        return true;
+    }
+
+    WaterSimulation2D *simulation_ = nullptr;
     SceneTool tool_ = SceneTool::PointerWater;
     bool stroke_active_ = false;
     Vec2 stroke_previous_{};
@@ -1413,7 +1583,8 @@ private:
     std::optional<std::size_t> selected_valve_index_{};
     std::optional<std::size_t> selected_drain_index_{};
     std::optional<std::size_t> selected_pump_index_{};
-    std::vector<SceneDocument> history_{};
+    std::vector<HistoryEntry> history_{};
     std::size_t history_index_ = 0;
+    std::size_t history_bytes_ = 0;
 };
 } // namespace physics_sim
