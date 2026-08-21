@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildDir = Join-Path $repoRoot 'build\windows-x64'
 $log = Join-Path $buildDir 'verification-bundle.log'
+$version = (Get-Content -LiteralPath (Join-Path $repoRoot 'VERSION.txt') -Raw).Trim()
+$packageRoot = Join-Path $repoRoot "dist\physics-sim-$version-windows-x64"
 
 function Write-BundleLog
 {
@@ -49,7 +51,7 @@ $steps = @(
     @{ Name = 'build'; Script = (Join-Path $PSScriptRoot 'build.ps1') },
     @{ Name = 'tests'; Script = (Join-Path $PSScriptRoot 'test.ps1'); Arguments = @{ Tier = 'Full' } },
     @{ Name = 'release package'; Script = (Join-Path $PSScriptRoot 'package-release.ps1'); Arguments = @{ SkipBuild = $true } },
-    @{ Name = 'packaged integrated acceptance'; Script = (Join-Path $PSScriptRoot 'verify-packaged-acceptance.ps1'); Arguments = @{ PackageRoot = (Join-Path $repoRoot 'dist\physics-sim-0.2.0-alpha.2-windows-x64') } }
+    @{ Name = 'packaged integrated acceptance'; Script = (Join-Path $PSScriptRoot 'verify-packaged-acceptance.ps1'); Arguments = @{ PackageRoot = $packageRoot } }
 )
 
 foreach ($step in $steps)
