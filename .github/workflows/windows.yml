@@ -1,3 +1,4 @@
+# Re-run after dynamic packaged-acceptance path fix.
 name: Full version and package verification
 
 on:
